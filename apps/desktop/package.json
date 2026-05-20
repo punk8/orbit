@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@orbit/adapters": "workspace:*",
+    "@orbit/ai": "workspace:*",
     "@orbit/core": "workspace:*",
     "@orbit/db": "workspace:*",
     "@orbit/ui": "workspace:*",

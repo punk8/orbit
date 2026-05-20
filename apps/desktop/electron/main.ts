@@ -153,12 +153,20 @@ function requireSettingKey(
   | "desktop.launchAtLoginEnabled"
   | "desktop.language"
   | "storage.configuredDatabasePath"
+  | "ai.providerKind"
+  | "ai.baseUrl"
+  | "ai.model"
+  | "ai.apiKey"
   | "sources.setupCompleted" {
   if (
     key === "desktop.menuBarEnabled" ||
     key === "desktop.launchAtLoginEnabled" ||
     key === "desktop.language" ||
     key === "storage.configuredDatabasePath" ||
+    key === "ai.providerKind" ||
+    key === "ai.baseUrl" ||
+    key === "ai.model" ||
+    key === "ai.apiKey" ||
     key === "sources.setupCompleted"
   ) {
     return key;

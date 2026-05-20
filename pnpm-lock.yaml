@@ -57,6 +57,9 @@ importers:
       '@orbit/adapters':
         specifier: workspace:*
         version: link:../../packages/adapters
+      '@orbit/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
       '@orbit/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -69,6 +72,9 @@ importers:
       '@orbit/adapters':
         specifier: workspace:*
         version: link:../../packages/adapters
+      '@orbit/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
       '@orbit/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -121,12 +127,19 @@ importers:
 
   packages/agent-api: {}
 
-  packages/ai: {}
+  packages/ai:
+    dependencies:
+      '@orbit/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/core: {}
 
   packages/db:
     dependencies:
+      '@orbit/ai':
+        specifier: workspace:*
+        version: link:../ai
       '@orbit/core':
         specifier: workspace:*
         version: link:../core

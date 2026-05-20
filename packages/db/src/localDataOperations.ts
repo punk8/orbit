@@ -9,7 +9,12 @@ import { KnowledgeRepository } from "./repositories/knowledgeRepository";
 import { MemoryRepository } from "./repositories/memoryRepository";
 import { RecommendationRepository } from "./repositories/recommendationRepository";
 import { SourceRepository } from "./repositories/sourceRepository";
-import { runSemanticPipeline, type SemanticPipelineResult } from "./semanticPipeline";
+import {
+  runSemanticPipeline,
+  runSemanticPipelineWithProvider,
+  type SemanticPipelineOptions,
+  type SemanticPipelineResult
+} from "./semanticPipeline";
 
 export interface ReindexResult {
   pipeline: SemanticPipelineResult;
@@ -28,6 +33,18 @@ export function reindexLocalData(database: OrbitDatabase): ReindexResult {
   const pipeline = runSemanticPipeline(database);
   new AuditRepository(database.db).log("local_data.reindex", "database", undefined, {
     pipeline
+  });
+  return { pipeline };
+}
+
+export async function reindexLocalDataWithProvider(
+  database: OrbitDatabase,
+  options: SemanticPipelineOptions = {}
+): Promise<ReindexResult> {
+  const pipeline = await runSemanticPipelineWithProvider(database, options);
+  new AuditRepository(database.db).log("local_data.reindex", "database", undefined, {
+    pipeline,
+    aiProvider: options.aiProvider?.id ?? "disabled"
   });
   return { pipeline };
 }

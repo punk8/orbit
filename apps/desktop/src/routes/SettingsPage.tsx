@@ -1,6 +1,11 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
-import type { DesktopLanguage, DesktopSettingKey, DesktopSnapshot } from "../orbitApi";
+import type {
+  DesktopAIProviderKind,
+  DesktopLanguage,
+  DesktopSettingKey,
+  DesktopSnapshot
+} from "../orbitApi";
 import { Section } from "../components/Section";
 import { useI18n } from "../i18n";
 
@@ -21,6 +26,21 @@ export function SettingsPage({
   const [databasePath, setDatabasePath] = useState(
     snapshot.settings.configuredDatabasePath ?? snapshot.dbPath
   );
+  const [aiProviderKind, setAiProviderKind] = useState<DesktopAIProviderKind>(
+    snapshot.settings.aiProvider as DesktopAIProviderKind
+  );
+  const [aiBaseUrl, setAiBaseUrl] = useState(snapshot.settings.aiBaseUrl ?? "");
+  const [aiModel, setAiModel] = useState(snapshot.settings.aiModel ?? "");
+  const [aiApiKey, setAiApiKey] = useState("");
+  const saveAiProvider = async (): Promise<void> => {
+    await onUpdateSetting("ai.providerKind", aiProviderKind);
+    await onUpdateSetting("ai.baseUrl", aiBaseUrl);
+    await onUpdateSetting("ai.model", aiModel);
+    if (aiApiKey.trim() || !snapshot.settings.aiApiKeyConfigured) {
+      await onUpdateSetting("ai.apiKey", aiApiKey);
+      setAiApiKey("");
+    }
+  };
 
   return (
     <div className="page-grid">
@@ -132,24 +152,85 @@ export function SettingsPage({
       </Section>
 
       <Section title={t("section.aiVisual")}>
-        <dl className="settings-grid">
-          <div>
-            <dt>{t("settings.aiProvider")}</dt>
-            <dd>{snapshot.settings.aiProvider}</dd>
-          </div>
-          <div>
-            <dt>{t("settings.externalActions")}</dt>
-            <dd>
-              {snapshot.settings.externalActionsEnabled ? t("state.enabled") : t("state.disabled")}
-            </dd>
-          </div>
-          <div>
-            <dt>{t("settings.visualContext")}</dt>
-            <dd>
-              {snapshot.settings.visualContextEnabled ? t("state.enabled") : t("state.disabled")}
-            </dd>
-          </div>
-        </dl>
+        <div className="settings-panel">
+          <dl className="settings-grid">
+            <div>
+              <dt>{t("settings.aiProvider")}</dt>
+              <dd>
+                <select
+                  className="select-input"
+                  onChange={(event) =>
+                    setAiProviderKind(event.currentTarget.value as DesktopAIProviderKind)
+                  }
+                  value={aiProviderKind}
+                >
+                  <option value="disabled">{t("provider.disabled")}</option>
+                  <option value="mock">{t("provider.mock")}</option>
+                  <option value="openai-compatible">{t("provider.openaiCompatible")}</option>
+                </select>
+              </dd>
+            </div>
+            <div>
+              <dt>{t("settings.aiBaseUrl")}</dt>
+              <dd>
+                <input
+                  className="text-input"
+                  disabled={aiProviderKind !== "openai-compatible"}
+                  onChange={(event) => setAiBaseUrl(event.currentTarget.value)}
+                  placeholder="https://api.openai.com/v1"
+                  value={aiBaseUrl}
+                />
+              </dd>
+            </div>
+            <div>
+              <dt>{t("settings.aiModel")}</dt>
+              <dd>
+                <input
+                  className="text-input"
+                  disabled={aiProviderKind !== "openai-compatible"}
+                  onChange={(event) => setAiModel(event.currentTarget.value)}
+                  placeholder="gpt-4o-mini"
+                  value={aiModel}
+                />
+              </dd>
+            </div>
+            <div>
+              <dt>{t("settings.aiApiKey")}</dt>
+              <dd>
+                <input
+                  className="text-input"
+                  disabled={aiProviderKind !== "openai-compatible"}
+                  onChange={(event) => setAiApiKey(event.currentTarget.value)}
+                  placeholder={
+                    snapshot.settings.aiApiKeyConfigured
+                      ? t("settings.aiApiKeyPlaceholderConfigured")
+                      : t("settings.aiApiKeyPlaceholder")
+                  }
+                  type="password"
+                  value={aiApiKey}
+                />
+              </dd>
+            </div>
+            <div>
+              <dt>{t("settings.externalActions")}</dt>
+              <dd>
+                {snapshot.settings.externalActionsEnabled
+                  ? t("state.enabled")
+                  : t("state.disabled")}
+              </dd>
+            </div>
+            <div>
+              <dt>{t("settings.visualContext")}</dt>
+              <dd>
+                {snapshot.settings.visualContextEnabled ? t("state.enabled") : t("state.disabled")}
+              </dd>
+            </div>
+          </dl>
+          <button className="secondary-button" onClick={() => void saveAiProvider()} type="button">
+            {t("action.saveAiProvider")}
+          </button>
+          <p className="muted">{t("settings.aiProviderNote")}</p>
+        </div>
       </Section>
     </div>
   );

@@ -26,7 +26,9 @@ import {
 } from "./commands/readModels";
 import { runSemanticPipeline } from "./commands/semanticPipeline";
 import { getStatus } from "./commands/status";
+import { buildAIProvider, isAIProviderConfigured, readAIProviderConfigFromEnv } from "@orbit/ai";
 import { openOrbitDatabase } from "@orbit/db";
+import { runSemanticPipelineWithProvider } from "@orbit/db";
 import { getCliConfig } from "./config";
 import { writeOutput } from "./output";
 
@@ -85,12 +87,19 @@ export function buildProgram(): Command {
   pipeline
     .command("run")
     .description("Build Activity, Knowledge, Memory, and Recommendation records from stored Events")
+    .option("--ai", "force configured AI provider for Knowledge drafting")
     .option("--json", "output JSON")
-    .action((options: { json?: boolean }) => {
+    .action(async (options: { ai?: boolean; json?: boolean }) => {
       const config = getCliConfig();
       const database = openOrbitDatabase({ orbitHome: config.orbitHome });
       try {
-        const result = runSemanticPipeline(database);
+        const providerConfig = readAIProviderConfigFromEnv();
+        const useProvider = Boolean(options.ai) || isAIProviderConfigured(providerConfig);
+        const result = useProvider
+          ? await runSemanticPipelineWithProvider(database, {
+              aiProvider: buildAIProvider(providerConfig)
+            })
+          : runSemanticPipeline(database);
         writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
       } finally {
         database.close();

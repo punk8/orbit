@@ -1,6 +1,12 @@
 import { buildTodayContext, getLocalDateKey, ingestEventsFromAdapter } from "@orbit/core";
 import { CodexAdapter, FixtureAdapter, LocalAgentAdapter, SeaTalkAdapter } from "@orbit/adapters";
 import {
+  buildAIProvider,
+  type AIProvider,
+  type AIProviderConfig,
+  type AIProviderKind
+} from "@orbit/ai";
+import {
   ActivityRepository,
   clearLocalData,
   EventRepository,
@@ -8,7 +14,7 @@ import {
   KnowledgeRepository,
   MemoryRepository,
   openOrbitDatabase,
-  reindexLocalData,
+  reindexLocalDataWithProvider,
   RecommendationRepository,
   SettingsRepository,
   SourceRepository,
@@ -17,6 +23,7 @@ import {
   reviewRecommendation,
   writeOrbitRuntimeConfig
 } from "@orbit/db";
+import { safeStorage } from "electron";
 import type {
   KnowledgeReviewAction,
   MemoryReviewAction,
@@ -35,6 +42,11 @@ const SETTING_KEYS = {
   launchAtLoginEnabled: "desktop.launchAtLoginEnabled",
   language: "desktop.language",
   configuredDatabasePath: "storage.configuredDatabasePath",
+  aiProviderKind: "ai.providerKind",
+  aiBaseUrl: "ai.baseUrl",
+  aiModel: "ai.model",
+  aiApiKey: "ai.apiKey",
+  aiApiKeyCiphertext: "ai.apiKeyCiphertext",
   sourceSetupCompleted: "sources.setupCompleted"
 } as const;
 
@@ -148,6 +160,12 @@ export function updateSettingForDesktop(key: DesktopSettingKey, value: unknown):
       const configuredDatabasePath = String(value ?? "").trim();
       settings.set(key, configuredDatabasePath);
       writeOrbitRuntimeConfig(database.orbitHome, { configuredDatabasePath });
+    } else if (key === SETTING_KEYS.aiProviderKind) {
+      settings.set(key, readAIProviderKind(String(value ?? "disabled")));
+    } else if (key === SETTING_KEYS.aiBaseUrl || key === SETTING_KEYS.aiModel) {
+      settings.set(key, String(value ?? "").trim());
+    } else if (key === SETTING_KEYS.aiApiKey) {
+      settings.set(SETTING_KEYS.aiApiKeyCiphertext, encryptApiKey(String(value ?? "")));
     } else if (key === SETTING_KEYS.sourceSetupCompleted) {
       settings.set(key, Boolean(value));
     } else {
@@ -176,7 +194,12 @@ export async function setupSourceForDesktop(
       sourceRepository.setCursor(adapter.id, result.nextCursor);
       results.push(result);
     }
-    const pipeline = reindexLocalData(database).pipeline;
+    const pipeline = (
+      await reindexLocalDataWithProvider(
+        database,
+        buildDesktopPipelineOptions(new SettingsRepository(database.db))
+      )
+    ).pipeline;
     new SettingsRepository(database.db).set(SETTING_KEYS.sourceSetupCompleted, true);
     return {
       snapshot: readDesktopSnapshot(),
@@ -191,10 +214,13 @@ export async function setupSourceForDesktop(
   }
 }
 
-export function reindexForDesktop(): DesktopActionResult {
+export async function reindexForDesktop(): Promise<DesktopActionResult> {
   const database = openOrbitDatabase();
   try {
-    const result = reindexLocalData(database);
+    const result = await reindexLocalDataWithProvider(
+      database,
+      buildDesktopPipelineOptions(new SettingsRepository(database.db))
+    );
     return {
       snapshot: readDesktopSnapshot(),
       message: `Re-indexed ${result.pipeline.events} events into ${result.pipeline.activitySessions.total} activity sessions`
@@ -234,9 +260,14 @@ export function exportContextForDesktop(): DesktopActionResult {
 
 function readSettings(settings: SettingsRepository): DesktopSnapshot["settings"] {
   const configuredDatabasePath = settings.get<string>(SETTING_KEYS.configuredDatabasePath);
+  const aiProvider = readAIProviderKind(settings.get<string>(SETTING_KEYS.aiProviderKind));
+  const aiBaseUrl = settings.get<string>(SETTING_KEYS.aiBaseUrl);
+  const aiModel = settings.get<string>(SETTING_KEYS.aiModel);
+  const aiApiKeyCiphertext = settings.get<string>(SETTING_KEYS.aiApiKeyCiphertext);
   const snapshotSettings: DesktopSnapshot["settings"] = {
     localOnly: true,
-    aiProvider: "mock_provider",
+    aiProvider,
+    aiApiKeyConfigured: Boolean(aiApiKeyCiphertext),
     externalActionsEnabled: false,
     visualContextEnabled: false,
     menuBarEnabled: settings.get<boolean>(SETTING_KEYS.menuBarEnabled) ?? true,
@@ -247,11 +278,62 @@ function readSettings(settings: SettingsRepository): DesktopSnapshot["settings"]
   if (configuredDatabasePath) {
     snapshotSettings.configuredDatabasePath = configuredDatabasePath;
   }
+  if (aiBaseUrl) {
+    snapshotSettings.aiBaseUrl = aiBaseUrl;
+  }
+  if (aiModel) {
+    snapshotSettings.aiModel = aiModel;
+  }
   return snapshotSettings;
 }
 
 function readLanguageSetting(value: string | undefined): "system" | "en" | "zh-CN" {
   return value === "en" || value === "zh-CN" ? value : "system";
+}
+
+function buildDesktopAIProvider(settings: SettingsRepository): AIProvider | undefined {
+  const kind = readAIProviderKind(settings.get<string>(SETTING_KEYS.aiProviderKind));
+  if (kind === "disabled") return undefined;
+  const config: AIProviderConfig = { kind };
+  if (kind === "openai-compatible") {
+    const baseUrl = settings.get<string>(SETTING_KEYS.aiBaseUrl);
+    const model = settings.get<string>(SETTING_KEYS.aiModel);
+    const apiKey = decryptApiKey(settings.get<string>(SETTING_KEYS.aiApiKeyCiphertext));
+    if (!baseUrl || !model) return undefined;
+    if (baseUrl) config.baseUrl = baseUrl;
+    if (model) config.model = model;
+    if (apiKey) config.apiKey = apiKey;
+  }
+  return buildAIProvider(config);
+}
+
+function buildDesktopPipelineOptions(settings: SettingsRepository): { aiProvider?: AIProvider } {
+  const aiProvider = buildDesktopAIProvider(settings);
+  return aiProvider ? { aiProvider } : {};
+}
+
+function readAIProviderKind(value: string | undefined): AIProviderKind {
+  if (value === "mock" || value === "openai-compatible") return value;
+  return "disabled";
+}
+
+function encryptApiKey(value: string): string {
+  const apiKey = value.trim();
+  if (!apiKey) return "";
+  if (!safeStorage.isEncryptionAvailable()) {
+    throw new Error("OS encryption is unavailable; API key was not saved.");
+  }
+  return safeStorage.encryptString(apiKey).toString("base64");
+}
+
+function decryptApiKey(ciphertext: string | undefined): string | undefined {
+  if (!ciphertext) return undefined;
+  if (!safeStorage.isEncryptionAvailable()) return undefined;
+  try {
+    return safeStorage.decryptString(Buffer.from(ciphertext, "base64"));
+  } catch {
+    return undefined;
+  }
 }
 
 function buildSourceSetupAdapters(kind: SourceSetupKind, path?: string) {

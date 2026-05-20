@@ -33,6 +33,9 @@ export interface DesktopSnapshot {
   settings: {
     localOnly: boolean;
     aiProvider: string;
+    aiBaseUrl?: string;
+    aiModel?: string;
+    aiApiKeyConfigured: boolean;
     externalActionsEnabled: boolean;
     visualContextEnabled: boolean;
     menuBarEnabled: boolean;
@@ -48,9 +51,15 @@ export type DesktopSettingKey =
   | "desktop.launchAtLoginEnabled"
   | "desktop.language"
   | "storage.configuredDatabasePath"
+  | "ai.providerKind"
+  | "ai.baseUrl"
+  | "ai.model"
+  | "ai.apiKey"
   | "sources.setupCompleted";
 
 export type DesktopLanguage = "system" | "en" | "zh-CN";
+
+export type DesktopAIProviderKind = "disabled" | "mock" | "openai-compatible";
 
 export type SourceSetupKind = "fixtures" | "codex" | "local_agent" | "seatalk";
 

@@ -79,7 +79,7 @@ Implemented:
 
 Out of scope / not implemented yet:
 
-- Real LLM provider.
+- API-based LLM provider for `draftKnowledge` via OpenAI-compatible `/v1/chat/completions`.
 - Real embedding provider.
 - Real SeaTalk API integration.
 - Screen sampling / visual context input.
@@ -166,6 +166,12 @@ mock
 openai-compatible
 ```
 
+Endpoint decision:
+
+- `openai-compatible` means the OpenAI Chat Completions shape first: `POST /v1/chat/completions`.
+- User-provided base URLs may be a root URL, a `/v1` URL, or a full `/v1/chat/completions` endpoint; Orbit normalizes them internally.
+- Responses API support can be added later as a separate endpoint kind if Orbit needs OpenAI-native agentic/tool features.
+
 Do not use Codex auth as Orbit's LLM credential source.
 
 Reason:
@@ -214,12 +220,12 @@ Minimum settings:
 - provider kind: `disabled | mock | openai-compatible`
 - base URL
 - model
-- API key reference
+- API key reference or encrypted desktop key
 
 Security expectation:
 
 - API key should not be stored in SQLite plaintext.
-- Prefer OS Keychain for desktop.
+- Desktop stores the API key as an OS-encrypted ciphertext via Electron `safeStorage`.
 - For CLI development, allow env var fallback:
 
 ```bash
@@ -229,7 +235,7 @@ ORBIT_OPENAI_MODEL=<model>
 ORBIT_OPENAI_API_KEY=<key>
 ```
 
-Desktop settings can start by showing provider fields, but avoid persisting plaintext API keys.
+Desktop settings expose provider kind, base URL, model, and API key entry without exposing the saved key back to the renderer.
 
 ### Prompt Contract
 
@@ -315,8 +321,10 @@ pnpm typecheck
 pnpm lint
 pnpm --filter @orbit/cli orbit ingest fixtures --json
 pnpm --filter @orbit/cli orbit pipeline run --json
+ORBIT_AI_PROVIDER=mock pnpm --filter @orbit/cli orbit pipeline run --ai --json
 pnpm --filter @orbit/desktop build
 pnpm --filter @orbit/desktop test:e2e
+pnpm --filter @orbit/desktop package:dir
 ```
 
 Optional manual provider smoke:
