@@ -159,6 +159,9 @@ function requireSettingKey(
   | "ai.baseUrl"
   | "ai.model"
   | "ai.apiKey"
+  | "ai.maxTokens"
+  | "ai.testMaxTokens"
+  | "ai.tokenLimitParameter"
   | "sources.setupCompleted" {
   if (
     key === "desktop.menuBarEnabled" ||
@@ -169,6 +172,9 @@ function requireSettingKey(
     key === "ai.baseUrl" ||
     key === "ai.model" ||
     key === "ai.apiKey" ||
+    key === "ai.maxTokens" ||
+    key === "ai.testMaxTokens" ||
+    key === "ai.tokenLimitParameter" ||
     key === "sources.setupCompleted"
   ) {
     return key;

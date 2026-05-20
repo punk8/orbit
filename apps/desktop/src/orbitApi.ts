@@ -35,6 +35,9 @@ export interface DesktopSnapshot {
     aiProvider: string;
     aiBaseUrl?: string;
     aiModel?: string;
+    aiMaxTokens: number;
+    aiTestMaxTokens: number;
+    aiTokenLimitParameter: DesktopOpenAITokenLimitParameter;
     aiApiKeyConfigured: boolean;
     externalActionsEnabled: boolean;
     visualContextEnabled: boolean;
@@ -55,11 +58,15 @@ export type DesktopSettingKey =
   | "ai.baseUrl"
   | "ai.model"
   | "ai.apiKey"
+  | "ai.maxTokens"
+  | "ai.testMaxTokens"
+  | "ai.tokenLimitParameter"
   | "sources.setupCompleted";
 
 export type DesktopLanguage = "system" | "en" | "zh-CN";
 
 export type DesktopAIProviderKind = "disabled" | "mock" | "openai-compatible";
+export type DesktopOpenAITokenLimitParameter = "max_tokens" | "max_completion_tokens";
 
 export type SourceSetupKind = "fixtures" | "codex" | "local_agent" | "seatalk";
 
@@ -68,6 +75,9 @@ export interface DesktopAIProviderTestConfig {
   baseUrl?: string;
   model?: string;
   apiKey?: string;
+  maxTokens?: number | string;
+  testMaxTokens?: number | string;
+  tokenLimitParameter?: DesktopOpenAITokenLimitParameter;
 }
 
 export interface DesktopAIProviderTestResult {

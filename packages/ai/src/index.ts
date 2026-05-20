@@ -1,6 +1,12 @@
 import type { ActivitySession, Event, ID } from "@orbit/core";
 
 export type AIProviderKind = "disabled" | "mock" | "openai-compatible";
+export type OpenAICompatibleTokenLimitParameter = "max_tokens" | "max_completion_tokens";
+
+export const DEFAULT_OPENAI_COMPATIBLE_MAX_TOKENS = 1200;
+export const DEFAULT_OPENAI_COMPATIBLE_TEST_MAX_TOKENS = 256;
+export const DEFAULT_OPENAI_COMPATIBLE_TOKEN_LIMIT_PARAMETER: OpenAICompatibleTokenLimitParameter =
+  "max_tokens";
 
 export interface AiProviderStatus {
   enabled: boolean;
@@ -46,6 +52,8 @@ export interface AIProviderConfig {
   apiKey?: string;
   timeoutMs?: number;
   maxTokens?: number;
+  testMaxTokens?: number;
+  tokenLimitParameter?: OpenAICompatibleTokenLimitParameter;
 }
 
 export interface AIProviderConnectionTestResult {
@@ -63,6 +71,8 @@ export interface OpenAICompatibleProviderConfig {
   apiKey?: string;
   timeoutMs?: number;
   maxTokens?: number;
+  testMaxTokens?: number;
+  tokenLimitParameter?: OpenAICompatibleTokenLimitParameter;
 }
 
 export class AIProviderError extends Error {
@@ -128,6 +138,10 @@ export function buildAIProvider(config: AIProviderConfig): AIProvider {
   if (config.apiKey !== undefined) providerConfig.apiKey = config.apiKey;
   if (config.timeoutMs !== undefined) providerConfig.timeoutMs = config.timeoutMs;
   if (config.maxTokens !== undefined) providerConfig.maxTokens = config.maxTokens;
+  if (config.testMaxTokens !== undefined) providerConfig.testMaxTokens = config.testMaxTokens;
+  if (config.tokenLimitParameter !== undefined) {
+    providerConfig.tokenLimitParameter = config.tokenLimitParameter;
+  }
   return createOpenAICompatibleProvider(providerConfig);
 }
 
@@ -146,6 +160,15 @@ export function readAIProviderConfigFromEnv(
   if (env.ORBIT_OPENAI_MAX_TOKENS) {
     const maxTokens = Number(env.ORBIT_OPENAI_MAX_TOKENS);
     if (Number.isFinite(maxTokens) && maxTokens > 0) config.maxTokens = maxTokens;
+  }
+  if (env.ORBIT_OPENAI_TEST_MAX_TOKENS) {
+    const testMaxTokens = Number(env.ORBIT_OPENAI_TEST_MAX_TOKENS);
+    if (Number.isFinite(testMaxTokens) && testMaxTokens > 0) config.testMaxTokens = testMaxTokens;
+  }
+  if (env.ORBIT_OPENAI_TOKEN_LIMIT_PARAMETER) {
+    config.tokenLimitParameter = readOpenAICompatibleTokenLimitParameter(
+      env.ORBIT_OPENAI_TOKEN_LIMIT_PARAMETER
+    );
   }
   return config;
 }
@@ -177,7 +200,11 @@ export async function testAIProviderConnection(
   }
 
   const endpoint = normalizeChatCompletionsUrl(config.baseUrl);
-  const payload = buildConnectionTestPayload(config.model.trim());
+  const payload = buildConnectionTestPayload(
+    config.model.trim(),
+    readPositiveInteger(config.testMaxTokens, DEFAULT_OPENAI_COMPATIBLE_TEST_MAX_TOKENS),
+    readOpenAICompatibleTokenLimitParameter(config.tokenLimitParameter)
+  );
   const response = await postChatCompletion(
     endpoint,
     config.apiKey,
@@ -201,7 +228,8 @@ export async function testAIProviderConnection(
 export function createOpenAICompatibleProvider(config: OpenAICompatibleProviderConfig): AIProvider {
   const endpoint = normalizeChatCompletionsUrl(config.baseUrl);
   const timeoutMs = config.timeoutMs ?? 30_000;
-  const maxTokens = config.maxTokens ?? 1200;
+  const maxTokens = readPositiveInteger(config.maxTokens, DEFAULT_OPENAI_COMPATIBLE_MAX_TOKENS);
+  const tokenLimitParameter = readOpenAICompatibleTokenLimitParameter(config.tokenLimitParameter);
 
   return {
     id: "openai_compatible_chat_completions",
@@ -209,7 +237,12 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleProviderC
     enabled: true,
     name: "openai-compatible",
     async draftKnowledge(input: DraftKnowledgeInput): Promise<DraftKnowledgeOutput> {
-      const payload = buildChatCompletionsPayload(input, config.model, maxTokens);
+      const payload = buildChatCompletionsPayload(
+        input,
+        config.model,
+        maxTokens,
+        tokenLimitParameter
+      );
       const response = await postChatCompletion(endpoint, config.apiKey, payload, timeoutMs);
       const content = extractChatCompletionContent(response);
       return sanitizeDraftKnowledgeOutput(parseJsonObject(content), input);
@@ -288,6 +321,13 @@ function readProviderKind(value: string | undefined): AIProviderKind {
   return "disabled";
 }
 
+export function readOpenAICompatibleTokenLimitParameter(
+  value: string | undefined
+): OpenAICompatibleTokenLimitParameter {
+  if (value === "max_completion_tokens") return value;
+  return DEFAULT_OPENAI_COMPATIBLE_TOKEN_LIMIT_PARAMETER;
+}
+
 function normalizePath(path: string): string {
   let normalized = path || "";
   while (normalized.includes("//")) {
@@ -302,9 +342,10 @@ function normalizePath(path: string): string {
 function buildChatCompletionsPayload(
   input: DraftKnowledgeInput,
   model: string,
-  maxTokens: number
+  maxTokens: number,
+  tokenLimitParameter: OpenAICompatibleTokenLimitParameter
 ): Record<string, unknown> {
-  return {
+  const payload: Record<string, unknown> = {
     model,
     messages: [
       {
@@ -321,7 +362,6 @@ function buildChatCompletionsPayload(
       }
     ],
     temperature: 0,
-    max_tokens: maxTokens,
     response_format: {
       type: "json_schema",
       json_schema: {
@@ -331,10 +371,16 @@ function buildChatCompletionsPayload(
       }
     }
   };
+  payload[tokenLimitParameter] = maxTokens;
+  return payload;
 }
 
-function buildConnectionTestPayload(model: string): Record<string, unknown> {
-  return {
+function buildConnectionTestPayload(
+  model: string,
+  maxTokens: number,
+  tokenLimitParameter: OpenAICompatibleTokenLimitParameter
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
     model,
     messages: [
       {
@@ -342,9 +388,10 @@ function buildConnectionTestPayload(model: string): Record<string, unknown> {
         content: "Reply with a short confirmation that says orbit-ok."
       }
     ],
-    temperature: 0,
-    max_tokens: 16
+    temperature: 0
   };
+  payload[tokenLimitParameter] = maxTokens;
+  return payload;
 }
 
 function buildKnowledgePromptInput(input: DraftKnowledgeInput): Record<string, unknown> {
@@ -562,6 +609,11 @@ function readText(value: unknown): string | undefined {
 function clampConfidence(value: unknown): number {
   if (typeof value !== "number" || !Number.isFinite(value)) return 0.5;
   return Math.min(1, Math.max(0, value));
+}
+
+function readPositiveInteger(value: number | undefined, fallback: number): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) return fallback;
+  return value;
 }
 
 function truncate(value: string | undefined, maxLength: number): string | undefined {

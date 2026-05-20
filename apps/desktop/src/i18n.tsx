@@ -108,6 +108,9 @@ const translations = {
     "settings.aiApiKey": "API Key",
     "settings.aiApiKeyPlaceholder": "Paste API key",
     "settings.aiApiKeyPlaceholderConfigured": "Saved; leave blank to keep current key",
+    "settings.aiTokenLimitParameter": "Token Limit Parameter",
+    "settings.aiMaxTokens": "Draft Max Tokens",
+    "settings.aiTestMaxTokens": "Test Max Tokens",
     "settings.aiProviderTestSuccess": "Connection OK",
     "settings.aiProviderTestFailed": "Connection failed",
     "settings.aiProviderNote":
@@ -256,6 +259,9 @@ const translations = {
     "settings.aiApiKey": "API Key",
     "settings.aiApiKeyPlaceholder": "粘贴 API key",
     "settings.aiApiKeyPlaceholderConfigured": "已保存；留空会保留当前 key",
+    "settings.aiTokenLimitParameter": "Token 参数",
+    "settings.aiMaxTokens": "草稿 max tokens",
+    "settings.aiTestMaxTokens": "测试 max tokens",
     "settings.aiProviderTestSuccess": "连接正常",
     "settings.aiProviderTestFailed": "连接失败",
     "settings.aiProviderNote":

@@ -5,6 +5,7 @@ import type {
   DesktopAIProviderTestConfig,
   DesktopAIProviderTestResult,
   DesktopLanguage,
+  DesktopOpenAITokenLimitParameter,
   DesktopSettingKey,
   DesktopSnapshot
 } from "../orbitApi";
@@ -39,6 +40,10 @@ export function SettingsPage({
   const [aiBaseUrl, setAiBaseUrl] = useState(snapshot.settings.aiBaseUrl ?? "");
   const [aiModel, setAiModel] = useState(snapshot.settings.aiModel ?? "");
   const [aiApiKey, setAiApiKey] = useState("");
+  const [aiTokenLimitParameter, setAiTokenLimitParameter] =
+    useState<DesktopOpenAITokenLimitParameter>(snapshot.settings.aiTokenLimitParameter);
+  const [aiMaxTokens, setAiMaxTokens] = useState(String(snapshot.settings.aiMaxTokens));
+  const [aiTestMaxTokens, setAiTestMaxTokens] = useState(String(snapshot.settings.aiTestMaxTokens));
   const [providerTestResult, setProviderTestResult] = useState<
     DesktopAIProviderTestResult | undefined
   >();
@@ -50,6 +55,9 @@ export function SettingsPage({
     await onUpdateSetting("ai.providerKind", aiProviderKind);
     await onUpdateSetting("ai.baseUrl", aiBaseUrl);
     await onUpdateSetting("ai.model", aiModel);
+    await onUpdateSetting("ai.tokenLimitParameter", aiTokenLimitParameter);
+    await onUpdateSetting("ai.maxTokens", aiMaxTokens);
+    await onUpdateSetting("ai.testMaxTokens", aiTestMaxTokens);
     if (aiApiKey.trim() || !snapshot.settings.aiApiKeyConfigured) {
       await onUpdateSetting("ai.apiKey", aiApiKey);
       setAiApiKey("");
@@ -65,7 +73,10 @@ export function SettingsPage({
           providerKind: aiProviderKind,
           baseUrl: aiBaseUrl,
           model: aiModel,
-          apiKey: aiApiKey
+          apiKey: aiApiKey,
+          tokenLimitParameter: aiTokenLimitParameter,
+          maxTokens: aiMaxTokens,
+          testMaxTokens: aiTestMaxTokens
         })
       );
     } catch (reason) {
@@ -173,6 +184,50 @@ export function SettingsPage({
                       }
                       type="password"
                       value={aiApiKey}
+                    />
+                  </dd>
+                </div>
+                <div>
+                  <dt>{t("settings.aiTokenLimitParameter")}</dt>
+                  <dd>
+                    <select
+                      className="select-input"
+                      disabled={aiProviderKind !== "openai-compatible"}
+                      onChange={(event) =>
+                        setAiTokenLimitParameter(
+                          event.currentTarget.value as DesktopOpenAITokenLimitParameter
+                        )
+                      }
+                      value={aiTokenLimitParameter}
+                    >
+                      <option value="max_tokens">max_tokens</option>
+                      <option value="max_completion_tokens">max_completion_tokens</option>
+                    </select>
+                  </dd>
+                </div>
+                <div>
+                  <dt>{t("settings.aiMaxTokens")}</dt>
+                  <dd>
+                    <input
+                      className="text-input compact-input"
+                      disabled={aiProviderKind !== "openai-compatible"}
+                      min={1}
+                      onChange={(event) => setAiMaxTokens(event.currentTarget.value)}
+                      type="number"
+                      value={aiMaxTokens}
+                    />
+                  </dd>
+                </div>
+                <div>
+                  <dt>{t("settings.aiTestMaxTokens")}</dt>
+                  <dd>
+                    <input
+                      className="text-input compact-input"
+                      disabled={aiProviderKind !== "openai-compatible"}
+                      min={1}
+                      onChange={(event) => setAiTestMaxTokens(event.currentTarget.value)}
+                      type="number"
+                      value={aiTestMaxTokens}
                     />
                   </dd>
                 </div>

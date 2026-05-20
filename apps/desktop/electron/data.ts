@@ -2,12 +2,16 @@ import { buildTodayContext, getLocalDateKey, ingestEventsFromAdapter } from "@or
 import { CodexAdapter, FixtureAdapter, LocalAgentAdapter, SeaTalkAdapter } from "@orbit/adapters";
 import {
   buildAIProvider,
+  DEFAULT_OPENAI_COMPATIBLE_MAX_TOKENS,
+  DEFAULT_OPENAI_COMPATIBLE_TEST_MAX_TOKENS,
   normalizeChatCompletionsUrl,
+  readOpenAICompatibleTokenLimitParameter,
   testAIProviderConnection,
   type AIProvider,
   type AIProviderConfig,
   type AIProviderConnectionTestResult,
-  type AIProviderKind
+  type AIProviderKind,
+  type OpenAICompatibleTokenLimitParameter
 } from "@orbit/ai";
 import {
   ActivityRepository,
@@ -51,6 +55,9 @@ const SETTING_KEYS = {
   aiModel: "ai.model",
   aiApiKey: "ai.apiKey",
   aiApiKeyCiphertext: "ai.apiKeyCiphertext",
+  aiMaxTokens: "ai.maxTokens",
+  aiTestMaxTokens: "ai.testMaxTokens",
+  aiTokenLimitParameter: "ai.tokenLimitParameter",
   sourceSetupCompleted: "sources.setupCompleted"
 } as const;
 
@@ -170,6 +177,15 @@ export function updateSettingForDesktop(key: DesktopSettingKey, value: unknown):
       settings.set(key, String(value ?? "").trim());
     } else if (key === SETTING_KEYS.aiApiKey) {
       settings.set(SETTING_KEYS.aiApiKeyCiphertext, encryptApiKey(String(value ?? "")));
+    } else if (key === SETTING_KEYS.aiMaxTokens) {
+      settings.set(key, readPositiveIntegerSetting(value, DEFAULT_OPENAI_COMPATIBLE_MAX_TOKENS));
+    } else if (key === SETTING_KEYS.aiTestMaxTokens) {
+      settings.set(
+        key,
+        readPositiveIntegerSetting(value, DEFAULT_OPENAI_COMPATIBLE_TEST_MAX_TOKENS)
+      );
+    } else if (key === SETTING_KEYS.aiTokenLimitParameter) {
+      settings.set(key, readOpenAICompatibleTokenLimitParameter(String(value ?? "")));
     } else if (key === SETTING_KEYS.sourceSetupCompleted) {
       settings.set(key, Boolean(value));
     } else {
@@ -294,9 +310,22 @@ function readSettings(settings: SettingsRepository): DesktopSnapshot["settings"]
   const aiBaseUrl = settings.get<string>(SETTING_KEYS.aiBaseUrl);
   const aiModel = settings.get<string>(SETTING_KEYS.aiModel);
   const aiApiKeyCiphertext = settings.get<string>(SETTING_KEYS.aiApiKeyCiphertext);
+  const aiMaxTokens = readPositiveIntegerSetting(
+    settings.get<number>(SETTING_KEYS.aiMaxTokens),
+    DEFAULT_OPENAI_COMPATIBLE_MAX_TOKENS
+  );
+  const aiTestMaxTokens = readPositiveIntegerSetting(
+    settings.get<number>(SETTING_KEYS.aiTestMaxTokens),
+    DEFAULT_OPENAI_COMPATIBLE_TEST_MAX_TOKENS
+  );
   const snapshotSettings: DesktopSnapshot["settings"] = {
     localOnly: true,
     aiProvider,
+    aiMaxTokens,
+    aiTestMaxTokens,
+    aiTokenLimitParameter: readOpenAICompatibleTokenLimitParameter(
+      settings.get<string>(SETTING_KEYS.aiTokenLimitParameter)
+    ),
     aiApiKeyConfigured: Boolean(aiApiKeyCiphertext),
     externalActionsEnabled: false,
     visualContextEnabled: false,
@@ -351,19 +380,54 @@ function buildDesktopAIProviderConfig(
 
   const baseUrl = readOptionalString(input.baseUrl) ?? settings.get<string>(SETTING_KEYS.aiBaseUrl);
   const model = readOptionalString(input.model) ?? settings.get<string>(SETTING_KEYS.aiModel);
+  const maxTokens =
+    readOptionalPositiveInteger(input.maxTokens) ??
+    readPositiveIntegerSetting(
+      settings.get<number>(SETTING_KEYS.aiMaxTokens),
+      DEFAULT_OPENAI_COMPATIBLE_MAX_TOKENS
+    );
+  const testMaxTokens =
+    readOptionalPositiveInteger(input.testMaxTokens) ??
+    readPositiveIntegerSetting(
+      settings.get<number>(SETTING_KEYS.aiTestMaxTokens),
+      DEFAULT_OPENAI_COMPATIBLE_TEST_MAX_TOKENS
+    );
+  const tokenLimitParameter = readDesktopTokenLimitParameter(
+    input.tokenLimitParameter ?? settings.get<string>(SETTING_KEYS.aiTokenLimitParameter)
+  );
   const apiKey =
     readOptionalString(input.apiKey) ??
     decryptApiKey(settings.get<string>(SETTING_KEYS.aiApiKeyCiphertext));
   if (baseUrl) config.baseUrl = baseUrl;
   if (model) config.model = model;
+  config.maxTokens = maxTokens;
+  config.testMaxTokens = testMaxTokens;
+  config.tokenLimitParameter = tokenLimitParameter;
   if (apiKey) config.apiKey = apiKey;
   return config;
+}
+
+function readDesktopTokenLimitParameter(value: unknown): OpenAICompatibleTokenLimitParameter {
+  return readOpenAICompatibleTokenLimitParameter(typeof value === "string" ? value : undefined);
 }
 
 function readOptionalString(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function readOptionalPositiveInteger(value: unknown): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  const text = String(value).trim();
+  if (!text) return undefined;
+  const parsed = Number(text);
+  if (!Number.isInteger(parsed) || parsed <= 0) return undefined;
+  return parsed;
+}
+
+function readPositiveIntegerSetting(value: unknown, fallback: number): number {
+  return readOptionalPositiveInteger(value) ?? fallback;
 }
 
 function safeNormalizeEndpoint(baseUrl: string): string | undefined {

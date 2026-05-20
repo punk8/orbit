@@ -577,6 +577,10 @@ button {
   max-width: 220px;
 }
 
+.compact-input {
+  max-width: 180px;
+}
+
 .toggle-line {
   display: inline-flex;
   align-items: center;

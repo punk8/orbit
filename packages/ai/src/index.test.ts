@@ -84,10 +84,47 @@ describe("AI providers", () => {
 
     expect(requestedPath).toBe("/v1/chat/completions");
     expect(isRecord(requestBody) ? requestBody.model : undefined).toBe("test-model");
+    expect(isRecord(requestBody) ? requestBody.max_tokens : undefined).toBe(1200);
     expect(draft.keyInsights).toEqual([
       { text: "Valid insight", evidenceIds: [input.events[0]!.id] }
     ]);
     expect(draft.confidence).toBe(0.92);
+  });
+
+  it("can use max_completion_tokens for draft Knowledge requests", async () => {
+    const input = makeDraftInput();
+    let requestBody: unknown;
+    const baseUrl = await startProviderServer(async (request, response) => {
+      requestBody = JSON.parse(await readRequestBody(request));
+      writeJson(response, {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                title: "Provider draft",
+                description: "Provider generated summary.",
+                keyInsights: [{ text: "Valid insight", evidenceIds: [input.events[0]!.id] }],
+                decisions: [],
+                blockers: [],
+                followUps: [],
+                confidence: 0.92
+              })
+            }
+          }
+        ]
+      });
+    });
+
+    const provider = createOpenAICompatibleProvider({
+      baseUrl,
+      model: "test-model",
+      maxTokens: 640,
+      tokenLimitParameter: "max_completion_tokens"
+    });
+    await provider.draftKnowledge(input);
+
+    expect(isRecord(requestBody) ? requestBody.max_completion_tokens : undefined).toBe(640);
+    expect(isRecord(requestBody) && "max_tokens" in requestBody).toBe(false);
   });
 
   it("retries without response_format when a compatible endpoint rejects it", async () => {
@@ -153,8 +190,36 @@ describe("AI providers", () => {
     expect(result.provider).toBe("openai-compatible");
     expect(result.model).toBe("test-model");
     expect(isRecord(requestBody) ? requestBody.model : undefined).toBe("test-model");
+    expect(isRecord(requestBody) ? requestBody.max_tokens : undefined).toBe(256);
     expect(isRecord(requestBody) && "response_format" in requestBody).toBe(false);
     expect(JSON.stringify(requestBody)).not.toContain("evidence");
+  });
+
+  it("can use max_completion_tokens for connection tests", async () => {
+    let requestBody: unknown;
+    const baseUrl = await startProviderServer(async (request, response) => {
+      requestBody = JSON.parse(await readRequestBody(request));
+      writeJson(response, {
+        choices: [
+          {
+            message: {
+              content: "orbit-ok"
+            }
+          }
+        ]
+      });
+    });
+
+    await testAIProviderConnection({
+      kind: "openai-compatible",
+      baseUrl,
+      model: "test-model",
+      testMaxTokens: 512,
+      tokenLimitParameter: "max_completion_tokens"
+    });
+
+    expect(isRecord(requestBody) ? requestBody.max_completion_tokens : undefined).toBe(512);
+    expect(isRecord(requestBody) && "max_tokens" in requestBody).toBe(false);
   });
 
   it("surfaces provider error messages from failed connection tests", async () => {
