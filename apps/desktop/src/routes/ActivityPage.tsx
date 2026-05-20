@@ -5,35 +5,47 @@ import { Section } from "../components/Section";
 import { useI18n } from "../i18n";
 
 export function ActivityPage({ sessions }: { sessions: ActivitySession[] }): ReactElement {
-  const { t } = useI18n();
+  const { t, sourceKind, formatDateTimeRange } = useI18n();
 
   return (
-    <Section title={t("section.activityTimeline")}>
-      <div className="timeline-list">
-        {sessions.map((session) => (
-          <article className="timeline-item" key={session.id}>
-            <div className="timeline-rail" />
-            <div className="timeline-body">
-              <div className="item-heading">
-                <h3>{session.title}</h3>
-                <span>
-                  {session.eventCount} {t("unit.events")}
-                </span>
+    <div className="page-grid">
+      <Section title={t("section.activityTimeline")}>
+        <div className="timeline-list">
+          {sessions.map((session) => (
+            <article className="timeline-item" key={session.id}>
+              <div className="timeline-rail" />
+              <div className="timeline-body">
+                <div className="item-heading">
+                  <h3>{session.title}</h3>
+                  <span>
+                    {session.eventCount} {t("unit.events")}
+                  </span>
+                </div>
+                <p>{session.summary ?? t("fallback.noSummary")}</p>
+                <div className="meta-line">
+                  {formatDateTimeRange(session.startAt, session.endAt)}
+                  <span>
+                    {formatSessionContext(
+                      session.sourceKinds.map(sourceKind),
+                      session.apps,
+                      t("fallback.unknownApp")
+                    )}
+                  </span>
+                </div>
+                <EvidenceList evidence={session.evidence} />
               </div>
-              <p>{session.summary ?? t("fallback.noSummary")}</p>
-              <div className="meta-line">
-                {session.startAt} - {session.endAt}
-                <span>{session.sourceKinds.join(", ")}</span>
-                <span>{session.apps.join(", ") || t("fallback.unknownApp")}</span>
-              </div>
-              <EvidenceList evidence={session.evidence} />
-            </div>
-          </article>
-        ))}
-        {sessions.length === 0 ? (
-          <div className="empty-state">{t("empty.noActivitySessions")}</div>
-        ) : null}
-      </div>
-    </Section>
+            </article>
+          ))}
+          {sessions.length === 0 ? (
+            <div className="empty-state">{t("empty.noActivitySessions")}</div>
+          ) : null}
+        </div>
+      </Section>
+    </div>
   );
+}
+
+function formatSessionContext(sourceLabels: string[], appLabels: string[], fallback: string): string {
+  const labels = [...sourceLabels, ...(appLabels.length ? appLabels : [fallback])];
+  return Array.from(new Set(labels)).join(", ");
 }

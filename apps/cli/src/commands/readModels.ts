@@ -1,4 +1,4 @@
-import { buildTodayContext } from "@orbit/core";
+import { buildTodayContext, getLocalDateKey } from "@orbit/core";
 import type {
   ActivitySession,
   KnowledgeArtifact,
@@ -70,7 +70,7 @@ export function getRecommendation(id: string): Recommendation | undefined {
   return withDatabase((repositories) => repositories.recommendation.getRecommendation(id));
 }
 
-export function getTodayContext(date = new Date().toISOString().slice(0, 10)): TodayContext {
+export function getTodayContext(date = getLocalDateKey()): TodayContext {
   return withDatabase((repositories) =>
     buildTodayContext({
       date,

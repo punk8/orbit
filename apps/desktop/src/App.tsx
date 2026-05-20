@@ -57,7 +57,7 @@ export function App(): ReactElement {
   const [notice, setNotice] = useState<string | undefined>();
   const [isLoading, setIsLoading] = useState(true);
   const language = getEffectiveLanguage(snapshot?.settings.language);
-  const { t } = createI18n(language);
+  const { t, formatDate } = createI18n(language);
 
   async function loadSnapshot(): Promise<void> {
     setIsLoading(true);
@@ -198,7 +198,7 @@ export function App(): ReactElement {
         <header className="topbar">
           <div>
             <h1>{pageTitle}</h1>
-            <p>{snapshot?.date ?? t("app.loadingContext")}</p>
+            <p>{snapshot ? formatDate(snapshot.date) : t("app.loadingContext")}</p>
           </div>
           <button
             className="icon-button"

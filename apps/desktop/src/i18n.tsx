@@ -106,6 +106,12 @@ const translations = {
     "language.chinese": "Chinese",
     "state.enabled": "enabled",
     "state.disabled": "disabled",
+    "sourceKind.codex": "Codex",
+    "sourceKind.local_agent": "Local Agent",
+    "sourceKind.seatalk": "SeaTalk",
+    "memoryKind.project_fact": "project fact",
+    "recommendationType.context_needed": "context needed",
+    "recommendationType.follow_up": "follow-up",
     "status.draft": "draft",
     "status.needs_review": "needs review",
     "status.confirmed": "confirmed",
@@ -223,6 +229,12 @@ const translations = {
     "language.chinese": "中文",
     "state.enabled": "已启用",
     "state.disabled": "已禁用",
+    "sourceKind.codex": "Codex",
+    "sourceKind.local_agent": "本地 Agent",
+    "sourceKind.seatalk": "SeaTalk",
+    "memoryKind.project_fact": "项目事实",
+    "recommendationType.context_needed": "需要上下文",
+    "recommendationType.follow_up": "待跟进",
     "status.draft": "草稿",
     "status.needs_review": "待审阅",
     "status.confirmed": "已确认",
@@ -251,6 +263,12 @@ export interface I18nApi {
   status(value: string): string;
   impact(value: string): string;
   sensitivity(value: string): string;
+  sourceKind(value: string): string;
+  memoryKind(value: string): string;
+  recommendationType(value: string): string;
+  formatDate(value: string): string;
+  formatTimeRange(startAt: string, endAt: string): string;
+  formatDateTimeRange(startAt: string, endAt: string): string;
 }
 
 const fallbackLanguage: EffectiveLanguage = "en";
@@ -274,12 +292,20 @@ export function useI18n(): I18nApi {
 export function createI18n(language: EffectiveLanguage): I18nApi {
   const dictionary = translations[language] ?? translations[fallbackLanguage];
   const t = (key: TranslationKey): string => dictionary[key] ?? translations.en[key] ?? key;
+  const locale = language === "zh-CN" ? "zh-CN" : "en";
   return {
     language,
     t,
     status: (value) => tValue(t, "status", value),
     impact: (value) => tValue(t, "impact", value),
-    sensitivity: (value) => tValue(t, "sensitivity", value)
+    sensitivity: (value) => tValue(t, "sensitivity", value),
+    sourceKind: (value) => tValue(t, "sourceKind", value),
+    memoryKind: (value) => tValue(t, "memoryKind", value),
+    recommendationType: (value) => tValue(t, "recommendationType", value),
+    formatDate: (value) => formatDateKey(locale, value),
+    formatTimeRange: (startAt, endAt) =>
+      `${formatTime(locale, startAt)} - ${formatTime(locale, endAt)}`,
+    formatDateTimeRange: (startAt, endAt) => formatDateTimeRange(locale, startAt, endAt)
   };
 }
 
@@ -298,5 +324,59 @@ export function getEffectiveLanguage(selection: DesktopLanguage | undefined): Ef
 function tValue(t: (key: TranslationKey) => string, namespace: string, value: string): string {
   const key = `${namespace}.${value}` as TranslationKey;
   const translated = t(key);
-  return translated === key ? value : translated;
+  return translated === key ? humanizeValue(value) : translated;
+}
+
+function humanizeValue(value: string): string {
+  return value.replaceAll("_", " ");
+}
+
+function formatDateKey(locale: string, value: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return value;
+  const [, year, month, day] = match;
+  return new Intl.DateTimeFormat(locale, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(new Date(Number(year), Number(month) - 1, Number(day)));
+}
+
+function formatTime(locale: string, value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat(locale, {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).format(date);
+}
+
+function formatDateTime(locale: string, value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat(locale, {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).format(date);
+}
+
+function formatDateTimeRange(locale: string, startAt: string, endAt: string): string {
+  const start = new Date(startAt);
+  const end = new Date(endAt);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return `${startAt} - ${endAt}`;
+  }
+
+  if (
+    start.getFullYear() === end.getFullYear() &&
+    start.getMonth() === end.getMonth() &&
+    start.getDate() === end.getDate()
+  ) {
+    return `${formatDateTime(locale, startAt)} - ${formatTime(locale, endAt)}`;
+  }
+  return `${formatDateTime(locale, startAt)} - ${formatDateTime(locale, endAt)}`;
 }

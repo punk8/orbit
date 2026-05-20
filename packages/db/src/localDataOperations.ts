@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { buildTodayContext } from "@orbit/core";
+import { buildTodayContext, getLocalDateKey } from "@orbit/core";
 import type { TodayContext } from "@orbit/core";
 import type { OrbitDatabase } from "./connection";
 import { ActivityRepository } from "./repositories/activityRepository";
@@ -63,7 +63,7 @@ export function clearLocalData(database: OrbitDatabase): ClearLocalDataResult {
 
 export function exportTodayContext(
   database: OrbitDatabase,
-  date = new Date().toISOString().slice(0, 10)
+  date = getLocalDateKey()
 ): ExportContextResult {
   const activityRepository = new ActivityRepository(database.db);
   const knowledgeRepository = new KnowledgeRepository(database.db);

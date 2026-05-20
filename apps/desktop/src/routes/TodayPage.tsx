@@ -6,7 +6,7 @@ import { Section } from "../components/Section";
 import { useI18n } from "../i18n";
 
 export function TodayPage({ snapshot }: { snapshot: DesktopSnapshot }): ReactElement {
-  const { t, sensitivity, impact } = useI18n();
+  const { t, sensitivity, impact, recommendationType, formatTimeRange } = useI18n();
 
   return (
     <div className="page-grid">
@@ -41,7 +41,7 @@ export function TodayPage({ snapshot }: { snapshot: DesktopSnapshot }): ReactEle
                 <h3>{session.title}</h3>
                 <p>{session.summary ?? t("fallback.noSummary")}</p>
                 <div className="meta-line">
-                  {session.startAt.slice(11, 16)} - {session.endAt.slice(11, 16)}
+                  {formatTimeRange(session.startAt, session.endAt)}
                   <span>
                     {session.eventCount} {t("unit.events")}
                   </span>
@@ -67,7 +67,7 @@ export function TodayPage({ snapshot }: { snapshot: DesktopSnapshot }): ReactEle
                 <h3>{recommendation.title}</h3>
                 <p>{recommendation.explanation}</p>
                 <div className="meta-line">
-                  {recommendation.type}
+                  {recommendationType(recommendation.type)}
                   <span>{Math.round(recommendation.confidence * 100)}%</span>
                   <span>{impact(recommendation.impact)}</span>
                 </div>

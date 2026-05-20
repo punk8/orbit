@@ -14,18 +14,31 @@ export function buildTodayContext(input: {
   knowledgeArtifacts: KnowledgeArtifact[];
   memories: Memory[];
   recommendations: Recommendation[];
+  matchesDate?: (timestamp: string) => boolean;
 }): TodayContext {
+  const matchesDate =
+    input.matchesDate ?? ((timestamp: string) => isInLocalDate(input.date, timestamp));
   return {
     date: input.date,
-    activitySessions: input.activitySessions.filter((session) =>
-      session.startAt.startsWith(input.date)
-    ),
+    activitySessions: input.activitySessions.filter((session) => matchesDate(session.startAt)),
     knowledgeArtifacts: input.knowledgeArtifacts.filter((artifact) =>
-      artifact.createdAt.startsWith(input.date)
+      matchesDate(artifact.createdAt)
     ),
-    memories: input.memories.filter((memory) => memory.createdAt.startsWith(input.date)),
+    memories: input.memories.filter((memory) => matchesDate(memory.createdAt)),
     recommendations: input.recommendations.filter((recommendation) =>
-      recommendation.createdAt.startsWith(input.date)
+      matchesDate(recommendation.createdAt)
     )
   };
+}
+
+export function getLocalDateKey(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function isInLocalDate(dateKey: string, timestamp: string): boolean {
+  const date = new Date(timestamp);
+  return !Number.isNaN(date.getTime()) && getLocalDateKey(date) === dateKey;
 }

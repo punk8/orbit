@@ -8,27 +8,29 @@ export function KnowledgePage({ artifacts }: { artifacts: KnowledgeArtifact[] })
   const { t, status } = useI18n();
 
   return (
-    <Section title={t("section.knowledgeArtifacts")}>
-      <div className="item-list">
-        {artifacts.map((artifact) => (
-          <article className="list-item vertical" key={artifact.id}>
-            <div className="item-heading">
-              <h3>{artifact.title}</h3>
-              <span>{status(artifact.status)}</span>
-            </div>
-            <p>{artifact.content.description}</p>
-            <ul className="insight-list">
-              {artifact.content.keyInsights.slice(0, 4).map((insight) => (
-                <li key={insight}>{insight}</li>
-              ))}
-            </ul>
-            <EvidenceList evidence={artifact.evidence} />
-          </article>
-        ))}
-        {artifacts.length === 0 ? (
-          <div className="empty-state">{t("empty.noKnowledgeArtifacts")}</div>
-        ) : null}
-      </div>
-    </Section>
+    <div className="page-grid">
+      <Section title={t("section.knowledgeArtifacts")}>
+        <div className="item-list">
+          {artifacts.map((artifact) => (
+            <article className="list-item vertical" key={artifact.id}>
+              <div className="item-heading">
+                <h3>{artifact.title}</h3>
+                <span>{status(artifact.status)}</span>
+              </div>
+              <p>{artifact.content.description}</p>
+              <ul className="insight-list">
+                {artifact.content.keyInsights.slice(0, 4).map((insight) => (
+                  <li key={insight}>{insight}</li>
+                ))}
+              </ul>
+              <EvidenceList evidence={artifact.evidence} />
+            </article>
+          ))}
+          {artifacts.length === 0 ? (
+            <div className="empty-state">{t("empty.noKnowledgeArtifacts")}</div>
+          ) : null}
+        </div>
+      </Section>
+    </div>
   );
 }

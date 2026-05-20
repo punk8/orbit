@@ -1,5 +1,4 @@
-import { buildTodayContext } from "@orbit/core";
-import { ingestEventsFromAdapter } from "@orbit/core";
+import { buildTodayContext, getLocalDateKey, ingestEventsFromAdapter } from "@orbit/core";
 import { CodexAdapter, FixtureAdapter, LocalAgentAdapter, SeaTalkAdapter } from "@orbit/adapters";
 import {
   ActivityRepository,
@@ -39,7 +38,7 @@ const SETTING_KEYS = {
   sourceSetupCompleted: "sources.setupCompleted"
 } as const;
 
-export function readDesktopSnapshot(date = new Date().toISOString().slice(0, 10)): DesktopSnapshot {
+export function readDesktopSnapshot(date = getLocalDateKey()): DesktopSnapshot {
   const database = openOrbitDatabase();
   try {
     const sourceRepository = new SourceRepository(database.db);

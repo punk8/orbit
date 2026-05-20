@@ -12,7 +12,7 @@ export function SourcesPage({
   snapshot: DesktopSnapshot;
   onSetupSource(kind: SourceSetupKind, path?: string): Promise<void>;
 }): ReactElement {
-  const { t, sensitivity } = useI18n();
+  const { t, sensitivity, sourceKind } = useI18n();
   const [codexPath, setCodexPath] = useState("fixtures/realistic/codex");
   const [localAgentPath, setLocalAgentPath] = useState("fixtures/realistic/local-agent");
   const [seatalkPath, setSeatalkPath] = useState("fixtures/seatalk");
@@ -31,7 +31,7 @@ export function SourcesPage({
               <div>
                 <h3>{source.displayName}</h3>
                 <div className="meta-line">
-                  {source.kind}
+                  {sourceKind(source.kind)}
                   <span>{sensitivity(source.defaultSensitivity)}</span>
                   <span>{source.enabled ? t("state.enabled") : t("state.disabled")}</span>
                 </div>
