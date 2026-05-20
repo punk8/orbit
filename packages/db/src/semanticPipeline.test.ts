@@ -1,13 +1,16 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type Database from "better-sqlite3";
 import { afterEach, describe, expect, it } from "vitest";
 import type { AIProvider } from "@orbit/ai";
 import type { Event } from "@orbit/core";
-import { createStableId, hashObject } from "@orbit/core";
+import { createStableId, defaultPermissionScopeForSource, hashObject } from "@orbit/core";
 import { openOrbitDatabase } from "./connection";
 import { EventRepository } from "./repositories/eventRepository";
+import { AuditRepository } from "./repositories/auditRepository";
 import { KnowledgeRepository } from "./repositories/knowledgeRepository";
+import { SourceRepository } from "./repositories/sourceRepository";
 import { runSemanticPipelineWithProvider } from "./semanticPipeline";
 
 const tempDirs: string[] = [];
@@ -25,6 +28,7 @@ describe("semantic pipeline AI provider integration", () => {
     const database = openOrbitDatabase({ orbitHome });
     try {
       const events = [makeEvent("1", "message"), makeEvent("2", "todo")];
+      upsertFixtureSource(database.db);
       const eventRepository = new EventRepository(database.db);
       for (const event of events) {
         eventRepository.upsertEvent(event);
@@ -62,6 +66,7 @@ describe("semantic pipeline AI provider integration", () => {
     tempDirs.push(orbitHome);
     const database = openOrbitDatabase({ orbitHome });
     try {
+      upsertFixtureSource(database.db);
       new EventRepository(database.db).upsertEvent(makeEvent("1", "message"));
 
       await runSemanticPipelineWithProvider(database, {
@@ -89,6 +94,7 @@ describe("semantic pipeline AI provider integration", () => {
     tempDirs.push(orbitHome);
     const database = openOrbitDatabase({ orbitHome });
     try {
+      upsertFixtureSource(database.db);
       new EventRepository(database.db).upsertEvent(makeEvent("1", "message"));
       await runSemanticPipelineWithProvider(database, {
         aiProvider: makeProvider({
@@ -116,7 +122,92 @@ describe("semantic pipeline AI provider integration", () => {
       database.close();
     }
   });
+
+  it("filters provider input by source permission and writes AI audit logs", async () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-provider-policy-test-"));
+    tempDirs.push(orbitHome);
+    const database = openOrbitDatabase({ orbitHome });
+    try {
+      upsertFixtureSource(database.db);
+      new SourceRepository(database.db).upsertSource({
+        id: "fixture_seatalk",
+        kind: "seatalk",
+        displayName: "Fixture SeaTalk",
+        enabled: true,
+        paused: false,
+        defaultSensitivity: "confidential",
+        permissionScope: defaultPermissionScopeForSource("seatalk", "confidential"),
+        createdAt: "2026-05-20T09:00:00.000Z",
+        updatedAt: "2026-05-20T09:00:00.000Z"
+      });
+      const codexEvent = makeEvent("1", "message");
+      const confidentialEvent: Event = {
+        ...makeEvent("2", "message"),
+        source: {
+          kind: "seatalk",
+          adapterId: "fixture_seatalk",
+          externalId: "2",
+          pointer: "fixture://seatalk/provider#2"
+        },
+        privacy: {
+          sensitivity: "confidential",
+          retentionPolicyId: "default",
+          redactionState: "none"
+        },
+        content: { title: "Confidential SeaTalk message", text: "private escalation" }
+      };
+      const eventRepository = new EventRepository(database.db);
+      eventRepository.upsertEvent(codexEvent);
+      eventRepository.upsertEvent(confidentialEvent);
+
+      const providerEventIds: string[][] = [];
+      await runSemanticPipelineWithProvider(database, {
+        aiProvider: {
+          id: "policy_provider",
+          kind: "mock",
+          enabled: true,
+          name: "policy_provider",
+          async draftKnowledge({ events }) {
+            providerEventIds.push(events.map((event) => event.id));
+            return {
+              title: "Policy draft",
+              description: "Provider saw only allowed evidence.",
+              keyInsights: [{ text: "Allowed insight", evidenceIds: [events[0]!.id] }],
+              decisions: [],
+              blockers: [],
+              followUps: [],
+              confidence: 0.9
+            };
+          }
+        }
+      });
+
+      expect(providerEventIds.flat()).toContain(codexEvent.id);
+      expect(providerEventIds.flat()).not.toContain(confidentialEvent.id);
+      const aiLogs = new AuditRepository(database.db)
+        .listAuditLogs()
+        .filter((log) => log.operation === "ai.draft_knowledge");
+      expect(aiLogs.length).toBeGreaterThan(0);
+      expect(JSON.stringify(aiLogs[0]?.details)).toContain("filteredEventCount");
+    } finally {
+      database.close();
+    }
+  });
 });
+
+function upsertFixtureSource(db: Database.Database): void {
+  new SourceRepository(db).upsertSource({
+    id: "fixture_codex",
+    kind: "codex",
+    displayName: "Fixture Codex",
+    enabled: true,
+    paused: false,
+    defaultSensitivity: "internal",
+    permissionScope: defaultPermissionScopeForSource("codex", "internal"),
+    createdAt: "2026-05-20T09:00:00.000Z",
+    updatedAt: "2026-05-20T09:00:00.000Z"
+  });
+}
 
 function makeProvider(
   output: Partial<Awaited<ReturnType<AIProvider["draftKnowledge"]>>>

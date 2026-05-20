@@ -75,9 +75,13 @@ export function getTodayContext(date = getLocalDateKey()): TodayContext {
     buildTodayContext({
       date,
       activitySessions: repositories.activity.listActivitySessions(),
-      knowledgeArtifacts: repositories.knowledge.listKnowledgeArtifacts(),
-      memories: repositories.memory.listMemories(),
-      recommendations: repositories.recommendation.listRecommendations()
+      knowledgeArtifacts: repositories.knowledge
+        .listKnowledgeArtifacts()
+        .filter((artifact) => artifact.status === "confirmed"),
+      memories: repositories.memory.listMemories().filter((memory) => memory.status === "confirmed"),
+      recommendations: repositories.recommendation
+        .listRecommendations()
+        .filter((recommendation) => recommendation.evidence.length > 0)
     })
   );
 }
@@ -89,10 +93,12 @@ export function getProjectContext(project: string): ProjectContext {
       .filter((session) => session.project === project);
     const knowledgeArtifacts = repositories.knowledge
       .listKnowledgeArtifacts()
-      .filter((artifact) => artifact.metadata.projects.includes(project));
+      .filter(
+        (artifact) => artifact.status === "confirmed" && artifact.metadata.projects.includes(project)
+      );
     const memories = repositories.memory
       .listMemories()
-      .filter((memory) => memory.scope.project === project);
+      .filter((memory) => memory.status === "confirmed" && memory.scope.project === project);
     const projectEventIds = new Set(
       repositories.event
         .listEvents()
@@ -104,6 +110,7 @@ export function getProjectContext(project: string): ProjectContext {
     const recommendations = repositories.recommendation
       .listRecommendations()
       .filter((recommendation) =>
+        recommendation.evidence.length > 0 &&
         recommendation.evidence.some(
           (ref) =>
             (ref.eventId && projectEventIds.has(ref.eventId)) ||

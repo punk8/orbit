@@ -25,6 +25,7 @@ export interface DesktopSnapshot {
     recommendations: number;
   };
   sources: SourceRecord[];
+  sourceAdapterConfigs: Record<string, DesktopSourceAdapterConfig>;
   activitySessions: ActivitySession[];
   knowledgeArtifacts: KnowledgeArtifact[];
   memories: Memory[];
@@ -78,6 +79,12 @@ export type DesktopRuntimeStatus = "idle" | "collecting" | "paused" | "error";
 export type DesktopSourceRuntimeAction = "pause" | "resume" | "enable" | "disable";
 
 export type SourceSetupKind = "fixtures" | "codex" | "local_agent" | "seatalk";
+
+export interface DesktopSourceAdapterConfig {
+  setupKind: SourceSetupKind;
+  path?: string;
+  fixturesRoot?: string;
+}
 
 export interface DesktopAIProviderTestConfig {
   providerKind?: DesktopAIProviderKind;

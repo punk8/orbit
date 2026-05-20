@@ -3,7 +3,12 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Event, KnowledgeArtifact, Memory } from "@orbit/core";
-import { createStableId, evidenceFromEvent, hashObject } from "@orbit/core";
+import {
+  createStableId,
+  defaultPermissionScopeForSource,
+  evidenceFromEvent,
+  hashObject
+} from "@orbit/core";
 import { EventRepository } from "./repositories/eventRepository";
 import { KnowledgeRepository } from "./repositories/knowledgeRepository";
 import { MemoryRepository } from "./repositories/memoryRepository";
@@ -118,6 +123,7 @@ describe("sqlite store", () => {
         enabled: true,
         paused: false,
         defaultSensitivity: "internal",
+        permissionScope: defaultPermissionScopeForSource("codex", "internal"),
         createdAt: "2026-05-20T09:00:00.000Z",
         updatedAt: "2026-05-20T09:00:00.000Z"
       });
@@ -133,6 +139,7 @@ describe("sqlite store", () => {
       expect(source?.paused).toBe(true);
       expect(source?.lastSyncAt).toBeTruthy();
       expect(source?.lastEventAt).toBe("2026-05-20T09:15:00.000Z");
+      expect(source?.permissionScope.canUseForAI).toBe(true);
 
       sources.recordSyncError("fixture_codex", "adapter unavailable");
       expect(sources.getSource("fixture_codex")?.lastError).toBe("adapter unavailable");

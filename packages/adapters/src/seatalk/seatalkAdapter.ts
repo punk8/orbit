@@ -1,4 +1,5 @@
-import type { AdapterReadResult, Sensitivity, SourceAdapter } from "@orbit/core";
+import type { AdapterReadResult, PermissionScope, Sensitivity, SourceAdapter } from "@orbit/core";
+import { defaultPermissionScopeForSource } from "@orbit/core";
 import { FixtureAdapter, readFixtureItems } from "../fixture/fixtureAdapter";
 import { normalizeApprovedSeaTalkRecord } from "./seatalkNormalizer";
 
@@ -15,11 +16,13 @@ export class SeaTalkAdapter implements SourceAdapter {
   readonly displayName: string;
   readonly capabilities = ["incremental_read", "thread_metadata"] as const;
   readonly defaultSensitivity: Sensitivity;
+  readonly permissionScope: PermissionScope;
 
   constructor(private readonly options: SeaTalkAdapterOptions) {
     this.id = options.id ?? "seatalk_approved_import";
     this.displayName = options.displayName ?? "SeaTalk Approved Import";
     this.defaultSensitivity = options.defaultSensitivity ?? "confidential";
+    this.permissionScope = defaultPermissionScopeForSource(this.kind, this.defaultSensitivity);
   }
 
   async readCursor(cursor?: string): Promise<AdapterReadResult> {

@@ -59,13 +59,14 @@ describe("cli commands", () => {
     expect(listRecommendations()).toHaveLength(2);
     expect(searchKnowledgeArtifacts("Orbit")).not.toHaveLength(0);
     expect(getTodayContext("2026-05-20").activitySessions).toHaveLength(3);
-    expect(getProjectContext("orbit").knowledgeArtifacts).toHaveLength(5);
+    expect(getProjectContext("orbit").knowledgeArtifacts).toHaveLength(0);
 
     const reviewResult = runKnowledgeReviewAction(artifacts[0]!.id, "confirm");
     expect(reviewResult.artifact.status).toBe("confirmed");
     expect(reviewResult.generatedMemories).toHaveLength(2);
     expect(listMemories()).toHaveLength(2);
     expect(searchMemories("Orbit")).not.toHaveLength(0);
+    expect(getProjectContext("orbit").knowledgeArtifacts).toHaveLength(1);
 
     const third = await ingestFixtures();
     expect(third.totals.inserted).toBe(0);

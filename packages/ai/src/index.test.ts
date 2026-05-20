@@ -1,10 +1,16 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
-import type { ActivitySession, Event } from "@orbit/core";
-import { createStableId, evidenceFromEvent, hashObject } from "@orbit/core";
+import type { Event } from "@orbit/core";
+import {
+  createStableId,
+  defaultPermissionScopeForSource,
+  evidenceFromEvent,
+  hashObject
+} from "@orbit/core";
 import {
   createOpenAICompatibleProvider,
+  type DraftKnowledgeInput,
   mockAiProvider,
   normalizeChatCompletionsUrl,
   testAIProviderConnection
@@ -125,6 +131,71 @@ describe("AI providers", () => {
 
     expect(isRecord(requestBody) ? requestBody.max_completion_tokens : undefined).toBe(640);
     expect(isRecord(requestBody) && "max_tokens" in requestBody).toBe(false);
+  });
+
+  it("filters secret and source-blocked confidential evidence from provider payloads", async () => {
+    const input = makeDraftInput();
+    const secretEvent = {
+      ...makeEvent("3", "message"),
+      content: { title: "Secret token", text: "password=super-secret" },
+      privacy: {
+        sensitivity: "secret" as const,
+        retentionPolicyId: "default",
+        redactionState: "none" as const
+      }
+    };
+    const confidentialEvent = {
+      ...makeEvent("4", "message"),
+      source: {
+        kind: "seatalk" as const,
+        adapterId: "fixture_seatalk",
+        externalId: "4",
+        pointer: "fixture://seatalk/provider#4"
+      },
+      content: { title: "Confidential chat", text: "customer escalation" },
+      privacy: {
+        sensitivity: "confidential" as const,
+        retentionPolicyId: "default",
+        redactionState: "none" as const
+      }
+    };
+    input.events.push(secretEvent, confidentialEvent);
+    input.sourcePermissions = {
+      fixture_codex: defaultPermissionScopeForSource("codex", "internal"),
+      fixture_seatalk: defaultPermissionScopeForSource("seatalk", "confidential")
+    };
+
+    let requestBody: unknown;
+    const baseUrl = await startProviderServer(async (request, response) => {
+      requestBody = JSON.parse(await readRequestBody(request));
+      writeJson(response, {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                title: "Filtered draft",
+                description: "Filtered sensitive evidence.",
+                keyInsights: [{ text: "Valid insight", evidenceIds: [input.events[0]!.id] }],
+                decisions: [],
+                blockers: [],
+                followUps: [],
+                confidence: 0.8
+              })
+            }
+          }
+        ]
+      });
+    });
+
+    const provider = createOpenAICompatibleProvider({ baseUrl, model: "test-model" });
+    await provider.draftKnowledge(input);
+
+    const serialized = JSON.stringify(requestBody);
+    expect(serialized).toContain(input.events[0]!.id);
+    expect(serialized).not.toContain(secretEvent.id);
+    expect(serialized).not.toContain(confidentialEvent.id);
+    expect(serialized).not.toContain("super-secret");
+    expect(serialized).not.toContain("customer escalation");
   });
 
   it("retries without response_format when a compatible endpoint rejects it", async () => {
@@ -275,7 +346,7 @@ function writeJson(response: ServerResponse, value: unknown): void {
   response.end(JSON.stringify(value));
 }
 
-function makeDraftInput(): { session: ActivitySession; events: Event[] } {
+function makeDraftInput(): DraftKnowledgeInput {
   const events = [makeEvent("1", "message"), makeEvent("2", "todo")];
   return {
     events,

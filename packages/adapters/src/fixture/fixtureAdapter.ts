@@ -1,7 +1,14 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { basename, join } from "node:path";
-import type { AdapterReadResult, Event, Sensitivity, SourceAdapter, SourceKind } from "@orbit/core";
-import { createStableId, hashObject } from "@orbit/core";
+import type {
+  AdapterReadResult,
+  Event,
+  PermissionScope,
+  Sensitivity,
+  SourceAdapter,
+  SourceKind
+} from "@orbit/core";
+import { createStableId, defaultPermissionScopeForSource, hashObject } from "@orbit/core";
 import type { FixtureReadItem, FixtureRecord } from "./fixtureTypes";
 
 export interface FixtureAdapterOptions {
@@ -18,6 +25,7 @@ export class FixtureAdapter implements SourceAdapter {
   readonly displayName: string;
   readonly capabilities = ["incremental_read"] as const;
   readonly defaultSensitivity: Sensitivity;
+  readonly permissionScope: PermissionScope;
 
   constructor(private readonly options: FixtureAdapterOptions) {
     this.kind = options.kind;
@@ -25,6 +33,7 @@ export class FixtureAdapter implements SourceAdapter {
     this.displayName = options.displayName ?? `Fixture ${options.kind}`;
     this.defaultSensitivity =
       options.defaultSensitivity ?? (options.kind === "seatalk" ? "confidential" : "internal");
+    this.permissionScope = defaultPermissionScopeForSource(this.kind, this.defaultSensitivity);
   }
 
   async readCursor(cursor?: string): Promise<AdapterReadResult> {

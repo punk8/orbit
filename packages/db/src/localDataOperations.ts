@@ -90,9 +90,13 @@ export function exportTodayContext(
   const today = buildTodayContext({
     date,
     activitySessions: activityRepository.listActivitySessions(),
-    knowledgeArtifacts: knowledgeRepository.listKnowledgeArtifacts(),
-    memories: memoryRepository.listMemories(),
-    recommendations: recommendationRepository.listRecommendations()
+    knowledgeArtifacts: knowledgeRepository
+      .listKnowledgeArtifacts()
+      .filter((artifact) => artifact.status === "confirmed"),
+    memories: memoryRepository.listMemories().filter((memory) => memory.status === "confirmed"),
+    recommendations: recommendationRepository
+      .listRecommendations()
+      .filter((recommendation) => recommendation.evidence.length > 0)
   });
   const exportDir = join(database.orbitHome, "exports");
   mkdirSync(exportDir, { recursive: true });
@@ -112,7 +116,9 @@ export function exportTodayContext(
     )
   );
   new AuditRepository(database.db).log("local_data.export_context", "context_export", path, {
-    date
+    date,
+    scope: "summary_confirmed_context",
+    includesRawEvents: false
   });
   return { path, today };
 }

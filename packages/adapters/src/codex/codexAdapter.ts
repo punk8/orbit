@@ -1,4 +1,5 @@
-import type { AdapterReadResult, Sensitivity, SourceAdapter } from "@orbit/core";
+import type { AdapterReadResult, PermissionScope, Sensitivity, SourceAdapter } from "@orbit/core";
+import { defaultPermissionScopeForSource } from "@orbit/core";
 import { normalizeCodexSessionItem } from "./codexNormalizer";
 import { readCodexSessionItemsWithWarnings } from "./codexSessionReader";
 
@@ -15,11 +16,13 @@ export class CodexAdapter implements SourceAdapter {
   readonly displayName: string;
   readonly capabilities = ["incremental_read", "thread_metadata"] as const;
   readonly defaultSensitivity: Sensitivity;
+  readonly permissionScope: PermissionScope;
 
   constructor(private readonly options: CodexAdapterOptions) {
     this.id = options.id ?? "codex_local";
     this.displayName = options.displayName ?? "Codex Local Sessions";
     this.defaultSensitivity = options.defaultSensitivity ?? "internal";
+    this.permissionScope = defaultPermissionScopeForSource(this.kind, this.defaultSensitivity);
   }
 
   async readCursor(cursor?: string): Promise<AdapterReadResult> {

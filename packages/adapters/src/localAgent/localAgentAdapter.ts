@@ -1,4 +1,5 @@
-import type { AdapterReadResult, Sensitivity, SourceAdapter } from "@orbit/core";
+import type { AdapterReadResult, PermissionScope, Sensitivity, SourceAdapter } from "@orbit/core";
+import { defaultPermissionScopeForSource } from "@orbit/core";
 import { readSessionItems } from "../codex/codexSessionReader";
 import { normalizeLocalAgentSessionItem } from "./localAgentNormalizer";
 
@@ -16,11 +17,13 @@ export class LocalAgentAdapter implements SourceAdapter {
   readonly displayName: string;
   readonly capabilities = ["incremental_read", "thread_metadata"] as const;
   readonly defaultSensitivity: Sensitivity;
+  readonly permissionScope: PermissionScope;
 
   constructor(private readonly options: LocalAgentAdapterOptions) {
     this.id = options.id ?? "local_agent";
     this.displayName = options.displayName ?? "Local Agent Sessions";
     this.defaultSensitivity = options.defaultSensitivity ?? "internal";
+    this.permissionScope = defaultPermissionScopeForSource(this.kind, this.defaultSensitivity);
   }
 
   async readCursor(cursor?: string): Promise<AdapterReadResult> {

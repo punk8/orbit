@@ -1,5 +1,7 @@
 import type Database from "better-sqlite3";
-import type { SourceAdapter, SourceRecord } from "@orbit/core";
+import { defaultPermissionScopeForSource } from "@orbit/core";
+import type { PermissionScope, SourceAdapter, SourceRecord } from "@orbit/core";
+import { decodeJson, encodeJson } from "../json";
 
 interface SourceRow {
   id: string;
@@ -8,6 +10,7 @@ interface SourceRow {
   enabled: number;
   paused: number;
   default_sensitivity: SourceRecord["defaultSensitivity"];
+  permission_scope_json: string | null;
   last_sync_at: string | null;
   last_event_at: string | null;
   last_error: string | null;
@@ -28,6 +31,7 @@ export class SourceRepository {
       enabled: existing?.enabled ?? true,
       paused: existing?.paused ?? false,
       defaultSensitivity: adapter.defaultSensitivity,
+      permissionScope: adapter.permissionScope,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now
     };
@@ -43,11 +47,11 @@ export class SourceRepository {
       .prepare(
         `
         INSERT INTO sources (
-          id, kind, display_name, enabled, paused, default_sensitivity,
+          id, kind, display_name, enabled, paused, default_sensitivity, permission_scope_json,
           last_sync_at, last_event_at, last_error, created_at, updated_at
         )
         VALUES (
-          @id, @kind, @displayName, @enabled, @paused, @defaultSensitivity,
+          @id, @kind, @displayName, @enabled, @paused, @defaultSensitivity, @permissionScopeJson,
           @lastSyncAt, @lastEventAt, @lastError, @createdAt, @updatedAt
         )
         ON CONFLICT(id) DO UPDATE SET
@@ -56,6 +60,7 @@ export class SourceRepository {
           enabled = excluded.enabled,
           paused = excluded.paused,
           default_sensitivity = excluded.default_sensitivity,
+          permission_scope_json = excluded.permission_scope_json,
           last_sync_at = excluded.last_sync_at,
           last_event_at = excluded.last_event_at,
           last_error = excluded.last_error,
@@ -66,6 +71,7 @@ export class SourceRepository {
         ...source,
         enabled: source.enabled ? 1 : 0,
         paused: source.paused ? 1 : 0,
+        permissionScopeJson: encodeJson(source.permissionScope),
         lastSyncAt: source.lastSyncAt ?? null,
         lastEventAt: source.lastEventAt ?? null,
         lastError: source.lastError ?? null
@@ -156,6 +162,7 @@ function mapSource(row: SourceRow): SourceRecord {
     enabled: row.enabled === 1,
     paused: row.paused === 1,
     defaultSensitivity: row.default_sensitivity,
+    permissionScope: readPermissionScope(row),
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -163,4 +170,11 @@ function mapSource(row: SourceRow): SourceRecord {
   if (row.last_event_at) source.lastEventAt = row.last_event_at;
   if (row.last_error) source.lastError = row.last_error;
   return source;
+}
+
+function readPermissionScope(row: SourceRow): PermissionScope {
+  if (row.permission_scope_json) {
+    return decodeJson<PermissionScope>(row.permission_scope_json);
+  }
+  return defaultPermissionScopeForSource(row.kind, row.default_sensitivity);
 }

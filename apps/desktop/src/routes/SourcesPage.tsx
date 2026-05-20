@@ -43,6 +43,40 @@ export function SourcesPage({
                     <span>{`${t("source.lastEvent")} ${source.lastEventAt}`}</span>
                   ) : null}
                 </div>
+                <div className="meta-line permission-line">
+                  <span>{`${t("source.retention")} ${source.permissionScope.retentionPolicyId}`}</span>
+                  <span>
+                    {source.permissionScope.canUseForAI
+                      ? t("source.aiAllowed")
+                      : t("source.aiBlocked")}
+                  </span>
+                  <span>
+                    {source.permissionScope.canStoreRaw
+                      ? t("source.rawStored")
+                      : t("source.rawNotStored")}
+                  </span>
+                  <span>
+                    {source.permissionScope.canExportToAgent
+                      ? t("source.agentExportAllowed")
+                      : t("source.agentExportBlocked")}
+                  </span>
+                </div>
+                <div className="meta-line permission-line">
+                  <span>{`${t("source.readableFields")} ${source.permissionScope.readableFields.join(", ")}`}</span>
+                </div>
+                <div className="meta-line permission-line">
+                  <span>{`${t("source.interface")} ${
+                    snapshot.sourceAdapterConfigs[source.id]?.setupKind ?? source.id
+                  }`}</span>
+                  {snapshot.sourceAdapterConfigs[source.id]?.path ? (
+                    <span>{`${t("source.path")} ${snapshot.sourceAdapterConfigs[source.id]?.path}`}</span>
+                  ) : null}
+                  {snapshot.sourceAdapterConfigs[source.id]?.fixturesRoot ? (
+                    <span>{`${t("source.fixturesRoot")} ${
+                      snapshot.sourceAdapterConfigs[source.id]?.fixturesRoot
+                    }`}</span>
+                  ) : null}
+                </div>
                 {source.lastError ? <p className="error-text">{source.lastError}</p> : null}
               </div>
               <div className="source-actions">

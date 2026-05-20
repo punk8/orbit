@@ -1,18 +1,21 @@
 import {
   buildActivitySessions,
   createStableId,
+  defaultPermissionScopeForSource,
   draftKnowledgeArtifact,
   extractMemoryCandidates,
   generateRecommendations
 } from "@orbit/core";
 import type { DraftKnowledgeOutput, AIProvider, EvidenceBackedText } from "@orbit/ai";
-import type { EvidenceRef, FollowUp, KnowledgeArtifact } from "@orbit/core";
+import type { Event, EvidenceRef, FollowUp, KnowledgeArtifact, PermissionScope } from "@orbit/core";
 import type { OrbitDatabase } from "./connection";
 import { ActivityRepository } from "./repositories/activityRepository";
+import { AuditRepository } from "./repositories/auditRepository";
 import { EventRepository } from "./repositories/eventRepository";
 import { KnowledgeRepository } from "./repositories/knowledgeRepository";
 import { MemoryRepository } from "./repositories/memoryRepository";
 import { RecommendationRepository } from "./repositories/recommendationRepository";
+import { SourceRepository } from "./repositories/sourceRepository";
 
 export interface SemanticPipelineResult {
   events: number;
@@ -59,6 +62,8 @@ function runSemanticPipelineCore(
   const knowledgeRepository = new KnowledgeRepository(database.db);
   const memoryRepository = new MemoryRepository(database.db);
   const recommendationRepository = new RecommendationRepository(database.db);
+  const auditRepository = new AuditRepository(database.db);
+  const sourcePermissions = readSourcePermissions(new SourceRepository(database.db));
 
   const events = eventRepository.listEvents();
   const sessions = buildActivitySessions(events);
@@ -78,14 +83,45 @@ function runSemanticPipelineCore(
   const buildArtifact = async (input: (typeof draftInputs)[number]): Promise<KnowledgeArtifact> => {
     const fallback = draftKnowledgeArtifact(input);
     if (!options.aiProvider?.enabled) return fallback;
+    const eligibleEvents = filterEventsForAI(input.events, sourcePermissions);
+    const filteredEventCount = input.events.length - eligibleEvents.length;
+    if (eligibleEvents.length === 0) {
+      auditRepository.log("ai.draft_knowledge.skipped", "activity_session", input.session.id, {
+        provider: options.aiProvider.id,
+        reason: "no_events_allowed_by_policy",
+        sourceEventCount: input.events.length,
+        filteredEventCount
+      });
+      return draftKnowledgeArtifact({
+        ...input,
+        generatedBy: "deterministic_privacy_fallback"
+      });
+    }
     try {
-      const providerInput = { ...input };
+      const providerInput = {
+        ...input,
+        events: eligibleEvents,
+        sourcePermissions
+      };
       if (options.language !== undefined) {
         Object.assign(providerInput, { language: options.language });
       }
       const draft = await options.aiProvider.draftKnowledge(providerInput);
+      auditRepository.log("ai.draft_knowledge", "activity_session", input.session.id, {
+        provider: options.aiProvider.id,
+        status: "success",
+        includedEventIds: eligibleEvents.map((event) => event.id),
+        filteredEventCount,
+        payloadTextMode: eligibleEvents.some((event) => event.content.text) ? "excerpt" : "summary"
+      });
       return knowledgeArtifactFromProviderDraft(fallback, draft, options.aiProvider.id);
-    } catch {
+    } catch (error) {
+      auditRepository.log("ai.draft_knowledge", "activity_session", input.session.id, {
+        provider: options.aiProvider.id,
+        status: "failed",
+        filteredEventCount,
+        message: error instanceof Error ? error.message : String(error)
+      });
       return draftKnowledgeArtifact({
         ...input,
         generatedBy: "deterministic_fallback"
@@ -200,6 +236,32 @@ function finishSemanticPipeline({
       total: recommendationRepository.countRecommendations()
     }
   };
+}
+
+function readSourcePermissions(sourceRepository: SourceRepository): Record<string, PermissionScope> {
+  return Object.fromEntries(
+    sourceRepository.listSources().map((source) => [
+      source.id,
+      source.permissionScope ??
+        defaultPermissionScopeForSource(source.kind, source.defaultSensitivity)
+    ])
+  );
+}
+
+function filterEventsForAI(
+  events: Event[],
+  sourcePermissions: Record<string, PermissionScope>
+): Event[] {
+  return events.filter((event) => {
+    if (event.privacy.sensitivity === "secret") return false;
+    if (event.privacy.redactionState === "failed") return false;
+    const permissionScope = sourcePermissions[event.source.adapterId];
+    if (!permissionScope) return false;
+    if (permissionScope.sourceKind !== event.source.kind) return false;
+    if (!permissionScope.canUseForAI) return false;
+    if (event.privacy.sensitivity === "confidential") return permissionScope.canUseForAI;
+    return true;
+  });
 }
 
 function knowledgeArtifactFromProviderDraft(

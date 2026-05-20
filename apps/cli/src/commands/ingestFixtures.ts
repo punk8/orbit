@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { FixtureAdapter } from "@orbit/adapters";
 import { ingestEventsFromAdapter } from "@orbit/core";
-import { EventRepository, openOrbitDatabase, SourceRepository } from "@orbit/db";
+import { AuditRepository, EventRepository, openOrbitDatabase, SourceRepository } from "@orbit/db";
 import { getCliConfig } from "../config";
 import { runSemanticPipeline, type SemanticPipelineResult } from "./semanticPipeline";
 
@@ -30,6 +30,7 @@ export async function ingestFixtures(): Promise<IngestFixturesResult> {
   try {
     const sourceRepository = new SourceRepository(database.db);
     const eventRepository = new EventRepository(database.db);
+    const auditRepository = new AuditRepository(database.db);
     const adapters = [
       new FixtureAdapter({
         kind: "codex",
@@ -52,6 +53,15 @@ export async function ingestFixtures(): Promise<IngestFixturesResult> {
       const cursor = sourceRepository.getCursor(adapter.id);
       const result = await ingestEventsFromAdapter(adapter, eventRepository, cursor);
       sourceRepository.setCursor(adapter.id, result.nextCursor);
+      sourceRepository.recordSyncSuccess(adapter.id, { lastEventAt: result.lastEventAt });
+      auditRepository.log("source.ingest", "source", adapter.id, {
+        mode: "cli",
+        kind: adapter.kind,
+        read: result.read,
+        inserted: result.inserted,
+        skipped: result.skipped,
+        warnings: result.warnings
+      });
       results.push(result);
     }
 

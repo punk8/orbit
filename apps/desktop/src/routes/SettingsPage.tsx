@@ -87,6 +87,10 @@ export function SettingsPage({
       setIsTestingProvider(false);
     }
   };
+  const clearLocalData = async (): Promise<void> => {
+    if (!window.confirm(t("confirm.clearLocalData"))) return;
+    await onClearLocalData();
+  };
   const settingsSections: Array<{ id: SettingsSectionId; label: string; detail: string }> = [
     {
       id: "provider",
@@ -444,7 +448,7 @@ export function SettingsPage({
               </button>
               <button
                 className="danger-button"
-                onClick={() => void onClearLocalData()}
+                onClick={() => void clearLocalData()}
                 type="button"
               >
                 {t("action.clearLocalData")}

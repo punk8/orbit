@@ -1,4 +1,4 @@
-import type { Sensitivity, SourceKind } from "./common";
+import type { PermissionScope, Sensitivity, SourceKind } from "./common";
 import type { Event } from "./event";
 
 export type SourceCapability =
@@ -20,6 +20,7 @@ export interface SourceAdapter {
   displayName: string;
   capabilities: readonly SourceCapability[];
   defaultSensitivity: Sensitivity;
+  permissionScope: PermissionScope;
   readCursor(cursor?: string): Promise<AdapterReadResult>;
 }
 
@@ -30,9 +31,35 @@ export interface SourceRecord {
   enabled: boolean;
   paused: boolean;
   defaultSensitivity: Sensitivity;
+  permissionScope: PermissionScope;
   lastSyncAt?: string;
   lastEventAt?: string;
   lastError?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export function defaultPermissionScopeForSource(
+  sourceKind: SourceKind,
+  sensitivity: Sensitivity
+): PermissionScope {
+  const isConfidential = sensitivity === "confidential" || sensitivity === "secret";
+  return {
+    sourceKind,
+    readableFields: [
+      "title",
+      "summary",
+      "text",
+      "timestamp",
+      "actor",
+      "app",
+      "project",
+      "thread"
+    ],
+    canStoreRaw: false,
+    canStoreSummary: true,
+    canUseForAI: !isConfidential,
+    canExportToAgent: sensitivity !== "secret",
+    retentionPolicyId: "default"
+  };
 }

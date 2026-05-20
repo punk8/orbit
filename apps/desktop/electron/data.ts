@@ -122,6 +122,7 @@ export function readDesktopSnapshot(date = getLocalDateKey()): DesktopSnapshot {
         recommendations: recommendationRepository.countRecommendations()
       },
       sources: sourceRepository.listSources(),
+      sourceAdapterConfigs: readSourceAdapterConfigs(settingsRepository),
       activitySessions,
       knowledgeArtifacts,
       memories,

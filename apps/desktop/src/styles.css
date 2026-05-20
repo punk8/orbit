@@ -338,6 +338,11 @@ button {
   margin-top: 8px;
 }
 
+.permission-line {
+  gap: 8px;
+  margin-top: 6px;
+}
+
 .error-text {
   color: #943b31;
 }

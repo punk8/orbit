@@ -56,3 +56,13 @@ export interface PrivacyPolicy {
   sensitivity: Sensitivity;
   retentionPolicyId: string;
 }
+
+export interface PermissionScope {
+  sourceKind: SourceKind;
+  readableFields: string[];
+  canStoreRaw: boolean;
+  canStoreSummary: boolean;
+  canUseForAI: boolean;
+  canExportToAgent: boolean;
+  retentionPolicyId: string;
+}

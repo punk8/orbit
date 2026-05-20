@@ -1,1 +1,1 @@
-export type { SourceAdapter, AdapterReadResult, SourceCapability } from "@orbit/core";
+export type { AdapterReadResult, PermissionScope, SourceAdapter, SourceCapability } from "@orbit/core";

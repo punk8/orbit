@@ -1,4 +1,4 @@
-import type { ActivitySession, Event, ID } from "@orbit/core";
+import type { ActivitySession, Event, ID, PermissionScope } from "@orbit/core";
 
 export type AIProviderKind = "disabled" | "mock" | "openai-compatible";
 export type OpenAICompatibleTokenLimitParameter = "max_tokens" | "max_completion_tokens";
@@ -27,6 +27,7 @@ export interface DraftKnowledgeInput {
   session: ActivitySession;
   events: Event[];
   language?: string;
+  sourcePermissions?: Record<string, PermissionScope | undefined>;
 }
 
 export interface DraftKnowledgeOutput {
@@ -407,7 +408,7 @@ function buildKnowledgePromptInput(input: DraftKnowledgeInput): Record<string, u
       summary: input.session.summary
     },
     evidence: input.events
-      .filter((event) => event.privacy.sensitivity !== "secret")
+      .filter((event) => canSendEventToAI(event, input))
       .map((event) => ({
         id: event.id,
         type: event.type,
@@ -420,6 +421,23 @@ function buildKnowledgePromptInput(input: DraftKnowledgeInput): Record<string, u
         textExcerpt: truncate(event.content.text, 700)
       }))
   };
+}
+
+function canSendEventToAI(event: Event, input: DraftKnowledgeInput): boolean {
+  if (event.privacy.sensitivity === "secret") return false;
+  if (event.privacy.redactionState === "failed") return false;
+
+  const permissionScope = input.sourcePermissions?.[event.source.adapterId];
+  if (permissionScope) {
+    if (permissionScope.sourceKind !== event.source.kind) return false;
+    if (!permissionScope.canUseForAI) return false;
+  }
+
+  if (event.privacy.sensitivity === "confidential") {
+    return permissionScope?.canUseForAI === true;
+  }
+
+  return true;
 }
 
 async function postChatCompletion(
