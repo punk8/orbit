@@ -64,10 +64,13 @@ The user needs direct controls for:
 
 - Pause/resume capture.
 - Disable a source adapter.
+- Reconfigure an existing source adapter path/interface.
+- Reset a source cursor so it can be re-ingested idempotently.
 - View what each adapter can read.
 - View what was stored locally.
 - Delete an Event, Activity Session, Knowledge Artifact, or Memory.
 - Delete all data from a source.
+- Run legacy privacy cleanup for old Events that predate the current raw storage policy.
 - Export Knowledge and Memory.
 - Rebuild indexes.
 - Turn off external AI provider usage.
@@ -89,6 +92,8 @@ Initial redaction targets:
 - Obvious secrets in command output and config files.
 
 Redaction failure should be visible in logs and object metadata. If redaction fails for a sensitive source, Orbit should prefer not to persist raw payloads.
+
+Legacy privacy cleanup should remove `content.text` from old Events when the source permission scope disallows raw storage. Cleanup should keep a bounded summary, preserve Event IDs and source pointers, leave Activity/Knowledge/Memory/Recommendation evidence intact, update redaction state conservatively, and write an audit log.
 
 ## External AI Provider Rules
 

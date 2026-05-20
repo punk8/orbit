@@ -12,6 +12,11 @@ const orbitApi: OrbitDesktopApi = {
   updateSourceRuntime: (sourceId, action) =>
     ipcRenderer.invoke("orbit:updateSourceRuntime", sourceId, action),
   setupSource: (kind, path) => ipcRenderer.invoke("orbit:setupSource", kind, path),
+  reconfigureSource: (sourceId, kind, path) =>
+    ipcRenderer.invoke("orbit:reconfigureSource", sourceId, kind, path),
+  deleteSource: (sourceId) => ipcRenderer.invoke("orbit:deleteSource", sourceId),
+  resetSourceCursor: (sourceId) => ipcRenderer.invoke("orbit:resetSourceCursor", sourceId),
+  cleanupLegacyEventPrivacy: () => ipcRenderer.invoke("orbit:cleanupLegacyEventPrivacy"),
   reindexLocalData: () => ipcRenderer.invoke("orbit:reindexLocalData"),
   clearLocalData: () => ipcRenderer.invoke("orbit:clearLocalData"),
   exportContext: () => ipcRenderer.invoke("orbit:exportContext"),

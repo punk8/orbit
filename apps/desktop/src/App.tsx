@@ -121,6 +121,35 @@ export function App(): ReactElement {
     }
   }
 
+  async function reconfigureSource(
+    sourceId: string,
+    kind: SourceSetupKind,
+    path?: string
+  ): Promise<void> {
+    await runDesktopAction(
+      () => window.orbit.reconfigureSource(sourceId, kind, path),
+      t("error.sourceRuntime")
+    );
+  }
+
+  async function deleteSource(sourceId: string): Promise<void> {
+    await runDesktopAction(() => window.orbit.deleteSource(sourceId), t("error.sourceRuntime"));
+  }
+
+  async function resetSourceCursor(sourceId: string): Promise<void> {
+    await runDesktopAction(
+      () => window.orbit.resetSourceCursor(sourceId),
+      t("error.sourceRuntime")
+    );
+  }
+
+  async function cleanupLegacyEventPrivacy(): Promise<void> {
+    await runDesktopAction(
+      () => window.orbit.cleanupLegacyEventPrivacy(),
+      t("error.sourceRuntime")
+    );
+  }
+
   async function reindexLocalData(): Promise<void> {
     await runDesktopAction(() => window.orbit.reindexLocalData(), t("error.reindex"));
   }
@@ -251,6 +280,10 @@ export function App(): ReactElement {
                 setCollectionPaused,
                 updateSourceRuntime,
                 setupSource,
+                reconfigureSource,
+                deleteSource,
+                resetSourceCursor,
+                cleanupLegacyEventPrivacy,
                 reindexLocalData,
                 clearLocalData,
                 exportContext,
@@ -281,6 +314,10 @@ interface PageActions {
   setCollectionPaused(paused: boolean): Promise<void>;
   updateSourceRuntime(sourceId: string, action: DesktopSourceRuntimeAction): Promise<void>;
   setupSource(kind: SourceSetupKind, path?: string): Promise<void>;
+  reconfigureSource(sourceId: string, kind: SourceSetupKind, path?: string): Promise<void>;
+  deleteSource(sourceId: string): Promise<void>;
+  resetSourceCursor(sourceId: string): Promise<void>;
+  cleanupLegacyEventPrivacy(): Promise<void>;
   reindexLocalData(): Promise<void>;
   clearLocalData(): Promise<void>;
   exportContext(): Promise<void>;
@@ -317,6 +354,10 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
         <SourcesPage
           snapshot={snapshot}
           onSetupSource={actions.setupSource}
+          onReconfigureSource={actions.reconfigureSource}
+          onDeleteSource={actions.deleteSource}
+          onResetSourceCursor={actions.resetSourceCursor}
+          onCleanupLegacyEventPrivacy={actions.cleanupLegacyEventPrivacy}
           onUpdateSourceRuntime={actions.updateSourceRuntime}
         />
       );

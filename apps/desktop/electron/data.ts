@@ -23,6 +23,7 @@ import {
   ActivityRepository,
   AuditRepository,
   clearLocalData,
+  cleanupLegacyEventPrivacy,
   EventRepository,
   exportTodayContext,
   KnowledgeRepository,
@@ -123,6 +124,7 @@ export function readDesktopSnapshot(date = getLocalDateKey()): DesktopSnapshot {
       },
       sources: sourceRepository.listSources(),
       sourceAdapterConfigs: readSourceAdapterConfigs(settingsRepository),
+      sourceCursors: readSourceCursorPresence(sourceRepository),
       activitySessions,
       knowledgeArtifacts,
       memories,
@@ -264,6 +266,103 @@ export async function setupSourceForDesktop(
         (total, result) => total + result.inserted,
         0
       )} events; ${pipeline.activitySessions.total} activity sessions available`
+    };
+  } finally {
+    database.close();
+  }
+}
+
+export function reconfigureSourceForDesktop(
+  sourceId: string,
+  kind: SourceSetupKind,
+  path?: string
+): DesktopActionResult {
+  const database = openOrbitDatabase();
+  try {
+    const sourceRepository = new SourceRepository(database.db);
+    const settingsRepository = new SettingsRepository(database.db);
+    const auditRepository = new AuditRepository(database.db);
+    const existing = sourceRepository.getSource(sourceId);
+    if (!existing) {
+      throw new Error(`Unknown source: ${sourceId}`);
+    }
+    const adapter = buildSingleSourceAdapter(kind, path, sourceId, existing.kind);
+    sourceRepository.upsertFromAdapter(adapter);
+    storeSingleSourceAdapterConfig(settingsRepository, kind, path, adapter);
+    auditRepository.log("source.reconfigure", "source", sourceId, {
+      previous: {
+        kind: existing.kind,
+        displayName: existing.displayName
+      },
+      next: {
+        kind,
+        path: path ? resolveInputPath(path) : undefined
+      }
+    });
+    return {
+      snapshot: readDesktopSnapshot(),
+      message: `Reconfigured ${adapter.displayName}`
+    };
+  } finally {
+    database.close();
+  }
+}
+
+export function deleteSourceForDesktop(sourceId: string): DesktopActionResult {
+  const database = openOrbitDatabase();
+  try {
+    const sources = new SourceRepository(database.db);
+    const settings = new SettingsRepository(database.db);
+    const audit = new AuditRepository(database.db);
+    const source = sources.getSource(sourceId);
+    if (!source) {
+      throw new Error(`Unknown source: ${sourceId}`);
+    }
+    const result = sources.deleteSource(sourceId);
+    removeSourceAdapterConfig(settings, sourceId);
+    audit.log("source.delete", "source", sourceId, {
+      displayName: source.displayName,
+      deletedSources: result.deletedSources,
+      deletedCursors: result.deletedCursors
+    });
+    return {
+      snapshot: readDesktopSnapshot(),
+      message: `Deleted source ${source.displayName}`
+    };
+  } finally {
+    database.close();
+  }
+}
+
+export function resetSourceCursorForDesktop(sourceId: string): DesktopActionResult {
+  const database = openOrbitDatabase();
+  try {
+    const sources = new SourceRepository(database.db);
+    const source = sources.getSource(sourceId);
+    if (!source) {
+      throw new Error(`Unknown source: ${sourceId}`);
+    }
+    const previousCursor = sources.getCursor(sourceId);
+    sources.resetCursor(sourceId);
+    new AuditRepository(database.db).log("source.reset_cursor", "source", sourceId, {
+      hadCursor: previousCursor !== undefined
+    });
+    return {
+      snapshot: readDesktopSnapshot(),
+      message: `Reset cursor for ${source.displayName}`
+    };
+  } finally {
+    database.close();
+  }
+}
+
+export function cleanupLegacyEventPrivacyForDesktop(): DesktopActionResult {
+  const database = openOrbitDatabase();
+  try {
+    const result = cleanupLegacyEventPrivacy(database);
+    return {
+      snapshot: readDesktopSnapshot(),
+      message: `Cleaned ${result.cleanedEvents} legacy events; scanned ${result.scannedEvents}`
     };
   } finally {
     database.close();
@@ -691,8 +790,29 @@ function storeSourceAdapterConfigs(
   settings.set(SETTING_KEYS.sourceAdapterConfigs, configs);
 }
 
+function storeSingleSourceAdapterConfig(
+  settings: SettingsRepository,
+  setupKind: SourceSetupKind,
+  path: string | undefined,
+  adapter: SourceAdapter
+): void {
+  storeSourceAdapterConfigs(settings, setupKind, path, [adapter]);
+}
+
+function removeSourceAdapterConfig(settings: SettingsRepository, sourceId: string): void {
+  const configs = readSourceAdapterConfigs(settings);
+  delete configs[sourceId];
+  settings.set(SETTING_KEYS.sourceAdapterConfigs, configs);
+}
+
 function readSourceAdapterConfigs(settings: SettingsRepository): StoredSourceAdapterConfigs {
   return settings.get<StoredSourceAdapterConfigs>(SETTING_KEYS.sourceAdapterConfigs) ?? {};
+}
+
+function readSourceCursorPresence(sources: SourceRepository): Record<string, boolean> {
+  return Object.fromEntries(
+    sources.listSources().map((source) => [source.id, sources.getCursor(source.id) !== undefined])
+  );
 }
 
 function readDesktopTokenLimitParameter(value: unknown): OpenAICompatibleTokenLimitParameter {
@@ -780,6 +900,34 @@ function buildSourceSetupAdapters(kind: SourceSetupKind, path?: string) {
       if (!resolvedPath) throw new Error("SeaTalk approved import setup requires a path");
       return [new SeaTalkAdapter({ approvedImportDirectory: resolvedPath })];
   }
+}
+
+function buildSingleSourceAdapter(
+  kind: SourceSetupKind,
+  path: string | undefined,
+  id: string,
+  existingKind?: SourceKind
+) {
+  if (kind === "fixtures") {
+    const fixturesRoot = resolveInputPath(process.env.ORBIT_FIXTURES_ROOT ?? "fixtures");
+    const sourceKind: SourceKind = existingKind === "seatalk" ? "seatalk" : "codex";
+    return new FixtureAdapter({
+      kind: sourceKind,
+      directory: join(fixturesRoot, sourceKind),
+      id,
+      displayName: sourceKind === "seatalk" ? "Fixture SeaTalk" : "Fixture Codex",
+      defaultSensitivity: sourceKind === "seatalk" ? "confidential" : "internal"
+    });
+  }
+  const resolvedPath = path ? resolveInputPath(path) : undefined;
+  if (!resolvedPath) throw new Error(`${kind} source reconfiguration requires a path`);
+  if (kind === "codex") {
+    return new CodexAdapter({ path: resolvedPath, id });
+  }
+  if (kind === "local_agent") {
+    return new LocalAgentAdapter({ path: resolvedPath, id, defaultApp: "Local Agent" });
+  }
+  return new SeaTalkAdapter({ approvedImportDirectory: resolvedPath, id });
 }
 
 function resolveInputPath(input: string): string {

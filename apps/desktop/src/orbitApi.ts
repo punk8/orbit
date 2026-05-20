@@ -26,6 +26,7 @@ export interface DesktopSnapshot {
   };
   sources: SourceRecord[];
   sourceAdapterConfigs: Record<string, DesktopSourceAdapterConfig>;
+  sourceCursors: Record<string, boolean>;
   activitySessions: ActivitySession[];
   knowledgeArtifacts: KnowledgeArtifact[];
   memories: Memory[];
@@ -128,6 +129,14 @@ export interface OrbitDesktopApi {
     action: DesktopSourceRuntimeAction
   ): Promise<DesktopSnapshot>;
   setupSource(kind: SourceSetupKind, path?: string): Promise<DesktopActionResult>;
+  reconfigureSource(
+    sourceId: string,
+    kind: SourceSetupKind,
+    path?: string
+  ): Promise<DesktopActionResult>;
+  deleteSource(sourceId: string): Promise<DesktopActionResult>;
+  resetSourceCursor(sourceId: string): Promise<DesktopActionResult>;
+  cleanupLegacyEventPrivacy(): Promise<DesktopActionResult>;
   reindexLocalData(): Promise<DesktopActionResult>;
   clearLocalData(): Promise<DesktopActionResult>;
   exportContext(): Promise<DesktopActionResult>;

@@ -11,7 +11,7 @@ if (!existsSync(appEntry) && !existsSync(packagedEntry)) {
 }
 
 const orbitHome = mkdtempSync(join(tmpdir(), "orbit-desktop-e2e-"));
-const env = { ...process.env, ORBIT_HOME: orbitHome };
+const env = { ...process.env, ORBIT_HOME: orbitHome, ORBIT_SKIP_LOGIN_ITEM_SETTINGS: "1" };
 delete env.ELECTRON_RUN_AS_NODE;
 delete env.VITE_DEV_SERVER_URL;
 
@@ -37,17 +37,24 @@ child.stderr.on("data", (chunk) => {
   output += chunk.toString();
 });
 
+let completed = false;
+
 const timeout = setTimeout(() => {
+  completed = true;
   child.kill("SIGTERM");
+  setTimeout(() => {
+    child.kill("SIGKILL");
+    cleanup();
+    process.exit(0);
+  }, 500).unref();
 }, 3000);
 
 child.on("exit", (code, signal) => {
+  if (completed) return;
+  completed = true;
   clearTimeout(timeout);
-  rmSync(orbitHome, { recursive: true, force: true });
-  if (!usePackagedApp) {
-    run("pnpm", ["rebuild", "better-sqlite3"]);
-  }
-  if (signal === "SIGTERM") {
+  cleanup();
+  if (signal === "SIGTERM" || signal === "SIGKILL") {
     process.exit(0);
   }
   if (code === 0) {
@@ -56,6 +63,13 @@ child.on("exit", (code, signal) => {
   console.error(output);
   process.exit(code ?? 1);
 });
+
+function cleanup() {
+  rmSync(orbitHome, { recursive: true, force: true });
+  if (!usePackagedApp) {
+    run("pnpm", ["rebuild", "better-sqlite3"]);
+  }
+}
 
 function run(command, args) {
   const result = spawnSync(command, args, {

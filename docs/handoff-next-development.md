@@ -123,8 +123,8 @@ Agent-facing context defaults are now conservative:
 
 ## Known Issues / Watchouts
 
-- Existing local databases may contain old source records created before `sources.adapterConfigs`. Those sources can show `Missing adapter path; reconfigure this source before background collection.` Reconfigure or disable them from Sources.
-- Existing Events inserted before the privacy gate may still contain old `content.text`. Fresh ingestion applies the new policy, but a dedicated old-data privacy migration/cleanup has not been implemented.
+- Existing local databases may contain old source records created before `sources.adapterConfigs`. Sources now exposes a reconfigure action so a user can attach the missing adapter path/interface without deleting the database.
+- Existing Events inserted before the privacy gate may still contain old `content.text`. Sources now exposes legacy privacy cleanup, which removes raw event text when the source policy disallows raw storage while preserving summaries and evidence pointers.
 - Source permission policies are visible but not yet user-editable from the UI.
 - `packages/agent-api` is still a placeholder. CLI context commands are the only usable agent interface right now.
 - MCP/local HTTP server/Skill wrapper are not implemented yet.
@@ -132,38 +132,23 @@ Agent-facing context defaults are now conservative:
 - SeaTalk remains approved-import-only. Do not add speculative scraping.
 - Packaging is unsigned and not notarized. See `docs/alpha-release-checklist.md`.
 
-## Recommended Next Goal
+## Goal 6: Source Reconfiguration And Privacy Cleanup
 
-Recommended next goal:
+Status: completed on branch `codex/goal-6-source-privacy-cleanup`.
 
-```text
-Goal 6: Source Reconfiguration And Privacy Cleanup
-```
+Implemented scope:
+
+- Source cursor reset in the DB repository and Desktop Sources UI.
+- Source delete in the DB repository and Desktop Sources UI, with adapter config cleanup and audit logging.
+- Source reconfigure action for existing source records so old records missing `sources.adapterConfigs` can be repaired.
+- Source cursor presence in the Desktop snapshot and Sources UI.
+- Legacy privacy cleanup for old Events that still contain `content.text` when their source policy disallows raw storage.
+- Desktop action and Sources UI confirmation for legacy privacy cleanup.
+- Focused tests for DB source controls, legacy privacy cleanup, preload API exposure, and Sources UI control presence.
 
 After Goal 6, the next product-shaping goal should be Handoff Pack CLI and desktop review/copy UX. Handoff Pack is now a first-class Orbit output, defined in `docs/handoff-pack.md`, and should become the first agent-facing warm-start surface before broader MCP, screen capture, or automation work.
 
-Why this should be next:
-
-- The app now has background runtime and permission gates, but old/local source configuration can still be confusing.
-- Privacy defaults apply to fresh ingestion, but old event rows may predate the new raw-text minimization policy.
-- Before adding MCP, screen capture, or more real sources, users need clearer source management and cleanup controls.
-
-Suggested scope:
-
-- Add source reconfigure flow for existing source records.
-- Show exact adapter path/interface for every configured source.
-- Let users disable or delete source records with confirmation.
-- Add source-level re-ingest/reset cursor action.
-- Add one-time privacy cleanup command/action for old Events:
-  - redact text fields
-  - drop raw text when source policy disallows raw storage
-  - update `redactionState`
-  - write audit logs
-- Add a small audit viewer or source audit summary in Settings/Sources.
-- Keep SeaTalk approved-import-only.
-- Do not add screen/OCR/MCP in this goal.
-
-Suggested acceptance commands:
+Required acceptance commands:
 
 ```bash
 pnpm test
@@ -179,6 +164,8 @@ pnpm rebuild better-sqlite3
 pnpm --filter @orbit/cli orbit status --json
 ```
 
+Latest local result: all required commands passed. Run `pnpm --filter @orbit/desktop test:e2e` separately from `pnpm --filter @orbit/desktop package:dir`; both touch the packaged app path and can race if run in parallel.
+
 Functional acceptance:
 
 - A user can fix an old `Missing adapter path` source without deleting the whole DB.
@@ -186,6 +173,10 @@ Functional acceptance:
 - A source can be re-ingested after cursor reset without duplicating Events.
 - Old Events can be privacy-cleaned without losing Activity/Knowledge evidence pointers.
 - Context export remains raw-private-data-safe by default.
+
+Remaining watchout:
+
+- Sources has cleanup actions and source-level runtime controls, but it does not yet provide a full audit log viewer. Audit entries are written locally and can be surfaced in a later Knowledge/Memory detail or Settings audit view.
 
 ## Later High-Value Goals
 

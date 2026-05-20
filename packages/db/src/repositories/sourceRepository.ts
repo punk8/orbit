@@ -118,6 +118,23 @@ export class SourceRepository {
       .run(sourceId, cursor ?? null, new Date().toISOString());
   }
 
+  resetCursor(sourceId: string): void {
+    this.db.prepare("DELETE FROM source_cursors WHERE source_id = ?").run(sourceId);
+  }
+
+  deleteSource(sourceId: string): { deletedSources: number; deletedCursors: number } {
+    const transaction = this.db.transaction(() => {
+      const deletedCursors = this.db
+        .prepare("DELETE FROM source_cursors WHERE source_id = ?")
+        .run(sourceId).changes;
+      const deletedSources = this.db
+        .prepare("DELETE FROM sources WHERE id = ?")
+        .run(sourceId).changes;
+      return { deletedSources, deletedCursors };
+    });
+    return transaction();
+  }
+
   setEnabled(sourceId: string, enabled: boolean): void {
     this.db
       .prepare("UPDATE sources SET enabled = ?, updated_at = ? WHERE id = ?")
