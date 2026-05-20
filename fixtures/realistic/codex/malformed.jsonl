@@ -1,0 +1,3 @@
+{"id":"codex-real-bad-1","timestamp":"2026-05-20T09:40:00.000Z","type":"message","role":"user","project":"orbit","content":"This valid record should still ingest before a malformed line."}
+{"id":"codex-real-bad-2","timestamp":"2026-05-20T09:41:00.000Z","type":"message","role":"assistant","project":"orbit","content":"This line misses the closing brace"
+{"id":"codex-real-bad-3","timestamp":"2026-05-20T09:42:00.000Z","type":"todo","role":"assistant","project":"orbit","content":"Bad records should produce warnings, not abort ingestion."}

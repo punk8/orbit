@@ -1,0 +1,32 @@
+appId: app.orbit.local
+productName: Orbit
+copyright: Copyright © 2026 Orbit
+
+directories:
+  output: release
+
+files:
+  - dist-electron/**/*
+  - dist-renderer/**/*
+  - package.json
+  - "!**/.tmp/**"
+  - "!**/fixtures/**"
+  - "!**/*.map"
+
+asar: true
+
+mac:
+  category: public.app-category.productivity
+  target:
+    - target: dmg
+      arch:
+        - arm64
+  identity: null
+  hardenedRuntime: false
+  gatekeeperAssess: false
+
+dmg:
+  sign: false
+  artifactName: Orbit-Alpha-${version}-${arch}.${ext}
+
+artifactName: Orbit-Alpha-${version}-${arch}.${ext}

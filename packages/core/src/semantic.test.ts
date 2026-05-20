@@ -18,13 +18,17 @@ describe("semantic pipeline", () => {
     expect(artifact.status).toBe("draft");
 
     const memories = extractMemoryCandidates([artifact]);
-    expect(memories[0]?.status).toBe("needs_review");
+    expect(memories).toHaveLength(0);
+
+    const confirmedArtifact = { ...artifact, status: "confirmed" as const };
+    const confirmedMemories = extractMemoryCandidates([confirmedArtifact]);
+    expect(confirmedMemories[0]?.status).toBe("needs_review");
 
     const recommendations = generateRecommendations({
       events,
       sessions,
       artifacts: [artifact],
-      memories
+      memories: confirmedMemories
     });
     expect(recommendations.some((item) => item.type === "follow_up")).toBe(true);
     expect(recommendations.every((item) => item.evidence.length > 0)).toBe(true);

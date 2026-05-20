@@ -26,5 +26,16 @@ export default [
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }]
     }
+  },
+  {
+    files: ["**/*.mjs"],
+    languageOptions: {
+      globals: {
+        clearTimeout: "readonly",
+        console: "readonly",
+        process: "readonly",
+        setTimeout: "readonly"
+      }
+    }
   }
 ];

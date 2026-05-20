@@ -12,6 +12,13 @@ Read in this order:
 6. [Milestone Plan](./milestone-plan.md)
 7. [Implementation Plan](./implementation-plan.md)
 8. [Development Tasks](./development-tasks.md)
+9. [Alpha Runtime Decisions](./alpha-runtime-decisions.md)
+10. [Alpha Product Closure Spec](./alpha-product-closure-spec.md)
+11. [Sanitized Real Fixtures Guide](./sanitized-real-fixtures-guide.md)
+12. [Alpha Test Strategy](./alpha-test-strategy.md)
+13. [Privacy Todos](./privacy-todos.md)
+14. [Alpha Hardening Goals](./alpha-hardening-goals.md)
+15. [Alpha Release Checklist](./alpha-release-checklist.md)
 
 The design follows the project-level guidance in [AGENTS.md](../AGENTS.md):
 

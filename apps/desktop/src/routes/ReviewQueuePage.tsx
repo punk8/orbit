@@ -1,8 +1,17 @@
 import type { ReactElement } from "react";
 import type { DesktopSnapshot } from "../orbitApi";
+import type { KnowledgeReviewAction, MemoryReviewAction } from "@orbit/db";
 import { Section } from "../components/Section";
 
-export function ReviewQueuePage({ snapshot }: { snapshot: DesktopSnapshot }): ReactElement {
+export function ReviewQueuePage({
+  snapshot,
+  onReviewKnowledge,
+  onReviewMemory
+}: {
+  snapshot: DesktopSnapshot;
+  onReviewKnowledge(id: string, action: KnowledgeReviewAction): Promise<void>;
+  onReviewMemory(id: string, action: MemoryReviewAction): Promise<void>;
+}): ReactElement {
   const knowledgeDrafts = snapshot.knowledgeArtifacts.filter(
     (artifact) => artifact.status === "draft"
   );
@@ -14,8 +23,34 @@ export function ReviewQueuePage({ snapshot }: { snapshot: DesktopSnapshot }): Re
         <div className="item-list compact">
           {knowledgeDrafts.map((artifact) => (
             <article className="list-item vertical" key={artifact.id}>
-              <h3>{artifact.title}</h3>
+              <div className="item-heading">
+                <h3>{artifact.title}</h3>
+                <span>{artifact.status}</span>
+              </div>
               <p>{artifact.content.description}</p>
+              <div className="action-row">
+                <button
+                  className="secondary-button"
+                  onClick={() => void onReviewKnowledge(artifact.id, "confirm")}
+                  type="button"
+                >
+                  Confirm
+                </button>
+                <button
+                  className="secondary-button"
+                  onClick={() => void onReviewKnowledge(artifact.id, "reject")}
+                  type="button"
+                >
+                  Reject
+                </button>
+                <button
+                  className="secondary-button"
+                  onClick={() => void onReviewKnowledge(artifact.id, "archive")}
+                  type="button"
+                >
+                  Archive
+                </button>
+              </div>
             </article>
           ))}
           {knowledgeDrafts.length === 0 ? (
@@ -27,8 +62,34 @@ export function ReviewQueuePage({ snapshot }: { snapshot: DesktopSnapshot }): Re
         <div className="item-list compact">
           {memoryCandidates.map((memory) => (
             <article className="list-item vertical" key={memory.id}>
-              <h3>{memory.title}</h3>
+              <div className="item-heading">
+                <h3>{memory.title}</h3>
+                <span>{memory.status}</span>
+              </div>
               <p>{memory.body}</p>
+              <div className="action-row">
+                <button
+                  className="secondary-button"
+                  onClick={() => void onReviewMemory(memory.id, "confirm")}
+                  type="button"
+                >
+                  Confirm
+                </button>
+                <button
+                  className="secondary-button"
+                  onClick={() => void onReviewMemory(memory.id, "reject")}
+                  type="button"
+                >
+                  Reject
+                </button>
+                <button
+                  className="secondary-button"
+                  onClick={() => void onReviewMemory(memory.id, "archive")}
+                  type="button"
+                >
+                  Archive
+                </button>
+              </div>
             </article>
           ))}
           {memoryCandidates.length === 0 ? (

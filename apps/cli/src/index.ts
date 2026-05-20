@@ -1,11 +1,21 @@
 import { Command } from "commander";
 import { getDbPath } from "./commands/dbPath";
+import {
+  runKnowledgeEdit,
+  runKnowledgeReviewAction,
+  runMemoryEdit,
+  runMemoryReviewAction,
+  runRecommendationReviewAction
+} from "./commands/governanceActions";
 import { ingestCodex } from "./commands/ingestCodex";
 import { ingestFixtures } from "./commands/ingestFixtures";
+import { ingestLocalAgent } from "./commands/ingestLocalAgent";
 import {
   getActivitySession,
   getKnowledgeArtifact,
+  getMemory,
   getProjectContext,
+  getRecommendation,
   getTodayContext,
   listActivitySessions,
   listKnowledgeArtifacts,
@@ -59,6 +69,15 @@ export function buildProgram(): Command {
     .option("--json", "output JSON")
     .action(async (options: { path: string; json?: boolean }) => {
       const result = await ingestCodex(options.path);
+      writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
+    });
+  ingest
+    .command("local-agent")
+    .description("Ingest generic local agent session files from an explicit path")
+    .requiredOption("--path <path>", "Sanitized local agent session file or directory")
+    .option("--json", "output JSON")
+    .action(async (options: { path: string; json?: boolean }) => {
+      const result = await ingestLocalAgent(options.path);
       writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
     });
 
@@ -129,6 +148,49 @@ export function buildProgram(): Command {
         json: options.json ?? program.opts<{ json?: boolean }>().json
       });
     });
+  for (const action of ["confirm", "reject", "archive"] as const) {
+    knowledge
+      .command(action)
+      .description(`${action} a Knowledge Artifact and write an audit log`)
+      .argument("<id>", "Knowledge Artifact ID")
+      .option("--json", "output JSON")
+      .action((id: string, options: { json?: boolean }) => {
+        writeOutput(runKnowledgeReviewAction(id, action), {
+          json: options.json ?? program.opts<{ json?: boolean }>().json
+        });
+      });
+  }
+  knowledge
+    .command("edit")
+    .description("Edit a Knowledge Artifact")
+    .argument("<id>", "Knowledge Artifact ID")
+    .option("--title <title>", "Replacement title")
+    .option("--description <description>", "Replacement description")
+    .option("--markdown <markdown>", "Replacement markdown")
+    .option("--key-insights <items>", "Pipe-separated replacement key insights")
+    .option("--json", "output JSON")
+    .action(
+      (
+        id: string,
+        options: {
+          title?: string;
+          description?: string;
+          markdown?: string;
+          keyInsights?: string;
+          json?: boolean;
+        }
+      ) => {
+        const input = omitUndefined({
+          title: options.title,
+          description: options.description,
+          markdown: options.markdown,
+          keyInsights: parseListOption(options.keyInsights)
+        });
+        writeOutput(runKnowledgeEdit(id, input), {
+          json: options.json ?? program.opts<{ json?: boolean }>().json
+        });
+      }
+    );
 
   const memory = program.command("memory").description("Read Memories");
   memory
@@ -137,6 +199,16 @@ export function buildProgram(): Command {
     .option("--json", "output JSON")
     .action((options: { json?: boolean }) => {
       writeOutput(listMemories(), {
+        json: options.json ?? program.opts<{ json?: boolean }>().json
+      });
+    });
+  memory
+    .command("show")
+    .description("Show a Memory")
+    .argument("<id>", "Memory ID")
+    .option("--json", "output JSON")
+    .action((id: string, options: { json?: boolean }) => {
+      writeOutput(requireRecord(getMemory(id), "Memory", id), {
         json: options.json ?? program.opts<{ json?: boolean }>().json
       });
     });
@@ -150,6 +222,38 @@ export function buildProgram(): Command {
         json: options.json ?? program.opts<{ json?: boolean }>().json
       });
     });
+  for (const action of ["confirm", "reject", "archive"] as const) {
+    memory
+      .command(action)
+      .description(`${action} a Memory and write an audit log`)
+      .argument("<id>", "Memory ID")
+      .option("--json", "output JSON")
+      .action((id: string, options: { json?: boolean }) => {
+        writeOutput(runMemoryReviewAction(id, action), {
+          json: options.json ?? program.opts<{ json?: boolean }>().json
+        });
+      });
+  }
+  memory
+    .command("edit")
+    .description("Edit a Memory")
+    .argument("<id>", "Memory ID")
+    .option("--title <title>", "Replacement title")
+    .option("--body <body>", "Replacement body")
+    .option("--tags <items>", "Pipe-separated replacement tags")
+    .option("--json", "output JSON")
+    .action(
+      (id: string, options: { title?: string; body?: string; tags?: string; json?: boolean }) => {
+        const input = omitUndefined({
+          title: options.title,
+          body: options.body,
+          tags: parseListOption(options.tags)
+        });
+        writeOutput(runMemoryEdit(id, input), {
+          json: options.json ?? program.opts<{ json?: boolean }>().json
+        });
+      }
+    );
 
   const recommendation = program.command("recommendation").description("Read Recommendations");
   recommendation
@@ -160,6 +264,42 @@ export function buildProgram(): Command {
       writeOutput(listRecommendations(), {
         json: options.json ?? program.opts<{ json?: boolean }>().json
       });
+    });
+  recommendation
+    .command("show")
+    .description("Show a Recommendation")
+    .argument("<id>", "Recommendation ID")
+    .option("--json", "output JSON")
+    .action((id: string, options: { json?: boolean }) => {
+      writeOutput(requireRecord(getRecommendation(id), "Recommendation", id), {
+        json: options.json ?? program.opts<{ json?: boolean }>().json
+      });
+    });
+  for (const action of ["accept", "dismiss", "resolve"] as const) {
+    recommendation
+      .command(action)
+      .description(`${action} a Recommendation and write an audit log`)
+      .argument("<id>", "Recommendation ID")
+      .option("--json", "output JSON")
+      .action((id: string, options: { json?: boolean }) => {
+        writeOutput(runRecommendationReviewAction(id, action), {
+          json: options.json ?? program.opts<{ json?: boolean }>().json
+        });
+      });
+  }
+  recommendation
+    .command("snooze")
+    .description("Snooze a Recommendation without executing external side effects")
+    .argument("<id>", "Recommendation ID")
+    .option("--until <timestamp>", "ISO timestamp when the recommendation should reappear")
+    .option("--json", "output JSON")
+    .action((id: string, options: { until?: string; json?: boolean }) => {
+      writeOutput(
+        runRecommendationReviewAction(id, "snooze", omitUndefined({ snoozeUntil: options.until })),
+        {
+          json: options.json ?? program.opts<{ json?: boolean }>().json
+        }
+      );
     });
 
   const context = program.command("context").description("Read assembled context packs");
@@ -194,4 +334,18 @@ function requireRecord<T>(record: T | undefined, label: string, id: string): T {
     throw new Error(`${label} not found: ${id}`);
   }
   return record;
+}
+
+function parseListOption(value: string | undefined): string[] | undefined {
+  if (!value) return undefined;
+  return value
+    .split("|")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function omitUndefined<T extends Record<string, unknown>>(value: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, item]) => item !== undefined)
+  ) as Partial<T>;
 }

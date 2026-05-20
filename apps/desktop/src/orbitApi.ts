@@ -6,6 +6,11 @@ import type {
   SourceRecord,
   TodayContext
 } from "@orbit/core";
+import type {
+  KnowledgeReviewAction,
+  MemoryReviewAction,
+  RecommendationReviewAction
+} from "@orbit/db";
 
 export interface DesktopSnapshot {
   orbitHome: string;
@@ -29,12 +34,43 @@ export interface DesktopSnapshot {
     localOnly: boolean;
     aiProvider: string;
     externalActionsEnabled: boolean;
-    screenCaptureEnabled: boolean;
+    visualContextEnabled: boolean;
+    menuBarEnabled: boolean;
+    launchAtLoginEnabled: boolean;
+    configuredDatabasePath?: string;
+    sourceSetupCompleted: boolean;
   };
+}
+
+export type DesktopSettingKey =
+  | "desktop.menuBarEnabled"
+  | "desktop.launchAtLoginEnabled"
+  | "storage.configuredDatabasePath"
+  | "sources.setupCompleted";
+
+export type SourceSetupKind = "fixtures" | "codex" | "local_agent" | "seatalk";
+
+export interface DesktopActionResult {
+  snapshot: DesktopSnapshot;
+  message: string;
+  exportPath?: string;
+  warnings?: string[];
 }
 
 export interface OrbitDesktopApi {
   getSnapshot(): Promise<DesktopSnapshot>;
+  reviewKnowledge(id: string, action: KnowledgeReviewAction): Promise<DesktopSnapshot>;
+  reviewMemory(id: string, action: MemoryReviewAction): Promise<DesktopSnapshot>;
+  reviewRecommendation(
+    id: string,
+    action: RecommendationReviewAction,
+    options?: { snoozeUntil?: string | undefined }
+  ): Promise<DesktopSnapshot>;
+  updateSetting(key: DesktopSettingKey, value: unknown): Promise<DesktopSnapshot>;
+  setupSource(kind: SourceSetupKind, path?: string): Promise<DesktopActionResult>;
+  reindexLocalData(): Promise<DesktopActionResult>;
+  clearLocalData(): Promise<DesktopActionResult>;
+  exportContext(): Promise<DesktopActionResult>;
 }
 
 declare global {

@@ -52,6 +52,10 @@ export function listMemories(): Memory[] {
   return withDatabase((repositories) => repositories.memory.listMemories());
 }
 
+export function getMemory(id: string): Memory | undefined {
+  return withDatabase((repositories) => repositories.memory.getMemory(id));
+}
+
 export function searchMemories(query: string): Memory[] {
   return withDatabase((repositories) =>
     query.trim() ? repositories.memory.searchMemory(query) : repositories.memory.listMemories()
@@ -60,6 +64,10 @@ export function searchMemories(query: string): Memory[] {
 
 export function listRecommendations(): Recommendation[] {
   return withDatabase((repositories) => repositories.recommendation.listRecommendations());
+}
+
+export function getRecommendation(id: string): Recommendation | undefined {
+  return withDatabase((repositories) => repositories.recommendation.getRecommendation(id));
 }
 
 export function getTodayContext(date = new Date().toISOString().slice(0, 10)): TodayContext {

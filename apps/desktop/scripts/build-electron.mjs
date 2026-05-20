@@ -18,7 +18,6 @@ await build({
   outExtension: {
     ".js": ".cjs"
   },
-  packages: "external",
   external: ["electron", "better-sqlite3"],
   logLevel: "info"
 });

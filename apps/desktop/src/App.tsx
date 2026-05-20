@@ -12,6 +12,12 @@ import {
   Sparkles
 } from "lucide-react";
 import type { DesktopSnapshot } from "./orbitApi";
+import type { DesktopSettingKey, SourceSetupKind } from "./orbitApi";
+import type {
+  KnowledgeReviewAction,
+  MemoryReviewAction,
+  RecommendationReviewAction
+} from "@orbit/db";
 import { ActivityPage } from "./routes/ActivityPage";
 import { KnowledgePage } from "./routes/KnowledgePage";
 import { MemoryPage } from "./routes/MemoryPage";
@@ -46,11 +52,13 @@ export function App(): ReactElement {
   const [activePage, setActivePage] = useState<PageId>("today");
   const [snapshot, setSnapshot] = useState<DesktopSnapshot | undefined>();
   const [error, setError] = useState<string | undefined>();
+  const [notice, setNotice] = useState<string | undefined>();
   const [isLoading, setIsLoading] = useState(true);
 
   async function loadSnapshot(): Promise<void> {
     setIsLoading(true);
     setError(undefined);
+    setNotice(undefined);
     try {
       setSnapshot(await window.orbit.getSnapshot());
     } catch (reason) {
@@ -58,6 +66,82 @@ export function App(): ReactElement {
     } finally {
       setIsLoading(false);
     }
+  }
+
+  async function runReviewAction(
+    work: () => Promise<DesktopSnapshot>,
+    failureMessage: string
+  ): Promise<void> {
+    setError(undefined);
+    try {
+      setSnapshot(await work());
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : failureMessage);
+    }
+  }
+
+  async function updateSetting(key: DesktopSettingKey, value: unknown): Promise<void> {
+    await runReviewAction(() => window.orbit.updateSetting(key, value), "Unable to update setting");
+  }
+
+  async function setupSource(kind: SourceSetupKind, path?: string): Promise<void> {
+    setError(undefined);
+    try {
+      const result = await window.orbit.setupSource(kind, path);
+      setSnapshot(result.snapshot);
+      setNotice(
+        result.warnings?.length ? `${result.message}; ${result.warnings[0]}` : result.message
+      );
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to configure source");
+    }
+  }
+
+  async function reindexLocalData(): Promise<void> {
+    await runDesktopAction(() => window.orbit.reindexLocalData(), "Unable to re-index local data");
+  }
+
+  async function clearLocalData(): Promise<void> {
+    await runDesktopAction(() => window.orbit.clearLocalData(), "Unable to clear local data");
+  }
+
+  async function exportContext(): Promise<void> {
+    await runDesktopAction(() => window.orbit.exportContext(), "Unable to export context");
+  }
+
+  async function runDesktopAction(
+    work: () => Promise<{ snapshot: DesktopSnapshot; message: string; exportPath?: string }>,
+    failureMessage: string
+  ): Promise<void> {
+    setError(undefined);
+    try {
+      const result = await work();
+      setSnapshot(result.snapshot);
+      setNotice(result.exportPath ? `${result.message}` : result.message);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : failureMessage);
+    }
+  }
+
+  function reviewKnowledge(id: string, action: KnowledgeReviewAction): Promise<void> {
+    return runReviewAction(
+      () => window.orbit.reviewKnowledge(id, action),
+      "Unable to update knowledge review state"
+    );
+  }
+
+  function reviewMemory(id: string, action: MemoryReviewAction): Promise<void> {
+    return runReviewAction(
+      () => window.orbit.reviewMemory(id, action),
+      "Unable to update memory review state"
+    );
+  }
+
+  function reviewRecommendation(id: string, action: RecommendationReviewAction): Promise<void> {
+    return runReviewAction(
+      () => window.orbit.reviewRecommendation(id, action),
+      "Unable to update recommendation state"
+    );
   }
 
   useEffect(() => {
@@ -119,14 +203,37 @@ export function App(): ReactElement {
         </header>
 
         {error ? <div className="error-banner">{error}</div> : null}
+        {notice ? <div className="notice-banner">{notice}</div> : null}
         {isLoading && !snapshot ? <div className="empty-state">Loading</div> : null}
-        {snapshot ? renderPage(activePage, snapshot) : null}
+        {snapshot
+          ? renderPage(activePage, snapshot, {
+              reviewKnowledge,
+              reviewMemory,
+              reviewRecommendation,
+              updateSetting,
+              setupSource,
+              reindexLocalData,
+              clearLocalData,
+              exportContext
+            })
+          : null}
       </main>
     </div>
   );
 }
 
-function renderPage(page: PageId, snapshot: DesktopSnapshot): ReactElement {
+interface PageActions {
+  reviewKnowledge(id: string, action: KnowledgeReviewAction): Promise<void>;
+  reviewMemory(id: string, action: MemoryReviewAction): Promise<void>;
+  reviewRecommendation(id: string, action: RecommendationReviewAction): Promise<void>;
+  updateSetting(key: DesktopSettingKey, value: unknown): Promise<void>;
+  setupSource(kind: SourceSetupKind, path?: string): Promise<void>;
+  reindexLocalData(): Promise<void>;
+  clearLocalData(): Promise<void>;
+  exportContext(): Promise<void>;
+}
+
+function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageActions): ReactElement {
   switch (page) {
     case "today":
       return <TodayPage snapshot={snapshot} />;
@@ -137,12 +244,31 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot): ReactElement {
     case "memory":
       return <MemoryPage memories={snapshot.memories} />;
     case "recommendations":
-      return <RecommendationsPage recommendations={snapshot.recommendations} />;
+      return (
+        <RecommendationsPage
+          recommendations={snapshot.recommendations}
+          onReviewRecommendation={actions.reviewRecommendation}
+        />
+      );
     case "review":
-      return <ReviewQueuePage snapshot={snapshot} />;
+      return (
+        <ReviewQueuePage
+          snapshot={snapshot}
+          onReviewKnowledge={actions.reviewKnowledge}
+          onReviewMemory={actions.reviewMemory}
+        />
+      );
     case "sources":
-      return <SourcesPage snapshot={snapshot} />;
+      return <SourcesPage snapshot={snapshot} onSetupSource={actions.setupSource} />;
     case "settings":
-      return <SettingsPage snapshot={snapshot} />;
+      return (
+        <SettingsPage
+          snapshot={snapshot}
+          onClearLocalData={actions.clearLocalData}
+          onExportContext={actions.exportContext}
+          onReindexLocalData={actions.reindexLocalData}
+          onUpdateSetting={actions.updateSetting}
+        />
+      );
   }
 }

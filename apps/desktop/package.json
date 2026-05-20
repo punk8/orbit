@@ -8,14 +8,18 @@
     "dev": "vite --host 127.0.0.1",
     "build": "vite build && node scripts/build-electron.mjs",
     "build:electron": "node scripts/build-electron.mjs",
+    "package:dir": "pnpm build && electron-builder --dir --config electron-builder.yml",
+    "package:dmg": "pnpm build && electron-builder --mac dmg --config electron-builder.yml",
     "typecheck": "tsc --noEmit -p ../../tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "test:e2e": "node scripts/e2e-smoke.mjs"
   },
   "dependencies": {
     "@orbit/adapters": "workspace:*",
     "@orbit/core": "workspace:*",
     "@orbit/db": "workspace:*",
     "@orbit/ui": "workspace:*",
+    "better-sqlite3": "^11.10.0",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
@@ -25,6 +29,7 @@
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",
     "electron": "^33.3.1",
+    "electron-builder": "^25.1.8",
     "esbuild": "^0.25.12",
     "vite": "^6.1.0"
   }

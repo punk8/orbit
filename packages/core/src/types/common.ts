@@ -2,6 +2,7 @@ export type ID = string;
 
 export type SourceKind =
   | "codex"
+  | "local_agent"
   | "seatalk"
   | "screen"
   | "calendar"

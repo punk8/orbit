@@ -9,3 +9,7 @@ export * from "./repositories/knowledgeRepository";
 export * from "./repositories/memoryRepository";
 export * from "./repositories/recommendationRepository";
 export * from "./repositories/auditRepository";
+export * from "./repositories/settingsRepository";
+export * from "./governance";
+export * from "./semanticPipeline";
+export * from "./localDataOperations";

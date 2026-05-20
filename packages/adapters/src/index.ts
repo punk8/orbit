@@ -4,5 +4,7 @@ export * from "./fixture/fixtureTypes";
 export * from "./codex/codexAdapter";
 export * from "./codex/codexNormalizer";
 export * from "./codex/codexSessionReader";
+export * from "./localAgent/localAgentAdapter";
+export * from "./localAgent/localAgentNormalizer";
 export * from "./seatalk/seatalkAdapter";
 export * from "./seatalk/seatalkNormalizer";

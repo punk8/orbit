@@ -7,7 +7,11 @@ import { createStableId, evidenceFromEvent, hashObject } from "@orbit/core";
 import { EventRepository } from "./repositories/eventRepository";
 import { KnowledgeRepository } from "./repositories/knowledgeRepository";
 import { MemoryRepository } from "./repositories/memoryRepository";
+import { AuditRepository } from "./repositories/auditRepository";
+import { reviewKnowledgeArtifact, reviewMemory, reviewRecommendation } from "./governance";
+import { RecommendationRepository } from "./repositories/recommendationRepository";
 import { openOrbitDatabase } from "./connection";
+import { resolveOrbitDbPath, writeOrbitRuntimeConfig } from "./orbitHome";
 
 const tempDirs: string[] = [];
 
@@ -50,6 +54,54 @@ describe("sqlite store", () => {
     } finally {
       close();
     }
+  });
+
+  it("reviews knowledge, memories, and recommendations with audit logs", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-db-review-test-"));
+    tempDirs.push(orbitHome);
+    const { db, close } = openOrbitDatabase({ orbitHome });
+    try {
+      const event = makeEvent();
+      new EventRepository(db).upsertEvent(event);
+      new KnowledgeRepository(db).upsertKnowledgeArtifact({
+        ...makeKnowledge(event),
+        content: {
+          ...makeKnowledge(event).content,
+          keyInsights: ["Orbit should keep reviewable knowledge.", "Memory needs confirmation."]
+        }
+      });
+
+      const knowledgeResult = reviewKnowledgeArtifact(db, "knowledge_fixture", "confirm");
+      expect(knowledgeResult.artifact.status).toBe("confirmed");
+      expect(knowledgeResult.generatedMemories).toHaveLength(2);
+
+      const memory = knowledgeResult.generatedMemories[0]!;
+      expect(reviewMemory(db, memory.id, "confirm").status).toBe("confirmed");
+
+      const recommendationRepo = new RecommendationRepository(db);
+      recommendationRepo.upsertRecommendation(makeRecommendation(event));
+      expect(reviewRecommendation(db, "recommendation_fixture", "dismiss").status).toBe(
+        "dismissed"
+      );
+
+      const operations = new AuditRepository(db).listAuditLogs().map((log) => log.operation);
+      expect(operations).toContain("knowledge.confirm");
+      expect(operations).toContain("memory.generate_candidate");
+      expect(operations).toContain("memory.confirm");
+      expect(operations).toContain("recommendation.dismiss");
+    } finally {
+      close();
+    }
+  });
+
+  it("resolves configured database path from runtime config", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-db-config-test-"));
+    tempDirs.push(orbitHome);
+    const configuredPath = join(orbitHome, "custom", "orbit-alpha.db");
+
+    writeOrbitRuntimeConfig(orbitHome, { configuredDatabasePath: configuredPath });
+
+    expect(resolveOrbitDbPath(orbitHome)).toBe(configuredPath);
   });
 });
 
@@ -123,5 +175,21 @@ function makeMemory(event: Event): Memory {
     confidence: 0.8,
     createdAt: "2026-05-20T09:06:00.000Z",
     updatedAt: "2026-05-20T09:06:00.000Z"
+  };
+}
+
+function makeRecommendation(event: Event) {
+  return {
+    id: "recommendation_fixture",
+    schemaVersion: 1,
+    type: "follow_up" as const,
+    title: "Review fixture recommendation",
+    explanation: "Synthetic fixture recommendation.",
+    suggestedAction: "Confirm this does not execute external side effects.",
+    confidence: 0.8,
+    impact: "medium" as const,
+    status: "new" as const,
+    evidence: [evidenceFromEvent(event, "Synthetic fixture event")],
+    createdAt: "2026-05-20T09:07:00.000Z"
   };
 }

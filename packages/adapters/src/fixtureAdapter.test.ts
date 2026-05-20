@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { FixtureAdapter } from "./fixture/fixtureAdapter";
 
 describe("FixtureAdapter", () => {
   it("reads fixture events incrementally", async () => {
     const adapter = new FixtureAdapter({
       kind: "codex",
-      directory: join(process.cwd(), "fixtures", "codex")
+      directory: fileURLToPath(new URL("../../../fixtures/codex", import.meta.url))
     });
 
     const first = await adapter.readCursor();

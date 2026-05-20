@@ -1,12 +1,15 @@
 import type { ReactElement } from "react";
 import type { Recommendation } from "@orbit/core";
+import type { RecommendationReviewAction } from "@orbit/db";
 import { EvidenceList } from "../components/EvidenceList";
 import { Section } from "../components/Section";
 
 export function RecommendationsPage({
-  recommendations
+  recommendations,
+  onReviewRecommendation
 }: {
   recommendations: Recommendation[];
+  onReviewRecommendation(id: string, action: RecommendationReviewAction): Promise<void>;
 }): ReactElement {
   return (
     <Section title="Recommendations">
@@ -24,6 +27,38 @@ export function RecommendationsPage({
               <span>{recommendation.impact}</span>
               <span>{Math.round(recommendation.confidence * 100)}%</span>
             </div>
+            {recommendation.status === "new" || recommendation.status === "snoozed" ? (
+              <div className="action-row">
+                <button
+                  className="secondary-button"
+                  onClick={() => void onReviewRecommendation(recommendation.id, "accept")}
+                  type="button"
+                >
+                  Accept
+                </button>
+                <button
+                  className="secondary-button"
+                  onClick={() => void onReviewRecommendation(recommendation.id, "dismiss")}
+                  type="button"
+                >
+                  Dismiss
+                </button>
+                <button
+                  className="secondary-button"
+                  onClick={() => void onReviewRecommendation(recommendation.id, "snooze")}
+                  type="button"
+                >
+                  Snooze
+                </button>
+                <button
+                  className="secondary-button"
+                  onClick={() => void onReviewRecommendation(recommendation.id, "resolve")}
+                  type="button"
+                >
+                  Resolve
+                </button>
+              </div>
+            ) : null}
             <EvidenceList evidence={recommendation.evidence} />
           </article>
         ))}

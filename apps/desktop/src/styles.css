@@ -166,6 +166,23 @@ button {
   cursor: pointer;
 }
 
+.secondary-button {
+  min-height: 30px;
+  border: 1px solid #d8d5ce;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #384144;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+  padding: 0 10px;
+}
+
+.secondary-button:hover {
+  border-color: #bfc8c4;
+  background: #f4f7f5;
+}
+
 .page-grid {
   display: grid;
   gap: 18px;
@@ -299,6 +316,13 @@ button {
   margin-top: 8px;
 }
 
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
 .timeline-item {
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr);
@@ -397,7 +421,8 @@ button {
 }
 
 .empty-state,
-.error-banner {
+.error-banner,
+.notice-banner {
   color: #73736b;
   padding: 18px;
 }
@@ -407,4 +432,82 @@ button {
   border-color: #f2c6c0;
   background: #fff4f2;
   color: #943b31;
+}
+
+.notice-banner {
+  margin: 18px 28px 0;
+  border: 1px solid #cfe3dc;
+  border-radius: 8px;
+  background: #f2faf7;
+  color: #315f56;
+}
+
+.settings-panel {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+}
+
+.text-input {
+  min-height: 34px;
+  width: 100%;
+  border: 1px solid #d8d5ce;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #1f2528;
+  font: inherit;
+  font-size: 13px;
+  padding: 0 10px;
+}
+
+.toggle-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.danger-button {
+  min-height: 30px;
+  border: 1px solid #e1b4ad;
+  border-radius: 7px;
+  background: #fff4f2;
+  color: #943b31;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+  padding: 0 10px;
+}
+
+.action-row.padded {
+  padding: 16px;
+}
+
+.source-setup-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  padding: 12px;
+}
+
+.setup-card {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+  border: 1px solid #e2dfd8;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.setup-card h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.setup-card p {
+  margin: 0;
+  color: #4f5759;
+  font-size: 12px;
+  line-height: 1.45;
 }

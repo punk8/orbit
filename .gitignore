@@ -2,6 +2,7 @@ node_modules/
 dist/
 dist-*/
 apps/*/dist-*/
+apps/desktop/release/
 .turbo/
 .tmp/
 .DS_Store
