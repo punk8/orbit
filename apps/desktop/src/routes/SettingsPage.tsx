@@ -9,6 +9,8 @@ import type {
 import { Section } from "../components/Section";
 import { useI18n } from "../i18n";
 
+type SettingsSectionId = "provider" | "runtime" | "storage" | "data";
+
 export function SettingsPage({
   snapshot,
   onUpdateSetting,
@@ -23,6 +25,7 @@ export function SettingsPage({
   onExportContext(): Promise<void>;
 }): ReactElement {
   const { t } = useI18n();
+  const [activeSection, setActiveSection] = useState<SettingsSectionId>("provider");
   const [databasePath, setDatabasePath] = useState(
     snapshot.settings.configuredDatabasePath ?? snapshot.dbPath
   );
@@ -41,197 +44,258 @@ export function SettingsPage({
       setAiApiKey("");
     }
   };
+  const settingsSections: Array<{ id: SettingsSectionId; label: string; detail: string }> = [
+    {
+      id: "provider",
+      label: t("settingsNav.provider"),
+      detail: t("settingsNav.providerDetail")
+    },
+    {
+      id: "runtime",
+      label: t("settingsNav.runtime"),
+      detail: t("settingsNav.runtimeDetail")
+    },
+    {
+      id: "storage",
+      label: t("settingsNav.storage"),
+      detail: t("settingsNav.storageDetail")
+    },
+    {
+      id: "data",
+      label: t("settingsNav.data"),
+      detail: t("settingsNav.dataDetail")
+    }
+  ];
 
   return (
-    <div className="page-grid">
-      <Section title={t("section.runtime")}>
-        <dl className="settings-grid">
-          <div>
-            <dt>{t("settings.orbitHome")}</dt>
-            <dd>{snapshot.orbitHome}</dd>
-          </div>
-          <div>
-            <dt>{t("settings.activeDatabase")}</dt>
-            <dd>{snapshot.dbPath}</dd>
-          </div>
-          <div>
-            <dt>{t("settings.menuBar")}</dt>
-            <dd>
-              <label className="toggle-line">
-                <input
-                  checked={snapshot.settings.menuBarEnabled}
-                  onChange={(event) =>
-                    void onUpdateSetting("desktop.menuBarEnabled", event.currentTarget.checked)
-                  }
-                  type="checkbox"
-                />
-                <span>
-                  {snapshot.settings.menuBarEnabled ? t("state.enabled") : t("state.disabled")}
-                </span>
-              </label>
-            </dd>
-          </div>
-          <div>
-            <dt>{t("settings.launchAtLogin")}</dt>
-            <dd>
-              <label className="toggle-line">
-                <input
-                  checked={snapshot.settings.launchAtLoginEnabled}
-                  onChange={(event) =>
-                    void onUpdateSetting(
-                      "desktop.launchAtLoginEnabled",
-                      event.currentTarget.checked
-                    )
-                  }
-                  type="checkbox"
-                />
-                <span>
-                  {snapshot.settings.launchAtLoginEnabled
-                    ? t("state.enabled")
-                    : t("state.disabled")}
-                </span>
-              </label>
-            </dd>
-          </div>
-          <div>
-            <dt>{t("settings.language")}</dt>
-            <dd>
-              <select
-                className="select-input"
-                onChange={(event) =>
-                  void onUpdateSetting(
-                    "desktop.language",
-                    event.currentTarget.value as DesktopLanguage
-                  )
-                }
-                value={snapshot.settings.language}
+    <div className="settings-layout">
+      <nav aria-label={t("aria.settingsSections")} className="settings-subnav">
+        {settingsSections.map((section) => (
+          <button
+            aria-current={activeSection === section.id ? "page" : undefined}
+            className="settings-subnav-item"
+            key={section.id}
+            onClick={() => setActiveSection(section.id)}
+            type="button"
+          >
+            <span>{section.label}</span>
+            <small>{section.detail}</small>
+          </button>
+        ))}
+      </nav>
+
+      <div className="settings-content">
+        {activeSection === "provider" ? (
+          <Section title={t("settingsNav.provider")}>
+            <div className="settings-panel">
+              <dl className="settings-grid">
+                <div>
+                  <dt>{t("settings.aiProvider")}</dt>
+                  <dd>
+                    <select
+                      className="select-input"
+                      onChange={(event) =>
+                        setAiProviderKind(event.currentTarget.value as DesktopAIProviderKind)
+                      }
+                      value={aiProviderKind}
+                    >
+                      <option value="disabled">{t("provider.disabled")}</option>
+                      <option value="mock">{t("provider.mock")}</option>
+                      <option value="openai-compatible">{t("provider.openaiCompatible")}</option>
+                    </select>
+                  </dd>
+                </div>
+                <div>
+                  <dt>{t("settings.aiBaseUrl")}</dt>
+                  <dd>
+                    <input
+                      className="text-input"
+                      disabled={aiProviderKind !== "openai-compatible"}
+                      onChange={(event) => setAiBaseUrl(event.currentTarget.value)}
+                      placeholder="https://api.openai.com/v1"
+                      value={aiBaseUrl}
+                    />
+                  </dd>
+                </div>
+                <div>
+                  <dt>{t("settings.aiModel")}</dt>
+                  <dd>
+                    <input
+                      className="text-input"
+                      disabled={aiProviderKind !== "openai-compatible"}
+                      onChange={(event) => setAiModel(event.currentTarget.value)}
+                      placeholder="gpt-4o-mini"
+                      value={aiModel}
+                    />
+                  </dd>
+                </div>
+                <div>
+                  <dt>{t("settings.aiApiKey")}</dt>
+                  <dd>
+                    <input
+                      className="text-input"
+                      disabled={aiProviderKind !== "openai-compatible"}
+                      onChange={(event) => setAiApiKey(event.currentTarget.value)}
+                      placeholder={
+                        snapshot.settings.aiApiKeyConfigured
+                          ? t("settings.aiApiKeyPlaceholderConfigured")
+                          : t("settings.aiApiKeyPlaceholder")
+                      }
+                      type="password"
+                      value={aiApiKey}
+                    />
+                  </dd>
+                </div>
+                <div>
+                  <dt>{t("settings.externalActions")}</dt>
+                  <dd>
+                    {snapshot.settings.externalActionsEnabled
+                      ? t("state.enabled")
+                      : t("state.disabled")}
+                  </dd>
+                </div>
+                <div>
+                  <dt>{t("settings.visualContext")}</dt>
+                  <dd>
+                    {snapshot.settings.visualContextEnabled
+                      ? t("state.enabled")
+                      : t("state.disabled")}
+                  </dd>
+                </div>
+              </dl>
+              <button
+                className="secondary-button"
+                onClick={() => void saveAiProvider()}
+                type="button"
               >
-                <option value="system">{t("language.system")}</option>
-                <option value="zh-CN">{t("language.chinese")}</option>
-                <option value="en">{t("language.english")}</option>
-              </select>
-            </dd>
-          </div>
-        </dl>
-      </Section>
+                {t("action.saveAiProvider")}
+              </button>
+              <p className="muted">{t("settings.aiProviderNote")}</p>
+            </div>
+          </Section>
+        ) : null}
 
-      <Section title={t("section.databasePath")}>
-        <div className="settings-panel">
-          <input
-            className="text-input"
-            onChange={(event) => setDatabasePath(event.currentTarget.value)}
-            value={databasePath}
-          />
-          <button
-            className="secondary-button"
-            onClick={() => void onUpdateSetting("storage.configuredDatabasePath", databasePath)}
-            type="button"
-          >
-            {t("action.savePath")}
-          </button>
-          <p className="muted">{t("settings.pathNote")}</p>
-        </div>
-      </Section>
+        {activeSection === "runtime" ? (
+          <Section title={t("section.runtime")}>
+            <dl className="settings-grid">
+              <div>
+                <dt>{t("settings.orbitHome")}</dt>
+                <dd>{snapshot.orbitHome}</dd>
+              </div>
+              <div>
+                <dt>{t("settings.activeDatabase")}</dt>
+                <dd>{snapshot.dbPath}</dd>
+              </div>
+              <div>
+                <dt>{t("settings.menuBar")}</dt>
+                <dd>
+                  <label className="toggle-line">
+                    <input
+                      checked={snapshot.settings.menuBarEnabled}
+                      onChange={(event) =>
+                        void onUpdateSetting("desktop.menuBarEnabled", event.currentTarget.checked)
+                      }
+                      type="checkbox"
+                    />
+                    <span>
+                      {snapshot.settings.menuBarEnabled ? t("state.enabled") : t("state.disabled")}
+                    </span>
+                  </label>
+                </dd>
+              </div>
+              <div>
+                <dt>{t("settings.launchAtLogin")}</dt>
+                <dd>
+                  <label className="toggle-line">
+                    <input
+                      checked={snapshot.settings.launchAtLoginEnabled}
+                      onChange={(event) =>
+                        void onUpdateSetting(
+                          "desktop.launchAtLoginEnabled",
+                          event.currentTarget.checked
+                        )
+                      }
+                      type="checkbox"
+                    />
+                    <span>
+                      {snapshot.settings.launchAtLoginEnabled
+                        ? t("state.enabled")
+                        : t("state.disabled")}
+                    </span>
+                  </label>
+                </dd>
+              </div>
+              <div>
+                <dt>{t("settings.language")}</dt>
+                <dd>
+                  <select
+                    className="select-input"
+                    onChange={(event) =>
+                      void onUpdateSetting(
+                        "desktop.language",
+                        event.currentTarget.value as DesktopLanguage
+                      )
+                    }
+                    value={snapshot.settings.language}
+                  >
+                    <option value="system">{t("language.system")}</option>
+                    <option value="zh-CN">{t("language.chinese")}</option>
+                    <option value="en">{t("language.english")}</option>
+                  </select>
+                </dd>
+              </div>
+            </dl>
+          </Section>
+        ) : null}
 
-      <Section title={t("section.dataOperations")}>
-        <div className="action-row padded">
-          <button
-            className="secondary-button"
-            onClick={() => void onReindexLocalData()}
-            type="button"
-          >
-            {t("action.reindex")}
-          </button>
-          <button className="secondary-button" onClick={() => void onExportContext()} type="button">
-            {t("action.exportContext")}
-          </button>
-          <button className="danger-button" onClick={() => void onClearLocalData()} type="button">
-            {t("action.clearLocalData")}
-          </button>
-        </div>
-      </Section>
+        {activeSection === "storage" ? (
+          <Section title={t("section.databasePath")}>
+            <div className="settings-panel">
+              <input
+                className="text-input"
+                onChange={(event) => setDatabasePath(event.currentTarget.value)}
+                value={databasePath}
+              />
+              <button
+                className="secondary-button"
+                onClick={() => void onUpdateSetting("storage.configuredDatabasePath", databasePath)}
+                type="button"
+              >
+                {t("action.savePath")}
+              </button>
+              <p className="muted">{t("settings.pathNote")}</p>
+            </div>
+          </Section>
+        ) : null}
 
-      <Section title={t("section.aiVisual")}>
-        <div className="settings-panel">
-          <dl className="settings-grid">
-            <div>
-              <dt>{t("settings.aiProvider")}</dt>
-              <dd>
-                <select
-                  className="select-input"
-                  onChange={(event) =>
-                    setAiProviderKind(event.currentTarget.value as DesktopAIProviderKind)
-                  }
-                  value={aiProviderKind}
-                >
-                  <option value="disabled">{t("provider.disabled")}</option>
-                  <option value="mock">{t("provider.mock")}</option>
-                  <option value="openai-compatible">{t("provider.openaiCompatible")}</option>
-                </select>
-              </dd>
+        {activeSection === "data" ? (
+          <Section title={t("section.dataOperations")}>
+            <div className="action-row padded">
+              <button
+                className="secondary-button"
+                onClick={() => void onReindexLocalData()}
+                type="button"
+              >
+                {t("action.reindex")}
+              </button>
+              <button
+                className="secondary-button"
+                onClick={() => void onExportContext()}
+                type="button"
+              >
+                {t("action.exportContext")}
+              </button>
+              <button
+                className="danger-button"
+                onClick={() => void onClearLocalData()}
+                type="button"
+              >
+                {t("action.clearLocalData")}
+              </button>
             </div>
-            <div>
-              <dt>{t("settings.aiBaseUrl")}</dt>
-              <dd>
-                <input
-                  className="text-input"
-                  disabled={aiProviderKind !== "openai-compatible"}
-                  onChange={(event) => setAiBaseUrl(event.currentTarget.value)}
-                  placeholder="https://api.openai.com/v1"
-                  value={aiBaseUrl}
-                />
-              </dd>
-            </div>
-            <div>
-              <dt>{t("settings.aiModel")}</dt>
-              <dd>
-                <input
-                  className="text-input"
-                  disabled={aiProviderKind !== "openai-compatible"}
-                  onChange={(event) => setAiModel(event.currentTarget.value)}
-                  placeholder="gpt-4o-mini"
-                  value={aiModel}
-                />
-              </dd>
-            </div>
-            <div>
-              <dt>{t("settings.aiApiKey")}</dt>
-              <dd>
-                <input
-                  className="text-input"
-                  disabled={aiProviderKind !== "openai-compatible"}
-                  onChange={(event) => setAiApiKey(event.currentTarget.value)}
-                  placeholder={
-                    snapshot.settings.aiApiKeyConfigured
-                      ? t("settings.aiApiKeyPlaceholderConfigured")
-                      : t("settings.aiApiKeyPlaceholder")
-                  }
-                  type="password"
-                  value={aiApiKey}
-                />
-              </dd>
-            </div>
-            <div>
-              <dt>{t("settings.externalActions")}</dt>
-              <dd>
-                {snapshot.settings.externalActionsEnabled
-                  ? t("state.enabled")
-                  : t("state.disabled")}
-              </dd>
-            </div>
-            <div>
-              <dt>{t("settings.visualContext")}</dt>
-              <dd>
-                {snapshot.settings.visualContextEnabled ? t("state.enabled") : t("state.disabled")}
-              </dd>
-            </div>
-          </dl>
-          <button className="secondary-button" onClick={() => void saveAiProvider()} type="button">
-            {t("action.saveAiProvider")}
-          </button>
-          <p className="muted">{t("settings.aiProviderNote")}</p>
-        </div>
-      </Section>
+          </Section>
+        ) : null}
+      </div>
     </div>
   );
 }

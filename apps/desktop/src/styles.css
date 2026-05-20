@@ -403,6 +403,66 @@ button {
   border-radius: 7px;
 }
 
+.settings-layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 16px;
+}
+
+.settings-subnav {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.settings-subnav-item {
+  display: grid;
+  gap: 4px;
+  min-height: 58px;
+  min-width: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #293033;
+  cursor: pointer;
+  font: inherit;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.settings-subnav-item:hover {
+  background: #f1efea;
+}
+
+.settings-subnav-item[aria-current="page"] {
+  border-color: #cfdad5;
+  background: #ffffff;
+  box-shadow: inset 3px 0 0 #4c9083;
+}
+
+.settings-subnav-item span,
+.settings-subnav-item small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-subnav-item span {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.settings-subnav-item small {
+  color: #727870;
+  font-size: 11px;
+}
+
+.settings-content {
+  min-width: 0;
+}
+
 .settings-grid {
   display: grid;
   grid-template-columns: minmax(140px, 180px) minmax(0, 1fr);
@@ -502,6 +562,16 @@ button {
 
 .action-row.padded {
   padding: 16px;
+}
+
+@media (max-width: 900px) {
+  .settings-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-subnav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .source-setup-grid {
