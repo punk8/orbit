@@ -448,7 +448,8 @@ button {
   padding: 16px;
 }
 
-.text-input {
+.text-input,
+.select-input {
   min-height: 34px;
   width: 100%;
   border: 1px solid #d8d5ce;
@@ -458,6 +459,10 @@ button {
   font: inherit;
   font-size: 13px;
   padding: 0 10px;
+}
+
+.select-input {
+  max-width: 220px;
 }
 
 .toggle-line {

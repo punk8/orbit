@@ -37,6 +37,7 @@ export interface DesktopSnapshot {
     visualContextEnabled: boolean;
     menuBarEnabled: boolean;
     launchAtLoginEnabled: boolean;
+    language: DesktopLanguage;
     configuredDatabasePath?: string;
     sourceSetupCompleted: boolean;
   };
@@ -45,8 +46,11 @@ export interface DesktopSnapshot {
 export type DesktopSettingKey =
   | "desktop.menuBarEnabled"
   | "desktop.launchAtLoginEnabled"
+  | "desktop.language"
   | "storage.configuredDatabasePath"
   | "sources.setupCompleted";
+
+export type DesktopLanguage = "system" | "en" | "zh-CN";
 
 export type SourceSetupKind = "fixtures" | "codex" | "local_agent" | "seatalk";
 

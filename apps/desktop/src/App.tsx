@@ -26,6 +26,8 @@ import { ReviewQueuePage } from "./routes/ReviewQueuePage";
 import { SettingsPage } from "./routes/SettingsPage";
 import { SourcesPage } from "./routes/SourcesPage";
 import { TodayPage } from "./routes/TodayPage";
+import { I18nProvider, createI18n, getEffectiveLanguage } from "./i18n";
+import type { TranslationKey } from "./i18n";
 
 type PageId =
   | "today"
@@ -38,15 +40,15 @@ type PageId =
   | "settings";
 
 const pages = [
-  { id: "today", label: "Today", icon: Sparkles },
-  { id: "activity", label: "Activity", icon: Activity },
-  { id: "knowledge", label: "Knowledge", icon: BookOpen },
-  { id: "memory", label: "Memory", icon: Brain },
-  { id: "recommendations", label: "Recommendations", icon: Lightbulb },
-  { id: "review", label: "Review Queue", icon: CheckSquare },
-  { id: "sources", label: "Sources", icon: Database },
-  { id: "settings", label: "Settings", icon: Settings }
-] satisfies Array<{ id: PageId; label: string; icon: typeof Sparkles }>;
+  { id: "today", labelKey: "nav.today", icon: Sparkles },
+  { id: "activity", labelKey: "nav.activity", icon: Activity },
+  { id: "knowledge", labelKey: "nav.knowledge", icon: BookOpen },
+  { id: "memory", labelKey: "nav.memory", icon: Brain },
+  { id: "recommendations", labelKey: "nav.recommendations", icon: Lightbulb },
+  { id: "review", labelKey: "nav.review", icon: CheckSquare },
+  { id: "sources", labelKey: "nav.sources", icon: Database },
+  { id: "settings", labelKey: "nav.settings", icon: Settings }
+] satisfies Array<{ id: PageId; labelKey: TranslationKey; icon: typeof Sparkles }>;
 
 export function App(): ReactElement {
   const [activePage, setActivePage] = useState<PageId>("today");
@@ -54,6 +56,8 @@ export function App(): ReactElement {
   const [error, setError] = useState<string | undefined>();
   const [notice, setNotice] = useState<string | undefined>();
   const [isLoading, setIsLoading] = useState(true);
+  const language = getEffectiveLanguage(snapshot?.settings.language);
+  const { t } = createI18n(language);
 
   async function loadSnapshot(): Promise<void> {
     setIsLoading(true);
@@ -62,7 +66,7 @@ export function App(): ReactElement {
     try {
       setSnapshot(await window.orbit.getSnapshot());
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Unable to load Orbit data");
+      setError(reason instanceof Error ? reason.message : t("error.load"));
     } finally {
       setIsLoading(false);
     }
@@ -81,7 +85,7 @@ export function App(): ReactElement {
   }
 
   async function updateSetting(key: DesktopSettingKey, value: unknown): Promise<void> {
-    await runReviewAction(() => window.orbit.updateSetting(key, value), "Unable to update setting");
+    await runReviewAction(() => window.orbit.updateSetting(key, value), t("error.setting"));
   }
 
   async function setupSource(kind: SourceSetupKind, path?: string): Promise<void> {
@@ -93,20 +97,20 @@ export function App(): ReactElement {
         result.warnings?.length ? `${result.message}; ${result.warnings[0]}` : result.message
       );
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Unable to configure source");
+      setError(reason instanceof Error ? reason.message : t("error.source"));
     }
   }
 
   async function reindexLocalData(): Promise<void> {
-    await runDesktopAction(() => window.orbit.reindexLocalData(), "Unable to re-index local data");
+    await runDesktopAction(() => window.orbit.reindexLocalData(), t("error.reindex"));
   }
 
   async function clearLocalData(): Promise<void> {
-    await runDesktopAction(() => window.orbit.clearLocalData(), "Unable to clear local data");
+    await runDesktopAction(() => window.orbit.clearLocalData(), t("error.clear"));
   }
 
   async function exportContext(): Promise<void> {
-    await runDesktopAction(() => window.orbit.exportContext(), "Unable to export context");
+    await runDesktopAction(() => window.orbit.exportContext(), t("error.export"));
   }
 
   async function runDesktopAction(
@@ -126,21 +130,21 @@ export function App(): ReactElement {
   function reviewKnowledge(id: string, action: KnowledgeReviewAction): Promise<void> {
     return runReviewAction(
       () => window.orbit.reviewKnowledge(id, action),
-      "Unable to update knowledge review state"
+      t("error.knowledgeReview")
     );
   }
 
   function reviewMemory(id: string, action: MemoryReviewAction): Promise<void> {
     return runReviewAction(
       () => window.orbit.reviewMemory(id, action),
-      "Unable to update memory review state"
+      t("error.memoryReview")
     );
   }
 
   function reviewRecommendation(id: string, action: RecommendationReviewAction): Promise<void> {
     return runReviewAction(
       () => window.orbit.reviewRecommendation(id, action),
-      "Unable to update recommendation state"
+      t("error.recommendationReview")
     );
   }
 
@@ -149,40 +153,44 @@ export function App(): ReactElement {
   }, []);
 
   const pageTitle = useMemo(
-    () => pages.find((page) => page.id === activePage)?.label ?? "Orbit",
-    [activePage]
+    () => t(pages.find((page) => page.id === activePage)?.labelKey ?? "nav.today"),
+    [activePage, t]
   );
 
   return (
-    <div className="app-shell">
+    <I18nProvider language={language}>
+      <div className="app-shell" lang={language}>
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">O</div>
           <div>
             <div className="brand-name">Orbit</div>
-            <div className="brand-subtitle">Local context system</div>
+            <div className="brand-subtitle">{t("app.brandSubtitle")}</div>
           </div>
         </div>
-        <nav className="nav-list" aria-label="Orbit views">
+        <nav className="nav-list" aria-label={t("aria.views")}>
           {pages.map((page) => {
             const Icon = page.icon;
+            const label = t(page.labelKey);
             return (
               <button
                 className={`nav-item ${activePage === page.id ? "active" : ""}`}
                 key={page.id}
                 onClick={() => setActivePage(page.id)}
-                title={page.label}
+                title={label}
                 type="button"
               >
                 <Icon size={17} aria-hidden="true" />
-                <span>{page.label}</span>
+                <span>{label}</span>
               </button>
             );
           })}
         </nav>
         <div className="sidebar-footer">
           <span className="status-dot" />
-          <span>{snapshot?.settings.localOnly ? "Local only" : "Remote enabled"}</span>
+          <span>
+            {snapshot?.settings.localOnly ? t("app.localOnly") : t("app.remoteEnabled")}
+          </span>
         </div>
       </aside>
 
@@ -190,12 +198,12 @@ export function App(): ReactElement {
         <header className="topbar">
           <div>
             <h1>{pageTitle}</h1>
-            <p>{snapshot?.date ?? "Loading local context"}</p>
+            <p>{snapshot?.date ?? t("app.loadingContext")}</p>
           </div>
           <button
             className="icon-button"
             onClick={() => void loadSnapshot()}
-            title="Refresh"
+            title={t("app.refresh")}
             type="button"
           >
             <RefreshCw size={17} aria-hidden="true" />
@@ -204,7 +212,7 @@ export function App(): ReactElement {
 
         {error ? <div className="error-banner">{error}</div> : null}
         {notice ? <div className="notice-banner">{notice}</div> : null}
-        {isLoading && !snapshot ? <div className="empty-state">Loading</div> : null}
+        {isLoading && !snapshot ? <div className="empty-state">{t("app.loading")}</div> : null}
         {snapshot
           ? renderPage(activePage, snapshot, {
               reviewKnowledge,
@@ -218,7 +226,8 @@ export function App(): ReactElement {
             })
           : null}
       </main>
-    </div>
+      </div>
+    </I18nProvider>
   );
 }
 

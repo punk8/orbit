@@ -34,6 +34,7 @@ import type {
 const SETTING_KEYS = {
   menuBarEnabled: "desktop.menuBarEnabled",
   launchAtLoginEnabled: "desktop.launchAtLoginEnabled",
+  language: "desktop.language",
   configuredDatabasePath: "storage.configuredDatabasePath",
   sourceSetupCompleted: "sources.setupCompleted"
 } as const;
@@ -138,6 +139,12 @@ export function updateSettingForDesktop(key: DesktopSettingKey, value: unknown):
     const settings = new SettingsRepository(database.db);
     if (key === SETTING_KEYS.menuBarEnabled || key === SETTING_KEYS.launchAtLoginEnabled) {
       settings.set(key, Boolean(value));
+    } else if (key === SETTING_KEYS.language) {
+      const language = String(value ?? "system");
+      if (language !== "system" && language !== "en" && language !== "zh-CN") {
+        throw new Error(`Unsupported language: ${language}`);
+      }
+      settings.set(key, language);
     } else if (key === SETTING_KEYS.configuredDatabasePath) {
       const configuredDatabasePath = String(value ?? "").trim();
       settings.set(key, configuredDatabasePath);
@@ -235,12 +242,17 @@ function readSettings(settings: SettingsRepository): DesktopSnapshot["settings"]
     visualContextEnabled: false,
     menuBarEnabled: settings.get<boolean>(SETTING_KEYS.menuBarEnabled) ?? true,
     launchAtLoginEnabled: settings.get<boolean>(SETTING_KEYS.launchAtLoginEnabled) ?? false,
+    language: readLanguageSetting(settings.get<string>(SETTING_KEYS.language)),
     sourceSetupCompleted: settings.get<boolean>(SETTING_KEYS.sourceSetupCompleted) ?? false
   };
   if (configuredDatabasePath) {
     snapshotSettings.configuredDatabasePath = configuredDatabasePath;
   }
   return snapshotSettings;
+}
+
+function readLanguageSetting(value: string | undefined): "system" | "en" | "zh-CN" {
+  return value === "en" || value === "zh-CN" ? value : "system";
 }
 
 function buildSourceSetupAdapters(kind: SourceSetupKind, path?: string) {

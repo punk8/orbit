@@ -1,9 +1,12 @@
 import type { ReactElement } from "react";
 import type { EvidenceRef } from "@orbit/core";
+import { useI18n } from "../i18n";
 
 export function EvidenceList({ evidence }: { evidence: EvidenceRef[] }): ReactElement {
+  const { t } = useI18n();
+
   if (evidence.length === 0) {
-    return <span className="muted">No evidence</span>;
+    return <span className="muted">{t("fallback.noEvidence")}</span>;
   }
 
   return (

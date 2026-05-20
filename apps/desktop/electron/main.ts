@@ -151,11 +151,13 @@ function requireSettingKey(
 ):
   | "desktop.menuBarEnabled"
   | "desktop.launchAtLoginEnabled"
+  | "desktop.language"
   | "storage.configuredDatabasePath"
   | "sources.setupCompleted" {
   if (
     key === "desktop.menuBarEnabled" ||
     key === "desktop.launchAtLoginEnabled" ||
+    key === "desktop.language" ||
     key === "storage.configuredDatabasePath" ||
     key === "sources.setupCompleted"
   ) {
