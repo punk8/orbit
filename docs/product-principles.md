@@ -51,6 +51,16 @@ Orbit should expose four product surfaces:
    - Examples: "follow up with X", "this task is blocked by Y", "you have repeated this manual check three times".
    - Each recommendation must explain why it exists.
 
+Orbit should also treat **Handoff Pack** as a first-class product output.
+
+- A Handoff Pack is a concise, traceable, privacy-safe context package for the next agent.
+- It assembles current objective, recent Activity, confirmed Knowledge, active Memories, Recommendations, safety boundaries, and evidence pointers.
+- It answers "what should the next agent know before helping me?" without dumping raw logs or unreviewed private data.
+- It should be available through CLI first, then MCP/local API, skill wrappers, and desktop review/copy actions.
+- Handoff generation is read-only by default; it can suggest next actions but must not execute them.
+
+See [Handoff Pack](./handoff-pack.md) for the product shape and default inclusion rules.
+
 ## Non-Goals For The First Development Cycle
 
 - Do not build full screen recording as the first core feature.
@@ -69,4 +79,4 @@ Early Orbit is useful if it can:
 - Generate traceable Knowledge Artifacts for a workday or task.
 - Let the user confirm a small set of durable Memories.
 - Answer "what happened today" and "what needs attention" using source-backed evidence.
-- Export enough local context through CLI or MCP for an external agent to continue the work.
+- Generate a Handoff Pack through CLI or MCP so an external agent can continue the work without the user re-explaining context.

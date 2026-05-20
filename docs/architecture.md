@@ -167,6 +167,20 @@ External agents need read-first access to Orbit:
 - Ask for today's context.
 - Ask for project context.
 - Ask for recommendation explanations.
+- Ask for a Handoff Pack for a day, project, or current workstream.
+
+A Handoff Pack is the agent warm-start surface over the same domain objects. It should assemble current objective, recent Activity, confirmed Knowledge, active Memories, evidence-backed Recommendations, safety boundaries, and compact source pointers. It is not a raw export and should not include draft Knowledge, unconfirmed Memory, or raw private payloads by default.
+
+Initial commands should include:
+
+```bash
+orbit handoff today --json
+orbit handoff today --format markdown
+orbit handoff project <name> --json
+orbit handoff project <name> --format markdown
+```
+
+MCP and skill wrappers should expose the same read-only pack later, for example as `orbit://handoff/today` or a Codex/Claude skill that asks Orbit for a warm-start package before answering continuity-heavy requests. See [Handoff Pack](./handoff-pack.md).
 
 Write operations require stronger policy:
 

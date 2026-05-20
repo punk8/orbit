@@ -104,12 +104,13 @@ Acceptance criteria:
 
 ## Milestone 5: Memory Extraction And Agent Interface
 
-Goal: make Orbit useful to external agents.
+Goal: make Orbit useful to external agents and new agent sessions.
 
 Scope:
 
 - Memory candidate extraction from confirmed Knowledge Artifacts.
 - Review queue for Memory candidates.
+- Handoff Pack assembly for agent warm-start.
 - CLI commands:
   - `orbit status`
   - `orbit activity list`
@@ -117,6 +118,8 @@ Scope:
   - `orbit memory search`
   - `orbit context today`
   - `orbit context project <name>`
+  - `orbit handoff today`
+  - `orbit handoff project <name>`
 - MCP server read APIs.
 - Basic Codex/Claude skill wrapper around CLI.
 
@@ -124,6 +127,7 @@ Acceptance criteria:
 
 - External agent can retrieve today's context.
 - External agent can search confirmed Memories.
+- External agent can retrieve a concise Handoff Pack with current state, recent Activity, confirmed Knowledge, active Memory, Recommendations, safety boundaries, and evidence pointers.
 - Memory writes require user confirmation.
 - Recommendations include evidence and confidence.
 

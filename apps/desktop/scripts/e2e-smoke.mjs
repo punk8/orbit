@@ -17,7 +17,7 @@ delete env.VITE_DEV_SERVER_URL;
 
 const usePackagedApp = existsSync(packagedEntry);
 if (!usePackagedApp) {
-  run("pnpm", ["exec", "electron-builder", "install-app-deps", "--config", "electron-builder.yml"]);
+  run("pnpm", ["exec", "electron-builder", "install-app-deps"]);
 }
 
 const child = spawn(

@@ -140,6 +140,8 @@ Recommended next goal:
 Goal 6: Source Reconfiguration And Privacy Cleanup
 ```
 
+After Goal 6, the next product-shaping goal should be Handoff Pack CLI and desktop review/copy UX. Handoff Pack is now a first-class Orbit output, defined in `docs/handoff-pack.md`, and should become the first agent-facing warm-start surface before broader MCP, screen capture, or automation work.
+
 Why this should be next:
 
 - The app now has background runtime and permission gates, but old/local source configuration can still be confusing.
@@ -196,21 +198,30 @@ After source cleanup, likely next goals:
    - Evidence expansion and source pointer display.
 
 2. **Agent Interface**
+   - Treat Handoff Pack as the first agent-facing product output.
+   - Add `orbit handoff today` and `orbit handoff project <name>` in Markdown and JSON.
    - Read-only local HTTP or MCP over the same context/search APIs.
+   - Expose MCP resources such as `orbit://handoff/today` after the CLI shape stabilizes.
    - Keep default agent access read-only.
    - Writes require explicit confirmation and audit.
 
-3. **Markdown/JSON Artifact Sidecars**
+3. **Handoff Pack Desktop UX**
+   - Add "Generate Agent Handoff" from Today and project/context views.
+   - Let users review/copy the pack before giving it to Codex, Claude Code, or another agent.
+   - Default to confirmed Knowledge/Memory and source-backed Activity summaries.
+   - Mark any optional draft or unconfirmed content clearly.
+
+4. **Markdown/JSON Artifact Sidecars**
    - Human-readable Knowledge and Memory files.
    - SQLite/FTS remains rebuildable sidecar.
    - Export/import and audit alignment.
 
-4. **Real Source Reliability**
+5. **Real Source Reliability**
    - Harden explicit-path Codex/local-agent adapters further.
    - Decide safe SeaTalk read path.
    - Do not scrape SeaTalk unless a permissioned read interface exists.
 
-5. **Release Hardening**
+6. **Release Hardening**
    - DMG/zip artifacts.
    - signing/notarization.
    - clean macOS account smoke test.
