@@ -19,6 +19,7 @@ Read in this order:
 13. [Privacy Todos](./privacy-todos.md)
 14. [Alpha Hardening Goals](./alpha-hardening-goals.md)
 15. [Alpha Release Checklist](./alpha-release-checklist.md)
+16. [Handoff: Next AI Provider Work](./handoff-next-ai-provider.md)
 
 The design follows the project-level guidance in [AGENTS.md](../AGENTS.md):
 
