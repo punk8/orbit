@@ -1,0 +1,185 @@
+# Architecture
+
+## Overview
+
+Orbit should be built around stable domain boundaries, not around a single data source. The long-term data flow is:
+
+```text
+Source Adapter
+  -> Event Ingestion
+  -> Local Event Store
+  -> Activity Session Builder
+  -> Processing Pipeline
+  -> Knowledge Artifact Store
+  -> Memory Store
+  -> Recommendation Engine
+  -> Agent Interface / Desktop Shell
+```
+
+The core should be usable without the desktop UI. The Electron app is the shell for permissions, status, review, search, and user interaction.
+
+## Recommended Stack
+
+- **Language**: TypeScript for product code.
+- **Desktop shell**: Electron.
+- **Package manager**: pnpm.
+- **Local database**: SQLite with WAL mode and FTS5.
+- **Human-readable artifacts**: Markdown plus JSON frontmatter or sidecar metadata.
+- **Vector search**: provider interface first; implementation can start with disabled or optional SQLite vector extension.
+- **Local API**: loopback HTTP or IPC service owned by the Electron main process.
+- **Agent interface**: CLI first, MCP second, Skill wrapper after CLI stabilizes.
+- **Native helpers**: small macOS helpers only when Electron cannot safely handle screen capture, Apple Vision OCR, Accessibility, or permission checks.
+
+## Module Boundaries
+
+Suggested future repository shape:
+
+```text
+apps/
+  desktop/              Electron app, tray/menu bar, settings, review UI
+  cli/                  orbit command line interface
+packages/
+  core/                 domain types and use cases
+  adapters/             Codex, SeaTalk, Screen, future source adapters
+  store/                SQLite, artifact files, indexes, migrations
+  ai/                   provider interfaces and prompt orchestration
+  agent-interface/      MCP server, skill helpers, local API clients
+  privacy/              redaction, retention, permissions, policy checks
+docs/
+```
+
+The first code milestone can collapse packages if needed, but these boundaries should remain visible in naming and module ownership.
+
+## Runtime Topology
+
+Orbit should run as a local background service with a desktop shell:
+
+- Electron main process owns lifecycle, tray/menu, auto-start, and privileged local services.
+- Renderer provides Activity, Knowledge, Memory, Recommendations, settings, and review screens.
+- Core service exposes domain operations through IPC and optional localhost API.
+- CLI talks to the same local service when running, or uses the local store directly for read-only commands.
+- MCP server should be a thin adapter over the core read APIs.
+
+## Source Adapter Layer
+
+Each adapter should implement the same responsibilities:
+
+- Declare source identity, capabilities, permissions, and sensitivity defaults.
+- Read incrementally from the source.
+- Convert raw input into Events.
+- Preserve source pointers and minimal raw references.
+- Avoid business-specific summarization inside adapters.
+
+Initial adapters:
+
+- **Codex adapter**: engineering sessions, commands, code changes, tests, conclusions.
+- **SeaTalk adapter**: messages, unread mentions, private chats, group discussions, on-call events.
+
+Future adapters:
+
+- Screen, calendar, email, docs, Jira, GitLab, local filesystem.
+
+## Event And Activity Flow
+
+Events are append-oriented facts. Activity Sessions are derived groupings.
+
+The Activity Session Builder should use:
+
+- Time proximity.
+- Source and app overlap.
+- Project or repository hints.
+- Conversation thread IDs.
+- Command/session boundaries.
+- AI topic classification when deterministic signals are insufficient.
+
+An Activity Session should remain editable and reproducible. If grouping rules improve later, Orbit can rebuild sessions from Events.
+
+## Knowledge Artifact Flow
+
+Knowledge Artifacts are reviewable documents. They should not be silently treated as Memory.
+
+Generation pipeline:
+
+1. Select Activity Sessions or a time window.
+2. Retrieve relevant Events and existing Memories.
+3. Generate structured draft.
+4. Attach source references and confidence.
+5. Store as editable artifact.
+6. Let user confirm, edit, pin, export, or mark as not useful.
+
+Common artifact types:
+
+- Daily brief.
+- Weekly review.
+- Meeting summary.
+- Debugging note.
+- Decision record.
+- Project context recap.
+- Follow-up list.
+
+## Memory Flow
+
+Memory is smaller and more stable than a Knowledge Artifact.
+
+Memory creation should happen through one of these paths:
+
+- User explicitly saves a Memory.
+- User confirms suggestions extracted from Knowledge Artifacts.
+- High-confidence system extraction enters a review queue before becoming active.
+
+Memory should support:
+
+- Version history.
+- Evidence references.
+- Confidence.
+- Expiration or review dates.
+- Project and source scope.
+- Disable/delete controls.
+
+## AI Provider Abstraction
+
+The AI layer should expose task-oriented interfaces:
+
+- `summarizeActivity`
+- `draftKnowledgeArtifact`
+- `extractMemoryCandidates`
+- `classifyEvent`
+- `embedText`
+- `rankRecommendations`
+- `redactSensitiveText`
+
+Provider choices should be implementation details:
+
+- Local models.
+- OpenAI-compatible endpoints.
+- Claude or Codex CLI integration.
+- Future hosted Orbit service.
+
+The domain layer should not import provider-specific SDKs.
+
+## Agent Interface
+
+External agents need read-first access to Orbit:
+
+- Search Activity Sessions.
+- Retrieve Knowledge Artifacts.
+- Search Memories.
+- Ask for today's context.
+- Ask for project context.
+- Ask for recommendation explanations.
+
+Write operations require stronger policy:
+
+- Create draft Knowledge Artifact: allowed with user-visible review.
+- Write Memory: requires explicit confirmation or trusted policy.
+- Trigger side-effect action: out of scope for the first development cycle.
+
+## Desktop UI Areas
+
+The first Electron UI should map directly to domain layers:
+
+- **Activity**: timeline, session detail, source filters, local storage status.
+- **Knowledge**: artifact list, artifact detail, metadata, source sessions, edit/review actions.
+- **Memory**: grouped memories, search status, dimensions, review queue.
+- **Recommendations**: attention list with basis, confidence, and action.
+- **Settings**: adapters, permissions, retention, AI providers, local storage, export/delete.

@@ -1,0 +1,14 @@
+node_modules/
+dist/
+dist-*/
+apps/*/dist-*/
+.turbo/
+.tmp/
+.DS_Store
+coverage/
+.env
+.orbit/
+orbit.db
+*.db
+*.db-shm
+*.db-wal

@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "types": ["node", "react", "react-dom", "vitest/globals"],
+    "baseUrl": ".",
+    "paths": {
+      "@orbit/core": ["packages/core/src/index.ts"],
+      "@orbit/core/*": ["packages/core/src/*"],
+      "@orbit/db": ["packages/db/src/index.ts"],
+      "@orbit/db/*": ["packages/db/src/*"],
+      "@orbit/adapters": ["packages/adapters/src/index.ts"],
+      "@orbit/adapters/*": ["packages/adapters/src/*"],
+      "@orbit/ai": ["packages/ai/src/index.ts"],
+      "@orbit/privacy": ["packages/privacy/src/index.ts"],
+      "@orbit/agent-api": ["packages/agent-api/src/index.ts"],
+      "@orbit/ui": ["packages/ui/src/index.ts"]
+    }
+  }
+}

@@ -1,0 +1,197 @@
+import { Command } from "commander";
+import { getDbPath } from "./commands/dbPath";
+import { ingestCodex } from "./commands/ingestCodex";
+import { ingestFixtures } from "./commands/ingestFixtures";
+import {
+  getActivitySession,
+  getKnowledgeArtifact,
+  getProjectContext,
+  getTodayContext,
+  listActivitySessions,
+  listKnowledgeArtifacts,
+  listMemories,
+  listRecommendations,
+  searchKnowledgeArtifacts,
+  searchMemories
+} from "./commands/readModels";
+import { runSemanticPipeline } from "./commands/semanticPipeline";
+import { getStatus } from "./commands/status";
+import { openOrbitDatabase } from "@orbit/db";
+import { getCliConfig } from "./config";
+import { writeOutput } from "./output";
+
+export function buildProgram(): Command {
+  const program = new Command();
+  program.name("orbit").description("Local-first work context continuity CLI").version("0.0.0");
+  program.option("--json", "output JSON");
+
+  program
+    .command("status")
+    .description("Show local Orbit status")
+    .option("--json", "output JSON")
+    .action((options: { json?: boolean }) => {
+      writeOutput(getStatus(), { json: options.json ?? program.opts<{ json?: boolean }>().json });
+    });
+
+  const db = program.command("db").description("Database helpers");
+  db.command("path")
+    .description("Print the local database path")
+    .option("--json", "output JSON")
+    .action((options: { json?: boolean }) => {
+      const path = getDbPath();
+      const json = options.json ?? program.opts<{ json?: boolean }>().json;
+      writeOutput(json ? { dbPath: path } : path, { json });
+    });
+
+  const ingest = program.command("ingest").description("Ingest source data");
+  ingest
+    .command("fixtures")
+    .description("Ingest synthetic Codex and SeaTalk fixtures")
+    .option("--json", "output JSON")
+    .action(async (options: { json?: boolean }) => {
+      const result = await ingestFixtures();
+      writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
+    });
+  ingest
+    .command("codex")
+    .description("Ingest read-only Codex session files from an explicit path")
+    .requiredOption("--path <path>", "Sanitized Codex session file or directory")
+    .option("--json", "output JSON")
+    .action(async (options: { path: string; json?: boolean }) => {
+      const result = await ingestCodex(options.path);
+      writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
+    });
+
+  const pipeline = program.command("pipeline").description("Run local processing pipelines");
+  pipeline
+    .command("run")
+    .description("Build Activity, Knowledge, Memory, and Recommendation records from stored Events")
+    .option("--json", "output JSON")
+    .action((options: { json?: boolean }) => {
+      const config = getCliConfig();
+      const database = openOrbitDatabase({ orbitHome: config.orbitHome });
+      try {
+        const result = runSemanticPipeline(database);
+        writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
+      } finally {
+        database.close();
+      }
+    });
+
+  const activity = program.command("activity").description("Read Activity Sessions");
+  activity
+    .command("list")
+    .description("List Activity Sessions")
+    .option("--json", "output JSON")
+    .action((options: { json?: boolean }) => {
+      writeOutput(listActivitySessions(), {
+        json: options.json ?? program.opts<{ json?: boolean }>().json
+      });
+    });
+  activity
+    .command("show")
+    .description("Show an Activity Session")
+    .argument("<id>", "Activity Session ID")
+    .option("--json", "output JSON")
+    .action((id: string, options: { json?: boolean }) => {
+      writeOutput(requireRecord(getActivitySession(id), "Activity Session", id), {
+        json: options.json ?? program.opts<{ json?: boolean }>().json
+      });
+    });
+
+  const knowledge = program.command("knowledge").description("Read Knowledge Artifacts");
+  knowledge
+    .command("list")
+    .description("List Knowledge Artifacts")
+    .option("--json", "output JSON")
+    .action((options: { json?: boolean }) => {
+      writeOutput(listKnowledgeArtifacts(), {
+        json: options.json ?? program.opts<{ json?: boolean }>().json
+      });
+    });
+  knowledge
+    .command("show")
+    .description("Show a Knowledge Artifact")
+    .argument("<id>", "Knowledge Artifact ID")
+    .option("--json", "output JSON")
+    .action((id: string, options: { json?: boolean }) => {
+      writeOutput(requireRecord(getKnowledgeArtifact(id), "Knowledge Artifact", id), {
+        json: options.json ?? program.opts<{ json?: boolean }>().json
+      });
+    });
+  knowledge
+    .command("search")
+    .description("Search Knowledge Artifacts")
+    .argument("<query>", "FTS query")
+    .option("--json", "output JSON")
+    .action((query: string, options: { json?: boolean }) => {
+      writeOutput(searchKnowledgeArtifacts(query), {
+        json: options.json ?? program.opts<{ json?: boolean }>().json
+      });
+    });
+
+  const memory = program.command("memory").description("Read Memories");
+  memory
+    .command("list")
+    .description("List Memories")
+    .option("--json", "output JSON")
+    .action((options: { json?: boolean }) => {
+      writeOutput(listMemories(), {
+        json: options.json ?? program.opts<{ json?: boolean }>().json
+      });
+    });
+  memory
+    .command("search")
+    .description("Search Memories")
+    .argument("<query>", "FTS query")
+    .option("--json", "output JSON")
+    .action((query: string, options: { json?: boolean }) => {
+      writeOutput(searchMemories(query), {
+        json: options.json ?? program.opts<{ json?: boolean }>().json
+      });
+    });
+
+  const recommendation = program.command("recommendation").description("Read Recommendations");
+  recommendation
+    .command("list")
+    .description("List Recommendations")
+    .option("--json", "output JSON")
+    .action((options: { json?: boolean }) => {
+      writeOutput(listRecommendations(), {
+        json: options.json ?? program.opts<{ json?: boolean }>().json
+      });
+    });
+
+  const context = program.command("context").description("Read assembled context packs");
+  context
+    .command("today")
+    .description("Show today's local context pack")
+    .option("--date <date>", "YYYY-MM-DD date override")
+    .option("--json", "output JSON")
+    .action((options: { date?: string; json?: boolean }) => {
+      writeOutput(getTodayContext(options.date), {
+        json: options.json ?? program.opts<{ json?: boolean }>().json
+      });
+    });
+  context
+    .command("project")
+    .description("Show a project context pack")
+    .argument("<project>", "Project name")
+    .option("--json", "output JSON")
+    .action((project: string, options: { json?: boolean }) => {
+      writeOutput(getProjectContext(project), {
+        json: options.json ?? program.opts<{ json?: boolean }>().json
+      });
+    });
+
+  return program;
+}
+
+await buildProgram().parseAsync(process.argv);
+
+function requireRecord<T>(record: T | undefined, label: string, id: string): T {
+  if (!record) {
+    throw new Error(`${label} not found: ${id}`);
+  }
+  return record;
+}

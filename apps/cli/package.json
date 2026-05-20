@@ -1,0 +1,16 @@
+{
+  "name": "@orbit/cli",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "orbit": "tsx src/index.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p ../../tsconfig.json"
+  },
+  "dependencies": {
+    "@orbit/adapters": "workspace:*",
+    "@orbit/core": "workspace:*",
+    "@orbit/db": "workspace:*"
+  }
+}
