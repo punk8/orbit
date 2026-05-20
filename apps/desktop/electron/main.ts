@@ -9,14 +9,20 @@ import {
   reviewKnowledgeForDesktop,
   reviewMemoryForDesktop,
   reviewRecommendationForDesktop,
+  runBackgroundIngestionForDesktop,
+  setCollectionPausedForDesktop,
   setupSourceForDesktop,
   testAIProviderForDesktop,
+  updateSourceRuntimeForDesktop,
   updateSettingForDesktop
 } from "./data";
 
 const currentDir = __dirname;
+const backgroundIngestionIntervalMs = 60_000;
 let mainWindow: BrowserWindow | undefined;
 let tray: Tray | undefined;
+let backgroundIngestionTimer: NodeJS.Timeout | undefined;
+let backgroundIngestionRunning = false;
 
 async function createMainWindow(): Promise<BrowserWindow> {
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -71,6 +77,24 @@ ipcMain.handle("orbit:updateSetting", (_event, key: string, value: unknown) => {
   applyRuntimeSettings();
   return snapshot;
 });
+ipcMain.handle("orbit:setCollectionPaused", async (_event, paused: boolean) => {
+  let snapshot = setCollectionPausedForDesktop(Boolean(paused));
+  applyRuntimeSettings();
+  if (!paused) {
+    await runBackgroundIngestionTick();
+    snapshot = readDesktopSnapshot();
+  }
+  return snapshot;
+});
+ipcMain.handle("orbit:updateSourceRuntime", async (_event, sourceId: string, action: string) => {
+  let snapshot = updateSourceRuntimeForDesktop(sourceId, requireSourceRuntimeAction(action));
+  applyRuntimeSettings();
+  if (action === "resume" || action === "enable") {
+    await runBackgroundIngestionTick();
+    snapshot = readDesktopSnapshot();
+  }
+  return snapshot;
+});
 ipcMain.handle("orbit:setupSource", (_event, kind: string, path?: string) =>
   setupSourceForDesktop(requireSourceSetupKind(kind), path)
 );
@@ -82,6 +106,7 @@ ipcMain.handle("orbit:testAIProvider", (_event, config) => testAIProviderForDesk
 app.whenReady().then(async () => {
   applyRuntimeSettings();
   await createMainWindow();
+  startBackgroundIngestion();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -108,13 +133,20 @@ function applyRuntimeSettings(): void {
 }
 
 function ensureTray(): void {
-  if (tray) return;
-  const image = nativeImage.createEmpty();
-  tray = new Tray(image);
-  if (process.platform === "darwin") {
-    tray.setTitle("Orbit");
+  if (!tray) {
+    const image = nativeImage.createEmpty();
+    tray = new Tray(image);
+    if (process.platform === "darwin") {
+      tray.setTitle("Orbit");
+    }
   }
-  tray.setToolTip("Orbit");
+  const runtime = readDesktopSnapshot().runtime;
+  const paused = runtime.collectionPaused;
+  const status = runtime.status;
+  tray.setToolTip(`Orbit: ${status}`);
+  if (process.platform === "darwin") {
+    tray.setTitle(paused ? "Orbit Paused" : "Orbit");
+  }
   tray.setContextMenu(
     Menu.buildFromTemplate([
       {
@@ -124,11 +156,55 @@ function ensureTray(): void {
         }
       },
       {
+        label: paused ? "Resume Collection" : "Pause Collection",
+        click: () => {
+          void handleTrayPauseToggle(!paused);
+        }
+      },
+      {
+        label: `Status: ${status}`,
+        enabled: false
+      },
+      {
         label: "Quit",
         click: () => app.quit()
       }
     ])
   );
+}
+
+async function handleTrayPauseToggle(paused: boolean): Promise<void> {
+  setCollectionPausedForDesktop(paused);
+  applyRuntimeSettings();
+  if (!paused) {
+    await runBackgroundIngestionTick();
+  }
+}
+
+function startBackgroundIngestion(): void {
+  if (backgroundIngestionTimer) return;
+  void runBackgroundIngestionTick();
+  backgroundIngestionTimer = setInterval(() => {
+    void runBackgroundIngestionTick();
+  }, backgroundIngestionIntervalMs);
+}
+
+async function runBackgroundIngestionTick(): Promise<void> {
+  if (backgroundIngestionRunning) return;
+  backgroundIngestionRunning = true;
+  try {
+    await runBackgroundIngestionForDesktop();
+  } finally {
+    backgroundIngestionRunning = false;
+    applyRuntimeSettings();
+    notifySnapshotChanged();
+  }
+}
+
+function notifySnapshotChanged(): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    window.webContents.send("orbit:snapshotChanged");
+  }
 }
 
 function requireKnowledgeAction(action: string): "confirm" | "reject" | "archive" {
@@ -187,4 +263,11 @@ function requireSourceSetupKind(kind: string): "fixtures" | "codex" | "local_age
     return kind;
   }
   throw new Error(`Unsupported source setup kind: ${kind}`);
+}
+
+function requireSourceRuntimeAction(action: string): "pause" | "resume" | "enable" | "disable" {
+  if (action === "pause" || action === "resume" || action === "enable" || action === "disable") {
+    return action;
+  }
+  throw new Error(`Unsupported source runtime action: ${action}`);
 }

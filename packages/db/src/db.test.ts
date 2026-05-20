@@ -12,6 +12,7 @@ import { reviewKnowledgeArtifact, reviewMemory, reviewRecommendation } from "./g
 import { RecommendationRepository } from "./repositories/recommendationRepository";
 import { openOrbitDatabase } from "./connection";
 import { resolveOrbitDbPath, writeOrbitRuntimeConfig } from "./orbitHome";
+import { SourceRepository } from "./repositories/sourceRepository";
 
 const tempDirs: string[] = [];
 
@@ -102,6 +103,42 @@ describe("sqlite store", () => {
     writeOrbitRuntimeConfig(orbitHome, { configuredDatabasePath: configuredPath });
 
     expect(resolveOrbitDbPath(orbitHome)).toBe(configuredPath);
+  });
+
+  it("stores source runtime state", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-db-source-runtime-test-"));
+    tempDirs.push(orbitHome);
+    const { db, close } = openOrbitDatabase({ orbitHome });
+    try {
+      const sources = new SourceRepository(db);
+      sources.upsertSource({
+        id: "fixture_codex",
+        kind: "codex",
+        displayName: "Fixture Codex",
+        enabled: true,
+        paused: false,
+        defaultSensitivity: "internal",
+        createdAt: "2026-05-20T09:00:00.000Z",
+        updatedAt: "2026-05-20T09:00:00.000Z"
+      });
+
+      sources.setPaused("fixture_codex", true);
+      sources.recordSyncSuccess("fixture_codex", {
+        lastEventAt: "2026-05-20T09:15:00.000Z"
+      });
+      sources.setEnabled("fixture_codex", false);
+
+      const source = sources.getSource("fixture_codex");
+      expect(source?.enabled).toBe(false);
+      expect(source?.paused).toBe(true);
+      expect(source?.lastSyncAt).toBeTruthy();
+      expect(source?.lastEventAt).toBe("2026-05-20T09:15:00.000Z");
+
+      sources.recordSyncError("fixture_codex", "adapter unavailable");
+      expect(sources.getSource("fixture_codex")?.lastError).toBe("adapter unavailable");
+    } finally {
+      close();
+    }
   });
 });
 

@@ -1,4 +1,10 @@
-import { buildTodayContext, getLocalDateKey, ingestEventsFromAdapter } from "@orbit/core";
+import {
+  buildTodayContext,
+  getLocalDateKey,
+  ingestEventsFromAdapter,
+  type SourceAdapter,
+  type SourceKind
+} from "@orbit/core";
 import { CodexAdapter, FixtureAdapter, LocalAgentAdapter, SeaTalkAdapter } from "@orbit/adapters";
 import {
   buildAIProvider,
@@ -15,6 +21,7 @@ import {
 } from "@orbit/ai";
 import {
   ActivityRepository,
+  AuditRepository,
   clearLocalData,
   EventRepository,
   exportTodayContext,
@@ -40,6 +47,8 @@ import { isAbsolute, join, resolve } from "node:path";
 import type {
   DesktopActionResult,
   DesktopAIProviderTestConfig,
+  DesktopRuntimeStatus,
+  DesktopSourceRuntimeAction,
   DesktopSettingKey,
   DesktopSnapshot,
   SourceSetupKind
@@ -58,8 +67,24 @@ const SETTING_KEYS = {
   aiMaxTokens: "ai.maxTokens",
   aiTestMaxTokens: "ai.testMaxTokens",
   aiTokenLimitParameter: "ai.tokenLimitParameter",
+  runtimeCollectionPaused: "runtime.collectionPaused",
+  runtimeStatus: "runtime.status",
+  runtimeLastRunAt: "runtime.lastRunAt",
+  runtimeLastCompletedAt: "runtime.lastCompletedAt",
+  runtimeLastError: "runtime.lastError",
+  sourceAdapterConfigs: "sources.adapterConfigs",
   sourceSetupCompleted: "sources.setupCompleted"
 } as const;
+
+const BACKGROUND_PIPELINE_OPTIONS = {};
+
+interface StoredSourceAdapterConfig {
+  setupKind: SourceSetupKind;
+  path?: string;
+  fixturesRoot?: string;
+}
+
+type StoredSourceAdapterConfigs = Record<string, StoredSourceAdapterConfig>;
 
 export function readDesktopSnapshot(date = getLocalDateKey()): DesktopSnapshot {
   const database = openOrbitDatabase();
@@ -102,6 +127,7 @@ export function readDesktopSnapshot(date = getLocalDateKey()): DesktopSnapshot {
       memories,
       recommendations,
       today,
+      runtime: readRuntime(settingsRepository),
       settings: readSettings(settingsRepository)
     };
   } finally {
@@ -205,22 +231,31 @@ export async function setupSourceForDesktop(
   try {
     const sourceRepository = new SourceRepository(database.db);
     const eventRepository = new EventRepository(database.db);
+    const settingsRepository = new SettingsRepository(database.db);
+    const auditRepository = new AuditRepository(database.db);
     const adapters = buildSourceSetupAdapters(kind, path);
+    storeSourceAdapterConfigs(settingsRepository, kind, path, adapters);
     const results = [];
     for (const adapter of adapters) {
       sourceRepository.upsertFromAdapter(adapter);
       const cursor = sourceRepository.getCursor(adapter.id);
       const result = await ingestEventsFromAdapter(adapter, eventRepository, cursor);
       sourceRepository.setCursor(adapter.id, result.nextCursor);
+      sourceRepository.recordSyncSuccess(adapter.id, { lastEventAt: result.lastEventAt });
+      auditRepository.log("source.ingest", "source", adapter.id, {
+        mode: "manual_setup",
+        kind,
+        read: result.read,
+        inserted: result.inserted,
+        skipped: result.skipped,
+        warnings: result.warnings
+      });
       results.push(result);
     }
     const pipeline = (
-      await reindexLocalDataWithProvider(
-        database,
-        buildDesktopPipelineOptions(new SettingsRepository(database.db))
-      )
+      await reindexLocalDataWithProvider(database, buildDesktopPipelineOptions(settingsRepository))
     ).pipeline;
-    new SettingsRepository(database.db).set(SETTING_KEYS.sourceSetupCompleted, true);
+    settingsRepository.set(SETTING_KEYS.sourceSetupCompleted, true);
     return {
       snapshot: readDesktopSnapshot(),
       warnings: results.flatMap((result) => result.warnings),
@@ -273,6 +308,158 @@ export function exportContextForDesktop(): DesktopActionResult {
       message: `Exported context to ${result.path}`,
       exportPath: result.path
     };
+  } finally {
+    database.close();
+  }
+}
+
+export function setCollectionPausedForDesktop(paused: boolean): DesktopSnapshot {
+  const database = openOrbitDatabase();
+  try {
+    const settings = new SettingsRepository(database.db);
+    settings.set(SETTING_KEYS.runtimeCollectionPaused, paused);
+    writeRuntimeStatus(settings, paused ? "paused" : "idle");
+    new AuditRepository(database.db).log(
+      paused ? "runtime.pause" : "runtime.resume",
+      "runtime",
+      undefined,
+      { paused }
+    );
+  } finally {
+    database.close();
+  }
+  return readDesktopSnapshot();
+}
+
+export function updateSourceRuntimeForDesktop(
+  sourceId: string,
+  action: DesktopSourceRuntimeAction
+): DesktopSnapshot {
+  const database = openOrbitDatabase();
+  try {
+    const sources = new SourceRepository(database.db);
+    const source = sources.getSource(sourceId);
+    if (!source) {
+      throw new Error(`Unknown source: ${sourceId}`);
+    }
+    if (action === "pause") {
+      sources.setPaused(sourceId, true);
+    } else if (action === "resume") {
+      sources.setPaused(sourceId, false);
+    } else if (action === "disable") {
+      sources.setEnabled(sourceId, false);
+    } else if (action === "enable") {
+      sources.setEnabled(sourceId, true);
+      sources.setPaused(sourceId, false);
+    } else {
+      throw new Error(`Unsupported source runtime action: ${action}`);
+    }
+    new AuditRepository(database.db).log(`source.${action}`, "source", sourceId, {
+      previous: { enabled: source.enabled, paused: source.paused }
+    });
+  } finally {
+    database.close();
+  }
+  return readDesktopSnapshot();
+}
+
+export interface BackgroundIngestionResult {
+  status: DesktopRuntimeStatus;
+  sourceCount: number;
+  attempted: number;
+  read: number;
+  inserted: number;
+  skipped: number;
+  errors: string[];
+}
+
+export async function runBackgroundIngestionForDesktop(): Promise<BackgroundIngestionResult> {
+  const database = openOrbitDatabase();
+  try {
+    const settings = new SettingsRepository(database.db);
+    const sourceRepository = new SourceRepository(database.db);
+    const eventRepository = new EventRepository(database.db);
+    const auditRepository = new AuditRepository(database.db);
+    if (settings.get<boolean>(SETTING_KEYS.runtimeCollectionPaused) ?? false) {
+      writeRuntimeStatus(settings, "paused");
+      return {
+        status: "paused",
+        sourceCount: sourceRepository.countSources(),
+        attempted: 0,
+        read: 0,
+        inserted: 0,
+        skipped: 0,
+        errors: []
+      };
+    }
+
+    const sources = sourceRepository.listSources();
+    const startedAt = new Date().toISOString();
+    writeRuntimeStatus(settings, "collecting", { lastRunAt: startedAt });
+    let attempted = 0;
+    let read = 0;
+    let inserted = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+
+    for (const source of sources) {
+      if (!source.enabled || source.paused) continue;
+      attempted += 1;
+      try {
+        const adapter = buildBackgroundAdapter(source.id, source.kind, settings);
+        const cursor = sourceRepository.getCursor(adapter.id);
+        const result = await ingestEventsFromAdapter(adapter, eventRepository, cursor);
+        sourceRepository.setCursor(adapter.id, result.nextCursor);
+        sourceRepository.recordSyncSuccess(adapter.id, { lastEventAt: result.lastEventAt });
+        read += result.read;
+        inserted += result.inserted;
+        skipped += result.skipped;
+        auditRepository.log("source.ingest", "source", adapter.id, {
+          mode: "background",
+          read: result.read,
+          inserted: result.inserted,
+          skipped: result.skipped,
+          warnings: result.warnings,
+          nextCursor: result.nextCursor
+        });
+      } catch (error) {
+        const message = formatUnknownError(error);
+        errors.push(`${source.displayName}: ${message}`);
+        sourceRepository.recordSyncError(source.id, message);
+        auditRepository.log("source.ingest_failed", "source", source.id, {
+          mode: "background",
+          message
+        });
+      }
+    }
+
+    if (inserted > 0) {
+      const pipeline = (await reindexLocalDataWithProvider(database, BACKGROUND_PIPELINE_OPTIONS))
+        .pipeline;
+      auditRepository.log("background.pipeline.run", "database", undefined, {
+        aiProvider: "disabled",
+        events: pipeline.events,
+        inserted
+      });
+    }
+
+    const completedAt = new Date().toISOString();
+    const status: DesktopRuntimeStatus = errors.length > 0 ? "error" : "idle";
+    writeRuntimeStatus(settings, status, {
+      lastCompletedAt: completedAt,
+      lastError: errors.length > 0 ? errors[0] : ""
+    });
+    auditRepository.log("background.ingest_cycle", "runtime", undefined, {
+      startedAt,
+      completedAt,
+      sourceCount: sources.length,
+      attempted,
+      read,
+      inserted,
+      skipped,
+      errors
+    });
+    return { status, sourceCount: sources.length, attempted, read, inserted, skipped, errors };
   } finally {
     database.close();
   }
@@ -346,6 +533,47 @@ function readSettings(settings: SettingsRepository): DesktopSnapshot["settings"]
   return snapshotSettings;
 }
 
+function readRuntime(settings: SettingsRepository): DesktopSnapshot["runtime"] {
+  const paused = settings.get<boolean>(SETTING_KEYS.runtimeCollectionPaused) ?? false;
+  const runtime: DesktopSnapshot["runtime"] = {
+    status: paused ? "paused" : readRuntimeStatus(settings.get<string>(SETTING_KEYS.runtimeStatus)),
+    collectionPaused: paused
+  };
+  const lastRunAt = settings.get<string>(SETTING_KEYS.runtimeLastRunAt);
+  const lastCompletedAt = settings.get<string>(SETTING_KEYS.runtimeLastCompletedAt);
+  const lastError = settings.get<string>(SETTING_KEYS.runtimeLastError);
+  if (lastRunAt) runtime.lastRunAt = lastRunAt;
+  if (lastCompletedAt) runtime.lastCompletedAt = lastCompletedAt;
+  if (lastError) runtime.lastError = lastError;
+  return runtime;
+}
+
+function readRuntimeStatus(value: string | undefined): DesktopRuntimeStatus {
+  if (value === "collecting" || value === "paused" || value === "error") return value;
+  return "idle";
+}
+
+function writeRuntimeStatus(
+  settings: SettingsRepository,
+  status: DesktopRuntimeStatus,
+  options: {
+    lastRunAt?: string | undefined;
+    lastCompletedAt?: string | undefined;
+    lastError?: string | undefined;
+  } = {}
+): void {
+  settings.set(SETTING_KEYS.runtimeStatus, status);
+  if (options.lastRunAt) {
+    settings.set(SETTING_KEYS.runtimeLastRunAt, options.lastRunAt);
+  }
+  if (options.lastCompletedAt) {
+    settings.set(SETTING_KEYS.runtimeLastCompletedAt, options.lastCompletedAt);
+  }
+  if (options.lastError !== undefined) {
+    settings.set(SETTING_KEYS.runtimeLastError, options.lastError);
+  }
+}
+
 function readLanguageSetting(value: string | undefined): "system" | "en" | "zh-CN" {
   return value === "en" || value === "zh-CN" ? value : "system";
 }
@@ -405,6 +633,65 @@ function buildDesktopAIProviderConfig(
   config.tokenLimitParameter = tokenLimitParameter;
   if (apiKey) config.apiKey = apiKey;
   return config;
+}
+
+function buildBackgroundAdapter(
+  sourceId: string,
+  sourceKind: SourceKind,
+  settings: SettingsRepository
+): SourceAdapter {
+  const config = readSourceAdapterConfigs(settings)[sourceId];
+  if (config?.setupKind === "fixtures" || sourceId.startsWith("fixture_")) {
+    const fixturesRoot =
+      config?.fixturesRoot ?? resolveInputPath(process.env.ORBIT_FIXTURES_ROOT ?? "fixtures");
+    return new FixtureAdapter({
+      kind: sourceKind,
+      directory: join(fixturesRoot, sourceKind),
+      id: sourceId,
+      displayName: sourceKind === "seatalk" ? "Fixture SeaTalk" : "Fixture Codex",
+      defaultSensitivity: sourceKind === "seatalk" ? "confidential" : "internal"
+    });
+  }
+
+  const path = config?.path;
+  if (!path) {
+    throw new Error("Missing adapter path; reconfigure this source before background collection.");
+  }
+  if (sourceKind === "codex") {
+    return new CodexAdapter({ path, id: sourceId });
+  }
+  if (sourceKind === "local_agent") {
+    return new LocalAgentAdapter({ path, id: sourceId, defaultApp: "Local Agent" });
+  }
+  if (sourceKind === "seatalk") {
+    return new SeaTalkAdapter({ approvedImportDirectory: path, id: sourceId });
+  }
+  throw new Error(`Unsupported background source kind: ${sourceKind}`);
+}
+
+function storeSourceAdapterConfigs(
+  settings: SettingsRepository,
+  setupKind: SourceSetupKind,
+  path: string | undefined,
+  adapters: SourceAdapter[]
+): void {
+  const configs = readSourceAdapterConfigs(settings);
+  const resolvedPath = path ? resolveInputPath(path) : undefined;
+  const fixturesRoot =
+    setupKind === "fixtures"
+      ? resolveInputPath(process.env.ORBIT_FIXTURES_ROOT ?? "fixtures")
+      : undefined;
+  for (const adapter of adapters) {
+    const config: StoredSourceAdapterConfig = { setupKind };
+    if (resolvedPath) config.path = resolvedPath;
+    if (fixturesRoot) config.fixturesRoot = fixturesRoot;
+    configs[adapter.id] = config;
+  }
+  settings.set(SETTING_KEYS.sourceAdapterConfigs, configs);
+}
+
+function readSourceAdapterConfigs(settings: SettingsRepository): StoredSourceAdapterConfigs {
+  return settings.get<StoredSourceAdapterConfigs>(SETTING_KEYS.sourceAdapterConfigs) ?? {};
 }
 
 function readDesktopTokenLimitParameter(value: unknown): OpenAICompatibleTokenLimitParameter {

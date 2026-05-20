@@ -127,6 +127,14 @@ button {
   background: #3f7f72;
 }
 
+.status-dot.paused {
+  background: #9b7b2d;
+}
+
+.status-dot.error {
+  background: #b3453b;
+}
+
 .workspace {
   display: flex;
   min-width: 0;
@@ -330,11 +338,23 @@ button {
   margin-top: 8px;
 }
 
+.error-text {
+  color: #943b31;
+}
+
 .action-row {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 12px;
+}
+
+.source-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 .timeline-item {
@@ -523,6 +543,33 @@ button {
 
 .settings-panel .secondary-button {
   justify-self: start;
+}
+
+.runtime-pill {
+  display: inline-flex;
+  min-height: 22px;
+  align-items: center;
+  border-radius: 999px;
+  background: #eff4f2;
+  color: #315f56;
+  font-size: 12px;
+  font-weight: 650;
+  padding: 4px 8px;
+}
+
+.runtime-pill.paused {
+  background: #f2eee1;
+  color: #765d21;
+}
+
+.runtime-pill.error {
+  background: #fff4f2;
+  color: #943b31;
+}
+
+.runtime-pill.collecting {
+  background: #eef7f4;
+  color: #2f6d61;
 }
 
 .provider-actions {

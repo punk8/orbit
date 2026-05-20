@@ -20,7 +20,8 @@ export function SettingsPage({
   onReindexLocalData,
   onClearLocalData,
   onExportContext,
-  onTestAIProvider
+  onTestAIProvider,
+  onSetCollectionPaused
 }: {
   snapshot: DesktopSnapshot;
   onUpdateSetting(key: DesktopSettingKey, value: unknown): Promise<void>;
@@ -28,6 +29,7 @@ export function SettingsPage({
   onClearLocalData(): Promise<void>;
   onExportContext(): Promise<void>;
   onTestAIProvider(config: DesktopAIProviderTestConfig): Promise<DesktopAIProviderTestResult>;
+  onSetCollectionPaused(paused: boolean): Promise<void>;
 }): ReactElement {
   const { t } = useI18n();
   const [activeSection, setActiveSection] = useState<SettingsSectionId>("provider");
@@ -297,6 +299,43 @@ export function SettingsPage({
           <Section title={t("section.runtime")}>
             <dl className="settings-grid">
               <div>
+                <dt>{t("settings.runtimeStatus")}</dt>
+                <dd>
+                  <span className={`runtime-pill ${snapshot.runtime.status}`}>
+                    {tRuntimeStatus(t, snapshot.runtime.status)}
+                  </span>
+                </dd>
+              </div>
+              <div>
+                <dt>{t("settings.backgroundCollection")}</dt>
+                <dd>
+                  <label className="toggle-line">
+                    <input
+                      checked={!snapshot.runtime.collectionPaused}
+                      onChange={(event) => void onSetCollectionPaused(!event.currentTarget.checked)}
+                      type="checkbox"
+                    />
+                    <span>
+                      {snapshot.runtime.collectionPaused
+                        ? t("runtime.paused")
+                        : t("runtime.collecting")}
+                    </span>
+                  </label>
+                </dd>
+              </div>
+              <div>
+                <dt>{t("settings.lastBackgroundRun")}</dt>
+                <dd>{snapshot.runtime.lastRunAt ?? t("fallback.none")}</dd>
+              </div>
+              <div>
+                <dt>{t("settings.lastBackgroundCompleted")}</dt>
+                <dd>{snapshot.runtime.lastCompletedAt ?? t("fallback.none")}</dd>
+              </div>
+              <div>
+                <dt>{t("settings.lastBackgroundError")}</dt>
+                <dd>{snapshot.runtime.lastError ?? t("fallback.none")}</dd>
+              </div>
+              <div>
                 <dt>{t("settings.orbitHome")}</dt>
                 <dd>{snapshot.orbitHome}</dd>
               </div>
@@ -416,4 +455,14 @@ export function SettingsPage({
       </div>
     </div>
   );
+}
+
+function tRuntimeStatus(
+  t: ReturnType<typeof useI18n>["t"],
+  status: DesktopSnapshot["runtime"]["status"]
+): string {
+  if (status === "collecting") return t("runtime.collecting");
+  if (status === "paused") return t("runtime.paused");
+  if (status === "error") return t("runtime.error");
+  return t("runtime.idle");
 }

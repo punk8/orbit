@@ -30,6 +30,13 @@ export interface DesktopSnapshot {
   memories: Memory[];
   recommendations: Recommendation[];
   today: TodayContext;
+  runtime: {
+    status: DesktopRuntimeStatus;
+    collectionPaused: boolean;
+    lastRunAt?: string;
+    lastCompletedAt?: string;
+    lastError?: string;
+  };
   settings: {
     localOnly: boolean;
     aiProvider: string;
@@ -67,6 +74,8 @@ export type DesktopLanguage = "system" | "en" | "zh-CN";
 
 export type DesktopAIProviderKind = "disabled" | "mock" | "openai-compatible";
 export type DesktopOpenAITokenLimitParameter = "max_tokens" | "max_completion_tokens";
+export type DesktopRuntimeStatus = "idle" | "collecting" | "paused" | "error";
+export type DesktopSourceRuntimeAction = "pause" | "resume" | "enable" | "disable";
 
 export type SourceSetupKind = "fixtures" | "codex" | "local_agent" | "seatalk";
 
@@ -106,11 +115,17 @@ export interface OrbitDesktopApi {
     options?: { snoozeUntil?: string | undefined }
   ): Promise<DesktopSnapshot>;
   updateSetting(key: DesktopSettingKey, value: unknown): Promise<DesktopSnapshot>;
+  setCollectionPaused(paused: boolean): Promise<DesktopSnapshot>;
+  updateSourceRuntime(
+    sourceId: string,
+    action: DesktopSourceRuntimeAction
+  ): Promise<DesktopSnapshot>;
   setupSource(kind: SourceSetupKind, path?: string): Promise<DesktopActionResult>;
   reindexLocalData(): Promise<DesktopActionResult>;
   clearLocalData(): Promise<DesktopActionResult>;
   exportContext(): Promise<DesktopActionResult>;
   testAIProvider(config: DesktopAIProviderTestConfig): Promise<DesktopAIProviderTestResult>;
+  onSnapshotChanged(callback: () => void): () => void;
 }
 
 declare global {

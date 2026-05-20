@@ -10,6 +10,7 @@ export interface IngestEventsResult {
   read: number;
   inserted: number;
   skipped: number;
+  lastEventAt?: string;
   nextCursor?: string;
   warnings: string[];
 }
@@ -39,6 +40,13 @@ export async function ingestEventsFromAdapter(
     skipped,
     warnings: result.warnings ?? []
   };
+  const lastEventAt = result.events
+    .map((event) => event.occurredAt)
+    .sort()
+    .at(-1);
+  if (lastEventAt) {
+    ingestResult.lastEventAt = lastEventAt;
+  }
   if (result.nextCursor !== undefined) {
     ingestResult.nextCursor = result.nextCursor;
   }

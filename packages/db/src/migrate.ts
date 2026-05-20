@@ -1,7 +1,8 @@
 import type Database from "better-sqlite3";
 import { migration0001 } from "./migrations/0001_initial";
+import { migration0002 } from "./migrations/0002_source_runtime";
 
-const migrations = [migration0001];
+const migrations = [migration0001, migration0002];
 
 export function migrate(db: Database.Database): void {
   db.exec(`

@@ -1,16 +1,18 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
-import type { DesktopSnapshot, SourceSetupKind } from "../orbitApi";
+import type { DesktopSnapshot, DesktopSourceRuntimeAction, SourceSetupKind } from "../orbitApi";
 import { MetricCard } from "../components/MetricCard";
 import { Section } from "../components/Section";
 import { useI18n } from "../i18n";
 
 export function SourcesPage({
   snapshot,
-  onSetupSource
+  onSetupSource,
+  onUpdateSourceRuntime
 }: {
   snapshot: DesktopSnapshot;
   onSetupSource(kind: SourceSetupKind, path?: string): Promise<void>;
+  onUpdateSourceRuntime(sourceId: string, action: DesktopSourceRuntimeAction): Promise<void>;
 }): ReactElement {
   const { t, sensitivity, sourceKind } = useI18n();
   const [codexPath, setCodexPath] = useState("fixtures/realistic/codex");
@@ -33,8 +35,36 @@ export function SourcesPage({
                 <div className="meta-line">
                   {sourceKind(source.kind)}
                   <span>{sensitivity(source.defaultSensitivity)}</span>
-                  <span>{source.enabled ? t("state.enabled") : t("state.disabled")}</span>
+                  <span>{sourceStatusLabel(t, source)}</span>
+                  {source.lastSyncAt ? (
+                    <span>{`${t("source.lastSync")} ${source.lastSyncAt}`}</span>
+                  ) : null}
+                  {source.lastEventAt ? (
+                    <span>{`${t("source.lastEvent")} ${source.lastEventAt}`}</span>
+                  ) : null}
                 </div>
+                {source.lastError ? <p className="error-text">{source.lastError}</p> : null}
+              </div>
+              <div className="source-actions">
+                <button
+                  className="secondary-button"
+                  disabled={!source.enabled}
+                  onClick={() =>
+                    void onUpdateSourceRuntime(source.id, source.paused ? "resume" : "pause")
+                  }
+                  type="button"
+                >
+                  {source.paused ? t("action.resume") : t("action.pause")}
+                </button>
+                <button
+                  className="secondary-button"
+                  onClick={() =>
+                    void onUpdateSourceRuntime(source.id, source.enabled ? "disable" : "enable")
+                  }
+                  type="button"
+                >
+                  {source.enabled ? t("action.disable") : t("action.enable")}
+                </button>
               </div>
             </article>
           ))}
@@ -114,4 +144,14 @@ export function SourcesPage({
       </Section>
     </div>
   );
+}
+
+function sourceStatusLabel(
+  t: ReturnType<typeof useI18n>["t"],
+  source: DesktopSnapshot["sources"][number]
+): string {
+  if (!source.enabled) return t("state.disabled");
+  if (source.paused) return t("runtime.paused");
+  if (source.lastError) return t("runtime.error");
+  return t("runtime.collecting");
 }

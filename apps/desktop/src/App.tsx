@@ -16,6 +16,7 @@ import type {
   DesktopAIProviderTestConfig,
   DesktopAIProviderTestResult,
   DesktopSettingKey,
+  DesktopSourceRuntimeAction,
   SourceSetupKind
 } from "./orbitApi";
 import type {
@@ -93,6 +94,20 @@ export function App(): ReactElement {
     await runReviewAction(() => window.orbit.updateSetting(key, value), t("error.setting"));
   }
 
+  async function setCollectionPaused(paused: boolean): Promise<void> {
+    await runReviewAction(() => window.orbit.setCollectionPaused(paused), t("error.setting"));
+  }
+
+  async function updateSourceRuntime(
+    sourceId: string,
+    action: DesktopSourceRuntimeAction
+  ): Promise<void> {
+    await runReviewAction(
+      () => window.orbit.updateSourceRuntime(sourceId, action),
+      t("error.sourceRuntime")
+    );
+  }
+
   async function setupSource(kind: SourceSetupKind, path?: string): Promise<void> {
     setError(undefined);
     try {
@@ -160,6 +175,12 @@ export function App(): ReactElement {
     void loadSnapshot();
   }, []);
 
+  useEffect(() => {
+    return window.orbit.onSnapshotChanged(() => {
+      void loadSnapshot();
+    });
+  }, []);
+
   const pageTitle = useMemo(
     () => t(pages.find((page) => page.id === activePage)?.labelKey ?? "nav.today"),
     [activePage, t]
@@ -195,9 +216,9 @@ export function App(): ReactElement {
             })}
           </nav>
           <div className="sidebar-footer">
-            <span className="status-dot" />
+            <span className={`status-dot ${snapshot?.runtime.status ?? "idle"}`} />
             <span>
-              {snapshot?.settings.localOnly ? t("app.localOnly") : t("app.remoteEnabled")}
+              {snapshot ? tRuntimeStatus(t, snapshot.runtime.status) : t("app.localOnly")}
             </span>
           </div>
         </aside>
@@ -227,6 +248,8 @@ export function App(): ReactElement {
                 reviewMemory,
                 reviewRecommendation,
                 updateSetting,
+                setCollectionPaused,
+                updateSourceRuntime,
                 setupSource,
                 reindexLocalData,
                 clearLocalData,
@@ -240,11 +263,23 @@ export function App(): ReactElement {
   );
 }
 
+function tRuntimeStatus(
+  t: ReturnType<typeof createI18n>["t"],
+  status: DesktopSnapshot["runtime"]["status"]
+): string {
+  if (status === "collecting") return t("runtime.collecting");
+  if (status === "paused") return t("runtime.paused");
+  if (status === "error") return t("runtime.error");
+  return t("runtime.idle");
+}
+
 interface PageActions {
   reviewKnowledge(id: string, action: KnowledgeReviewAction): Promise<void>;
   reviewMemory(id: string, action: MemoryReviewAction): Promise<void>;
   reviewRecommendation(id: string, action: RecommendationReviewAction): Promise<void>;
   updateSetting(key: DesktopSettingKey, value: unknown): Promise<void>;
+  setCollectionPaused(paused: boolean): Promise<void>;
+  updateSourceRuntime(sourceId: string, action: DesktopSourceRuntimeAction): Promise<void>;
   setupSource(kind: SourceSetupKind, path?: string): Promise<void>;
   reindexLocalData(): Promise<void>;
   clearLocalData(): Promise<void>;
@@ -278,7 +313,13 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
         />
       );
     case "sources":
-      return <SourcesPage snapshot={snapshot} onSetupSource={actions.setupSource} />;
+      return (
+        <SourcesPage
+          snapshot={snapshot}
+          onSetupSource={actions.setupSource}
+          onUpdateSourceRuntime={actions.updateSourceRuntime}
+        />
+      );
     case "settings":
       return (
         <SettingsPage
@@ -287,6 +328,7 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
           onExportContext={actions.exportContext}
           onReindexLocalData={actions.reindexLocalData}
           onTestAIProvider={actions.testAIProvider}
+          onSetCollectionPaused={actions.setCollectionPaused}
           onUpdateSetting={actions.updateSetting}
         />
       );

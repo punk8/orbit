@@ -28,7 +28,11 @@ export interface SourceRecord {
   kind: SourceKind;
   displayName: string;
   enabled: boolean;
+  paused: boolean;
   defaultSensitivity: Sensitivity;
+  lastSyncAt?: string;
+  lastEventAt?: string;
+  lastError?: string;
   createdAt: string;
   updatedAt: string;
 }
