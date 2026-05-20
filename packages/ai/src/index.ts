@@ -48,6 +48,15 @@ export interface AIProviderConfig {
   maxTokens?: number;
 }
 
+export interface AIProviderConnectionTestResult {
+  ok: boolean;
+  provider: AIProviderKind;
+  message: string;
+  latencyMs: number;
+  endpoint?: string;
+  model?: string;
+}
+
 export interface OpenAICompatibleProviderConfig {
   baseUrl: string;
   model: string;
@@ -145,9 +154,51 @@ export function isAIProviderConfigured(config: AIProviderConfig): boolean {
   return config.kind !== "disabled";
 }
 
-export function createOpenAICompatibleProvider(
-  config: OpenAICompatibleProviderConfig
-): AIProvider {
+export async function testAIProviderConnection(
+  config: AIProviderConfig
+): Promise<AIProviderConnectionTestResult> {
+  const startedAt = Date.now();
+  if (config.kind === "disabled") {
+    throw new AIProviderError("AI provider is disabled.");
+  }
+  if (config.kind === "mock") {
+    return {
+      ok: true,
+      provider: "mock",
+      message: "Mock provider is available.",
+      latencyMs: Date.now() - startedAt
+    };
+  }
+  if (!config.baseUrl?.trim()) {
+    throw new AIProviderError("OpenAI-compatible provider requires a base URL.");
+  }
+  if (!config.model?.trim()) {
+    throw new AIProviderError("OpenAI-compatible provider requires a model.");
+  }
+
+  const endpoint = normalizeChatCompletionsUrl(config.baseUrl);
+  const payload = buildConnectionTestPayload(config.model.trim());
+  const response = await postChatCompletion(
+    endpoint,
+    config.apiKey,
+    payload,
+    config.timeoutMs ?? 15_000
+  );
+  const content = extractChatCompletionContent(response).trim();
+  if (!content) {
+    throw new AIProviderError("OpenAI-compatible provider returned an empty test response.");
+  }
+  return {
+    ok: true,
+    provider: "openai-compatible",
+    message: `Connected to ${config.model.trim()}.`,
+    latencyMs: Date.now() - startedAt,
+    endpoint,
+    model: config.model.trim()
+  };
+}
+
+export function createOpenAICompatibleProvider(config: OpenAICompatibleProviderConfig): AIProvider {
   const endpoint = normalizeChatCompletionsUrl(config.baseUrl);
   const timeoutMs = config.timeoutMs ?? 30_000;
   const maxTokens = config.maxTokens ?? 1200;
@@ -211,7 +262,10 @@ export function sanitizeDraftKnowledgeOutput(
   };
 }
 
-function buildMockInsights(input: DraftKnowledgeInput, fallbackEvidenceIds: ID[]): EvidenceBackedText[] {
+function buildMockInsights(
+  input: DraftKnowledgeInput,
+  fallbackEvidenceIds: ID[]
+): EvidenceBackedText[] {
   const insights = input.events
     .map((event) => ({
       text: event.content.summary ?? event.content.title ?? event.content.text,
@@ -276,6 +330,20 @@ function buildChatCompletionsPayload(
         schema: draftKnowledgeJsonSchema
       }
     }
+  };
+}
+
+function buildConnectionTestPayload(model: string): Record<string, unknown> {
+  return {
+    model,
+    messages: [
+      {
+        role: "user",
+        content: "Reply with a short confirmation that says orbit-ok."
+      }
+    ],
+    temperature: 0,
+    max_tokens: 16
   };
 }
 
@@ -356,20 +424,20 @@ async function sendChatCompletion(
   }
 }
 
-function parseProviderResponse(response: {
-  status: number;
-  ok: boolean;
-  body: string;
-}): unknown {
+function parseProviderResponse(response: { status: number; ok: boolean; body: string }): unknown {
   if (!response.ok) {
     throw new AIProviderError(
-      `OpenAI-compatible provider returned HTTP ${response.status}: ${response.body.slice(0, 300)}`
+      `OpenAI-compatible provider returned HTTP ${response.status}: ${readProviderErrorDetail(
+        response.body
+      )}`
     );
   }
   try {
     return JSON.parse(response.body);
   } catch (error) {
-    throw new AIProviderError(`OpenAI-compatible provider returned invalid JSON: ${formatUnknownError(error)}`);
+    throw new AIProviderError(
+      `OpenAI-compatible provider returned invalid JSON: ${formatUnknownError(error)}`
+    );
   }
 }
 
@@ -386,6 +454,24 @@ function extractChatCompletionContent(response: unknown): string {
     throw new AIProviderError("OpenAI-compatible provider returned a malformed message.");
   }
   return coerceMessageContent(message.content);
+}
+
+function readProviderErrorDetail(body: string): string {
+  try {
+    const parsed = JSON.parse(body);
+    if (isRecord(parsed)) {
+      const providerError = parsed.error;
+      if (isRecord(providerError) && typeof providerError.message === "string") {
+        return providerError.message;
+      }
+      if (typeof parsed.message === "string") {
+        return parsed.message;
+      }
+    }
+  } catch {
+    // Provider errors are often plain text; fall through to a bounded excerpt.
+  }
+  return body.slice(0, 300);
 }
 
 function coerceMessageContent(content: unknown): string {
@@ -407,7 +493,9 @@ function parseJsonObject(text: string): unknown {
   try {
     return JSON.parse(trimmed);
   } catch (error) {
-    throw new AIProviderError(`OpenAI-compatible provider returned non-JSON content: ${formatUnknownError(error)}`);
+    throw new AIProviderError(
+      `OpenAI-compatible provider returned non-JSON content: ${formatUnknownError(error)}`
+    );
   }
 }
 
@@ -417,7 +505,10 @@ function stripMarkdownFence(text: string): string {
   return withoutOpening.replace(/\s*```$/, "");
 }
 
-function readEvidenceBackedTextArray(value: unknown, input: DraftKnowledgeInput): EvidenceBackedText[] {
+function readEvidenceBackedTextArray(
+  value: unknown,
+  input: DraftKnowledgeInput
+): EvidenceBackedText[] {
   if (!Array.isArray(value)) return [];
   return value
     .map((item) => readEvidenceBackedText(item, input))
@@ -459,9 +550,7 @@ function readEvidenceBackedFollowUp(
 function readValidEvidenceIds(value: unknown, input: DraftKnowledgeInput): ID[] {
   if (!Array.isArray(value)) return [];
   const validIds = new Set<ID>([input.session.id, ...input.events.map((event) => event.id)]);
-  return dedupe(
-    value.filter((item): item is ID => typeof item === "string" && validIds.has(item))
-  );
+  return dedupe(value.filter((item): item is ID => typeof item === "string" && validIds.has(item)));
 }
 
 function readText(value: unknown): string | undefined {
@@ -495,7 +584,15 @@ function formatUnknownError(error: unknown): string {
 const draftKnowledgeJsonSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["title", "description", "keyInsights", "decisions", "blockers", "followUps", "confidence"],
+  required: [
+    "title",
+    "description",
+    "keyInsights",
+    "decisions",
+    "blockers",
+    "followUps",
+    "confidence"
+  ],
   properties: {
     title: { type: "string" },
     description: { type: "string" },

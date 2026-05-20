@@ -525,6 +525,41 @@ button {
   justify-self: start;
 }
 
+.provider-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.connection-status {
+  display: grid;
+  gap: 4px;
+  border: 1px solid;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  padding: 10px 12px;
+}
+
+.connection-status.success {
+  border-color: #cfe3dc;
+  background: #f2faf7;
+  color: #315f56;
+}
+
+.connection-status.error {
+  border-color: #f2c6c0;
+  background: #fff4f2;
+  color: #943b31;
+}
+
+.connection-status code {
+  overflow: hidden;
+  color: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .text-input,
 .select-input {
   min-height: 34px;
@@ -558,6 +593,12 @@ button {
   font-size: 12px;
   font-weight: 650;
   padding: 0 10px;
+}
+
+.secondary-button:disabled,
+.danger-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .action-row.padded {

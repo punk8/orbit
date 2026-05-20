@@ -2,8 +2,11 @@ import { buildTodayContext, getLocalDateKey, ingestEventsFromAdapter } from "@or
 import { CodexAdapter, FixtureAdapter, LocalAgentAdapter, SeaTalkAdapter } from "@orbit/adapters";
 import {
   buildAIProvider,
+  normalizeChatCompletionsUrl,
+  testAIProviderConnection,
   type AIProvider,
   type AIProviderConfig,
+  type AIProviderConnectionTestResult,
   type AIProviderKind
 } from "@orbit/ai";
 import {
@@ -32,6 +35,7 @@ import type {
 import { isAbsolute, join, resolve } from "node:path";
 import type {
   DesktopActionResult,
+  DesktopAIProviderTestConfig,
   DesktopSettingKey,
   DesktopSnapshot,
   SourceSetupKind
@@ -258,6 +262,32 @@ export function exportContextForDesktop(): DesktopActionResult {
   }
 }
 
+export async function testAIProviderForDesktop(
+  input: DesktopAIProviderTestConfig
+): Promise<AIProviderConnectionTestResult> {
+  const startedAt = Date.now();
+  const database = openOrbitDatabase();
+  try {
+    const settings = new SettingsRepository(database.db);
+    const config = buildDesktopAIProviderConfig(settings, input);
+    try {
+      return await testAIProviderConnection(config);
+    } catch (error) {
+      const endpoint = config.baseUrl ? safeNormalizeEndpoint(config.baseUrl) : undefined;
+      return {
+        ok: false,
+        provider: config.kind,
+        message: formatUnknownError(error),
+        latencyMs: Date.now() - startedAt,
+        ...(endpoint ? { endpoint } : {}),
+        ...(config.model ? { model: config.model } : {})
+      };
+    }
+  } finally {
+    database.close();
+  }
+}
+
 function readSettings(settings: SettingsRepository): DesktopSnapshot["settings"] {
   const configuredDatabasePath = settings.get<string>(SETTING_KEYS.configuredDatabasePath);
   const aiProvider = readAIProviderKind(settings.get<string>(SETTING_KEYS.aiProviderKind));
@@ -294,16 +324,8 @@ function readLanguageSetting(value: string | undefined): "system" | "en" | "zh-C
 function buildDesktopAIProvider(settings: SettingsRepository): AIProvider | undefined {
   const kind = readAIProviderKind(settings.get<string>(SETTING_KEYS.aiProviderKind));
   if (kind === "disabled") return undefined;
-  const config: AIProviderConfig = { kind };
-  if (kind === "openai-compatible") {
-    const baseUrl = settings.get<string>(SETTING_KEYS.aiBaseUrl);
-    const model = settings.get<string>(SETTING_KEYS.aiModel);
-    const apiKey = decryptApiKey(settings.get<string>(SETTING_KEYS.aiApiKeyCiphertext));
-    if (!baseUrl || !model) return undefined;
-    if (baseUrl) config.baseUrl = baseUrl;
-    if (model) config.model = model;
-    if (apiKey) config.apiKey = apiKey;
-  }
+  const config = buildDesktopAIProviderConfig(settings, { providerKind: kind });
+  if (kind === "openai-compatible" && (!config.baseUrl || !config.model)) return undefined;
   return buildAIProvider(config);
 }
 
@@ -315,6 +337,45 @@ function buildDesktopPipelineOptions(settings: SettingsRepository): { aiProvider
 function readAIProviderKind(value: string | undefined): AIProviderKind {
   if (value === "mock" || value === "openai-compatible") return value;
   return "disabled";
+}
+
+function buildDesktopAIProviderConfig(
+  settings: SettingsRepository,
+  input: DesktopAIProviderTestConfig = {}
+): AIProviderConfig {
+  const kind = readAIProviderKind(
+    input.providerKind ?? settings.get<string>(SETTING_KEYS.aiProviderKind)
+  );
+  const config: AIProviderConfig = { kind };
+  if (kind !== "openai-compatible") return config;
+
+  const baseUrl = readOptionalString(input.baseUrl) ?? settings.get<string>(SETTING_KEYS.aiBaseUrl);
+  const model = readOptionalString(input.model) ?? settings.get<string>(SETTING_KEYS.aiModel);
+  const apiKey =
+    readOptionalString(input.apiKey) ??
+    decryptApiKey(settings.get<string>(SETTING_KEYS.aiApiKeyCiphertext));
+  if (baseUrl) config.baseUrl = baseUrl;
+  if (model) config.model = model;
+  if (apiKey) config.apiKey = apiKey;
+  return config;
+}
+
+function readOptionalString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function safeNormalizeEndpoint(baseUrl: string): string | undefined {
+  try {
+    return normalizeChatCompletionsUrl(baseUrl);
+  } catch {
+    return undefined;
+  }
+}
+
+function formatUnknownError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function encryptApiKey(value: string): string {

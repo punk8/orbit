@@ -10,6 +10,7 @@ import {
   reviewMemoryForDesktop,
   reviewRecommendationForDesktop,
   setupSourceForDesktop,
+  testAIProviderForDesktop,
   updateSettingForDesktop
 } from "./data";
 
@@ -76,6 +77,7 @@ ipcMain.handle("orbit:setupSource", (_event, kind: string, path?: string) =>
 ipcMain.handle("orbit:reindexLocalData", () => reindexForDesktop());
 ipcMain.handle("orbit:clearLocalData", () => clearLocalDataForDesktop());
 ipcMain.handle("orbit:exportContext", () => exportContextForDesktop());
+ipcMain.handle("orbit:testAIProvider", (_event, config) => testAIProviderForDesktop(config));
 
 app.whenReady().then(async () => {
   applyRuntimeSettings();

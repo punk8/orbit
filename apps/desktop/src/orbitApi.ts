@@ -63,6 +63,22 @@ export type DesktopAIProviderKind = "disabled" | "mock" | "openai-compatible";
 
 export type SourceSetupKind = "fixtures" | "codex" | "local_agent" | "seatalk";
 
+export interface DesktopAIProviderTestConfig {
+  providerKind?: DesktopAIProviderKind;
+  baseUrl?: string;
+  model?: string;
+  apiKey?: string;
+}
+
+export interface DesktopAIProviderTestResult {
+  ok: boolean;
+  provider: DesktopAIProviderKind;
+  message: string;
+  latencyMs: number;
+  endpoint?: string;
+  model?: string;
+}
+
 export interface DesktopActionResult {
   snapshot: DesktopSnapshot;
   message: string;
@@ -84,6 +100,7 @@ export interface OrbitDesktopApi {
   reindexLocalData(): Promise<DesktopActionResult>;
   clearLocalData(): Promise<DesktopActionResult>;
   exportContext(): Promise<DesktopActionResult>;
+  testAIProvider(config: DesktopAIProviderTestConfig): Promise<DesktopAIProviderTestResult>;
 }
 
 declare global {

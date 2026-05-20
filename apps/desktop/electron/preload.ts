@@ -11,7 +11,8 @@ const orbitApi: OrbitDesktopApi = {
   setupSource: (kind, path) => ipcRenderer.invoke("orbit:setupSource", kind, path),
   reindexLocalData: () => ipcRenderer.invoke("orbit:reindexLocalData"),
   clearLocalData: () => ipcRenderer.invoke("orbit:clearLocalData"),
-  exportContext: () => ipcRenderer.invoke("orbit:exportContext")
+  exportContext: () => ipcRenderer.invoke("orbit:exportContext"),
+  testAIProvider: (config) => ipcRenderer.invoke("orbit:testAIProvider", config)
 };
 
 contextBridge.exposeInMainWorld("orbit", orbitApi);

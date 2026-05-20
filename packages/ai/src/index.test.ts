@@ -6,7 +6,8 @@ import { createStableId, evidenceFromEvent, hashObject } from "@orbit/core";
 import {
   createOpenAICompatibleProvider,
   mockAiProvider,
-  normalizeChatCompletionsUrl
+  normalizeChatCompletionsUrl,
+  testAIProviderConnection
 } from "./index";
 
 const servers: Array<{ close(callback?: (error?: Error) => void): void }> = [];
@@ -124,6 +125,56 @@ describe("AI providers", () => {
 
     expect(requests).toBe(2);
     expect(draft.title).toBe("Retry draft");
+  });
+
+  it("tests an OpenAI-compatible connection without sending Orbit evidence", async () => {
+    let requestBody: unknown;
+    const baseUrl = await startProviderServer(async (request, response) => {
+      requestBody = JSON.parse(await readRequestBody(request));
+      writeJson(response, {
+        choices: [
+          {
+            message: {
+              content: "orbit-ok"
+            }
+          }
+        ]
+      });
+    });
+
+    const result = await testAIProviderConnection({
+      kind: "openai-compatible",
+      baseUrl,
+      model: "test-model",
+      apiKey: "test-key"
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.provider).toBe("openai-compatible");
+    expect(result.model).toBe("test-model");
+    expect(isRecord(requestBody) ? requestBody.model : undefined).toBe("test-model");
+    expect(isRecord(requestBody) && "response_format" in requestBody).toBe(false);
+    expect(JSON.stringify(requestBody)).not.toContain("evidence");
+  });
+
+  it("surfaces provider error messages from failed connection tests", async () => {
+    const baseUrl = await startProviderServer(async (_request, response) => {
+      response.statusCode = 503;
+      writeJson(response, {
+        error: {
+          message: "Service temporarily unavailable",
+          type: "api_error"
+        }
+      });
+    });
+
+    await expect(
+      testAIProviderConnection({
+        kind: "openai-compatible",
+        baseUrl,
+        model: "test-model"
+      })
+    ).rejects.toThrow("HTTP 503: Service temporarily unavailable");
   });
 });
 

@@ -2,6 +2,8 @@ import { useState } from "react";
 import type { ReactElement } from "react";
 import type {
   DesktopAIProviderKind,
+  DesktopAIProviderTestConfig,
+  DesktopAIProviderTestResult,
   DesktopLanguage,
   DesktopSettingKey,
   DesktopSnapshot
@@ -16,13 +18,15 @@ export function SettingsPage({
   onUpdateSetting,
   onReindexLocalData,
   onClearLocalData,
-  onExportContext
+  onExportContext,
+  onTestAIProvider
 }: {
   snapshot: DesktopSnapshot;
   onUpdateSetting(key: DesktopSettingKey, value: unknown): Promise<void>;
   onReindexLocalData(): Promise<void>;
   onClearLocalData(): Promise<void>;
   onExportContext(): Promise<void>;
+  onTestAIProvider(config: DesktopAIProviderTestConfig): Promise<DesktopAIProviderTestResult>;
 }): ReactElement {
   const { t } = useI18n();
   const [activeSection, setActiveSection] = useState<SettingsSectionId>("provider");
@@ -35,13 +39,39 @@ export function SettingsPage({
   const [aiBaseUrl, setAiBaseUrl] = useState(snapshot.settings.aiBaseUrl ?? "");
   const [aiModel, setAiModel] = useState(snapshot.settings.aiModel ?? "");
   const [aiApiKey, setAiApiKey] = useState("");
+  const [providerTestResult, setProviderTestResult] = useState<
+    DesktopAIProviderTestResult | undefined
+  >();
+  const [providerTestError, setProviderTestError] = useState<string | undefined>();
+  const [isTestingProvider, setIsTestingProvider] = useState(false);
   const saveAiProvider = async (): Promise<void> => {
+    setProviderTestResult(undefined);
+    setProviderTestError(undefined);
     await onUpdateSetting("ai.providerKind", aiProviderKind);
     await onUpdateSetting("ai.baseUrl", aiBaseUrl);
     await onUpdateSetting("ai.model", aiModel);
     if (aiApiKey.trim() || !snapshot.settings.aiApiKeyConfigured) {
       await onUpdateSetting("ai.apiKey", aiApiKey);
       setAiApiKey("");
+    }
+  };
+  const testAiProvider = async (): Promise<void> => {
+    setProviderTestResult(undefined);
+    setProviderTestError(undefined);
+    setIsTestingProvider(true);
+    try {
+      setProviderTestResult(
+        await onTestAIProvider({
+          providerKind: aiProviderKind,
+          baseUrl: aiBaseUrl,
+          model: aiModel,
+          apiKey: aiApiKey
+        })
+      );
+    } catch (reason) {
+      setProviderTestError(reason instanceof Error ? reason.message : t("error.aiProviderTest"));
+    } finally {
+      setIsTestingProvider(false);
     }
   };
   const settingsSections: Array<{ id: SettingsSectionId; label: string; detail: string }> = [
@@ -163,13 +193,46 @@ export function SettingsPage({
                   </dd>
                 </div>
               </dl>
-              <button
-                className="secondary-button"
-                onClick={() => void saveAiProvider()}
-                type="button"
-              >
-                {t("action.saveAiProvider")}
-              </button>
+              <div className="provider-actions">
+                <button
+                  className="secondary-button"
+                  disabled={isTestingProvider}
+                  onClick={() => void saveAiProvider()}
+                  type="button"
+                >
+                  {t("action.saveAiProvider")}
+                </button>
+                <button
+                  className="secondary-button"
+                  disabled={aiProviderKind === "disabled" || isTestingProvider}
+                  onClick={() => void testAiProvider()}
+                  type="button"
+                >
+                  {isTestingProvider ? t("action.testingConnection") : t("action.testConnection")}
+                </button>
+              </div>
+              {providerTestResult ? (
+                <div
+                  className={`connection-status ${providerTestResult.ok ? "success" : "error"}`}
+                  role={providerTestResult.ok ? "status" : "alert"}
+                >
+                  <strong>
+                    {providerTestResult.ok
+                      ? t("settings.aiProviderTestSuccess")
+                      : t("settings.aiProviderTestFailed")}
+                  </strong>
+                  <span>
+                    {providerTestResult.message} · {providerTestResult.latencyMs}ms
+                  </span>
+                  {providerTestResult.endpoint ? <code>{providerTestResult.endpoint}</code> : null}
+                </div>
+              ) : null}
+              {providerTestError ? (
+                <div className="connection-status error" role="alert">
+                  <strong>{t("settings.aiProviderTestFailed")}</strong>
+                  <span>{providerTestError}</span>
+                </div>
+              ) : null}
               <p className="muted">{t("settings.aiProviderNote")}</p>
             </div>
           </Section>

@@ -12,7 +12,12 @@ import {
   Sparkles
 } from "lucide-react";
 import type { DesktopSnapshot } from "./orbitApi";
-import type { DesktopSettingKey, SourceSetupKind } from "./orbitApi";
+import type {
+  DesktopAIProviderTestConfig,
+  DesktopAIProviderTestResult,
+  DesktopSettingKey,
+  SourceSetupKind
+} from "./orbitApi";
 import type {
   KnowledgeReviewAction,
   MemoryReviewAction,
@@ -113,6 +118,12 @@ export function App(): ReactElement {
     await runDesktopAction(() => window.orbit.exportContext(), t("error.export"));
   }
 
+  async function testAIProvider(
+    config: DesktopAIProviderTestConfig
+  ): Promise<DesktopAIProviderTestResult> {
+    return window.orbit.testAIProvider(config);
+  }
+
   async function runDesktopAction(
     work: () => Promise<{ snapshot: DesktopSnapshot; message: string; exportPath?: string }>,
     failureMessage: string
@@ -135,10 +146,7 @@ export function App(): ReactElement {
   }
 
   function reviewMemory(id: string, action: MemoryReviewAction): Promise<void> {
-    return runReviewAction(
-      () => window.orbit.reviewMemory(id, action),
-      t("error.memoryReview")
-    );
+    return runReviewAction(() => window.orbit.reviewMemory(id, action), t("error.memoryReview"));
   }
 
   function reviewRecommendation(id: string, action: RecommendationReviewAction): Promise<void> {
@@ -160,72 +168,73 @@ export function App(): ReactElement {
   return (
     <I18nProvider language={language}>
       <div className="app-shell" lang={language}>
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-mark">O</div>
-          <div>
-            <div className="brand-name">Orbit</div>
-            <div className="brand-subtitle">{t("app.brandSubtitle")}</div>
+        <aside className="sidebar">
+          <div className="brand">
+            <div className="brand-mark">O</div>
+            <div>
+              <div className="brand-name">Orbit</div>
+              <div className="brand-subtitle">{t("app.brandSubtitle")}</div>
+            </div>
           </div>
-        </div>
-        <nav className="nav-list" aria-label={t("aria.views")}>
-          {pages.map((page) => {
-            const Icon = page.icon;
-            const label = t(page.labelKey);
-            return (
-              <button
-                className={`nav-item ${activePage === page.id ? "active" : ""}`}
-                key={page.id}
-                onClick={() => setActivePage(page.id)}
-                title={label}
-                type="button"
-              >
-                <Icon size={17} aria-hidden="true" />
-                <span>{label}</span>
-              </button>
-            );
-          })}
-        </nav>
-        <div className="sidebar-footer">
-          <span className="status-dot" />
-          <span>
-            {snapshot?.settings.localOnly ? t("app.localOnly") : t("app.remoteEnabled")}
-          </span>
-        </div>
-      </aside>
-
-      <main className="workspace">
-        <header className="topbar">
-          <div>
-            <h1>{pageTitle}</h1>
-            <p>{snapshot ? formatDate(snapshot.date) : t("app.loadingContext")}</p>
+          <nav className="nav-list" aria-label={t("aria.views")}>
+            {pages.map((page) => {
+              const Icon = page.icon;
+              const label = t(page.labelKey);
+              return (
+                <button
+                  className={`nav-item ${activePage === page.id ? "active" : ""}`}
+                  key={page.id}
+                  onClick={() => setActivePage(page.id)}
+                  title={label}
+                  type="button"
+                >
+                  <Icon size={17} aria-hidden="true" />
+                  <span>{label}</span>
+                </button>
+              );
+            })}
+          </nav>
+          <div className="sidebar-footer">
+            <span className="status-dot" />
+            <span>
+              {snapshot?.settings.localOnly ? t("app.localOnly") : t("app.remoteEnabled")}
+            </span>
           </div>
-          <button
-            className="icon-button"
-            onClick={() => void loadSnapshot()}
-            title={t("app.refresh")}
-            type="button"
-          >
-            <RefreshCw size={17} aria-hidden="true" />
-          </button>
-        </header>
+        </aside>
 
-        {error ? <div className="error-banner">{error}</div> : null}
-        {notice ? <div className="notice-banner">{notice}</div> : null}
-        {isLoading && !snapshot ? <div className="empty-state">{t("app.loading")}</div> : null}
-        {snapshot
-          ? renderPage(activePage, snapshot, {
-              reviewKnowledge,
-              reviewMemory,
-              reviewRecommendation,
-              updateSetting,
-              setupSource,
-              reindexLocalData,
-              clearLocalData,
-              exportContext
-            })
-          : null}
-      </main>
+        <main className="workspace">
+          <header className="topbar">
+            <div>
+              <h1>{pageTitle}</h1>
+              <p>{snapshot ? formatDate(snapshot.date) : t("app.loadingContext")}</p>
+            </div>
+            <button
+              className="icon-button"
+              onClick={() => void loadSnapshot()}
+              title={t("app.refresh")}
+              type="button"
+            >
+              <RefreshCw size={17} aria-hidden="true" />
+            </button>
+          </header>
+
+          {error ? <div className="error-banner">{error}</div> : null}
+          {notice ? <div className="notice-banner">{notice}</div> : null}
+          {isLoading && !snapshot ? <div className="empty-state">{t("app.loading")}</div> : null}
+          {snapshot
+            ? renderPage(activePage, snapshot, {
+                reviewKnowledge,
+                reviewMemory,
+                reviewRecommendation,
+                updateSetting,
+                setupSource,
+                reindexLocalData,
+                clearLocalData,
+                exportContext,
+                testAIProvider
+              })
+            : null}
+        </main>
       </div>
     </I18nProvider>
   );
@@ -240,6 +249,7 @@ interface PageActions {
   reindexLocalData(): Promise<void>;
   clearLocalData(): Promise<void>;
   exportContext(): Promise<void>;
+  testAIProvider(config: DesktopAIProviderTestConfig): Promise<DesktopAIProviderTestResult>;
 }
 
 function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageActions): ReactElement {
@@ -276,6 +286,7 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
           onClearLocalData={actions.clearLocalData}
           onExportContext={actions.exportContext}
           onReindexLocalData={actions.reindexLocalData}
+          onTestAIProvider={actions.testAIProvider}
           onUpdateSetting={actions.updateSetting}
         />
       );
