@@ -6,6 +6,7 @@ Orbit Alpha packaging is intentionally local-first and unsigned unless signing c
 
 - `pnpm test`
 - `pnpm typecheck`
+- `pnpm lint`
 - `pnpm --filter @orbit/desktop build`
 - `pnpm --filter @orbit/desktop package:dir`
 - `pnpm --filter @orbit/desktop test:e2e`
