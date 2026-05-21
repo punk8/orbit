@@ -18,11 +18,13 @@ describe("SettingsPage privacy and provider hardening", () => {
     expect(source).toContain("confirm.clearLocalData");
   });
 
-  it("keeps settings content scrollable inside the fixed-height shell", () => {
+  it("keeps settings navigation and content independently scrollable", () => {
     const styles = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
 
     expect(styles).toMatch(/\.settings-layout\s*{[^}]*flex:\s*1;/s);
     expect(styles).toMatch(/\.settings-layout\s*{[^}]*min-height:\s*0;/s);
-    expect(styles).toMatch(/\.settings-layout\s*{[^}]*overflow:\s*auto;/s);
+    expect(styles).toMatch(/\.settings-layout\s*{[^}]*overflow:\s*hidden;/s);
+    expect(styles).toMatch(/\.settings-subnav\s*{[^}]*overflow:\s*auto;/s);
+    expect(styles).toMatch(/\.settings-content\s*{[^}]*overflow:\s*auto;/s);
   });
 });

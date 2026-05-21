@@ -907,7 +907,7 @@ button {
   grid-template-columns: 240px minmax(0, 1fr);
   gap: 16px;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
   padding: 22px 28px 32px;
 }
 
@@ -915,7 +915,9 @@ button {
   display: grid;
   align-content: start;
   gap: 6px;
+  min-height: 0;
   min-width: 0;
+  overflow: auto;
 }
 
 .settings-subnav-item {
@@ -962,7 +964,9 @@ button {
 }
 
 .settings-content {
+  min-height: 0;
   min-width: 0;
+  overflow: auto;
 }
 
 .settings-section-stack {
