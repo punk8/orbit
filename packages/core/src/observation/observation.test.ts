@@ -136,6 +136,55 @@ describe("observation normalization", () => {
     expect(ocr.content.summary).toContain("支持中文");
   });
 
+  it("normalizes bounded audio and transcript perception Events", () => {
+    const audio = normalizeObservationInput({
+      type: "audio_segment",
+      tier: "tier3",
+      sourceKind: "audio",
+      occurredAt: "2026-05-21T01:20:00.000Z",
+      runtimeSessionId: "audio-runtime",
+      sequence: 1,
+      app: {
+        name: "Zoom",
+        bundleId: "us.zoom.xos"
+      },
+      audio: {
+        scopeKind: "microphone",
+        scopeLabel: "Design review",
+        segmentId: "segment_1",
+        segmentHash: "audio_hash_1",
+        durationMs: 12_000,
+        redactedSummary: "Meeting discussion about Orbit."
+      }
+    });
+    const transcript = normalizeObservationInput({
+      type: "transcript_segment",
+      tier: "tier3",
+      sourceKind: "transcript",
+      occurredAt: "2026-05-21T01:20:00.000Z",
+      runtimeSessionId: "audio-runtime",
+      sequence: 2,
+      app: {
+        name: "Zoom",
+        bundleId: "us.zoom.xos"
+      },
+      transcript: {
+        text: "Discussed Orbit audio transcription.",
+        textHash: "transcript_hash_1",
+        sourceSegmentHash: "audio_hash_1",
+        provider: "mock_transcription",
+        confidence: 0.9
+      }
+    });
+
+    expect(audio.source.pointer).toBe("audio://capture/audio-runtime/audio_hash_1#1");
+    expect(audio.content.summary).toContain("12s");
+    expect(audio.context.threadId).toBe("audio-runtime");
+    expect(transcript.source.pointer).toBe("transcript://meeting/audio-runtime/audio_hash_1#2");
+    expect(transcript.content.summary).toContain("Discussed Orbit");
+    expect(transcript.classification?.topics).toEqual(["perception", "audio"]);
+  });
+
   it("rejects invalid observation runtime transitions", () => {
     expect(() => assertObservationStatusTransition("ready", "paused")).toThrow(
       /Invalid observation status transition/

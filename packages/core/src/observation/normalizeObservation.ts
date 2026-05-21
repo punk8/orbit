@@ -126,9 +126,13 @@ export function observationSourcePointer(
         input.ocr?.sourceFrameHash ?? input.ocr?.textHash ?? String(input.sequence)
       )}#${input.sequence}`;
     case "audio_segment":
-      return `audio://capture/${input.runtimeSessionId}#${input.sequence}`;
+      return `audio://capture/${input.runtimeSessionId}/${encodePointerPart(
+        input.audio?.segmentHash ?? input.audio?.segmentId ?? String(input.sequence)
+      )}#${input.sequence}`;
     case "transcript_segment":
-      return `transcript://meeting/${input.runtimeSessionId}#${input.sequence}`;
+      return `transcript://meeting/${input.runtimeSessionId}/${encodePointerPart(
+        input.transcript?.sourceSegmentHash ?? input.transcript?.textHash ?? String(input.sequence)
+      )}#${input.sequence}`;
     case "permission_state":
       return `desktop://permission/${input.runtimeSessionId}#${input.sequence}`;
     case "observation_state":
@@ -175,6 +179,12 @@ export function observationDedupKey(
       return `ocr_text:${input.runtimeSessionId}:${input.ocr?.sourceFrameHash ?? ""}:${
         input.ocr?.textHash ?? input.sequence
       }`;
+    case "audio_segment":
+      return `audio_segment:${input.runtimeSessionId}:${input.audio?.segmentHash ?? input.sequence}`;
+    case "transcript_segment":
+      return `transcript_segment:${input.runtimeSessionId}:${
+        input.transcript?.sourceSegmentHash ?? ""
+      }:${input.transcript?.textHash ?? input.sequence}`;
     default:
       return `${type}:${input.runtimeSessionId}:${input.sequence}`;
   }
@@ -337,6 +347,44 @@ function buildContent(
           ? truncate(input.ocr.text, 260)
           : `OCR text observed with ${input.ocr?.engine ?? "local"} engine.`
       };
+    case "audio_segment": {
+      const seconds = input.audio?.durationMs
+        ? `${Math.round(input.audio.durationMs / 1000)}s`
+        : "bounded";
+      const scope = [input.audio?.scopeKind, input.audio?.scopeLabel].filter(Boolean).join(" ");
+      return {
+        title: `Audio segment in ${appName}`,
+        summary: input.audio?.redactedSummary
+          ? `Audio segment captured${scope ? ` for ${scope}` : ""} (${seconds}). ${truncate(
+              input.audio.redactedSummary,
+              220
+            )}`
+          : `Audio segment captured${scope ? ` for ${scope}` : ""} (${seconds}) without raw audio storage.`,
+        ...(input.audio?.rawLocalRef
+          ? {
+              rawRef: input.audio.rawLocalRef,
+              attachments: [
+                {
+                  id: input.audio.segmentHash,
+                  kind: "audio" as const,
+                  name: "audio-segment",
+                  localRef: input.audio.rawLocalRef,
+                  sourcePointer: observationSourcePointer(input, type),
+                  ...(input.audio.sizeBytes ? { sizeBytes: input.audio.sizeBytes } : {}),
+                  hash: input.audio.segmentHash
+                }
+              ]
+            }
+          : {})
+      };
+    }
+    case "transcript_segment":
+      return {
+        title: `Transcript segment in ${appName}`,
+        summary: input.transcript?.text
+          ? truncate(input.transcript.text, 300)
+          : `Transcript segment observed with ${input.transcript?.provider ?? "local"} provider.`
+      };
     case "permission_state":
       return {
         title: "Observation permission state",
@@ -374,7 +422,12 @@ function inferSensitivity(
   if ((type === "window_focus" || type === "window_title_change") && input.window?.title) {
     return "confidential";
   }
-  if (type === "screen_observation" || type === "ocr_text" || type === "audio_segment") {
+  if (
+    type === "screen_observation" ||
+    type === "ocr_text" ||
+    type === "audio_segment" ||
+    type === "transcript_segment"
+  ) {
     return "confidential";
   }
   return "internal";

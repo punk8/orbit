@@ -1,18 +1,25 @@
 import { join } from "node:path";
 import {
+  AUDIO_OBSERVATION_ADAPTER_ID,
+  AudioObservationAdapter,
+  audioPermission,
   MockOcrEngine,
   OcrObservationAdapter,
   OCR_OBSERVATION_ADAPTER_ID,
+  readAudioFixtures,
   readScreenCaptureFixtures,
   ScreenObservationAdapter,
   SCREEN_OBSERVATION_ADAPTER_ID,
   type ScreenCaptureScope,
   screenPermission,
+  TRANSCRIPT_OBSERVATION_ADAPTER_ID,
+  TranscriptObservationAdapter,
+  transcriptPolicyFromPerceptionStatus,
   VisionSummaryAdapter,
   VISION_SUMMARY_ADAPTER_ID,
   visionPolicyFromPerceptionStatus
 } from "@orbit/adapters";
-import { mockVisionProvider } from "@orbit/ai";
+import { mockTranscriptionProvider, mockVisionProvider } from "@orbit/ai";
 import {
   defaultProtectedAppRules,
   ingestEventsFromAdapter,
@@ -50,6 +57,7 @@ export interface IngestPerceptionFixturesResult {
 
 export interface IngestPerceptionFixturesOptions {
   includeVision?: boolean;
+  includeAudio?: boolean;
 }
 
 export async function ingestPerceptionFixtures(
@@ -150,6 +158,53 @@ export async function ingestPerceptionFixtures(
       });
     }
 
+    if (options.includeAudio) {
+      const audioRead = readAudioFixtures(join(config.fixturesRoot, "perception/audio"));
+      const audioScope = audioRead.segments[0]?.scope ?? defaultAudioFixtureScope;
+      const permission = audioPermission("microphone", "granted");
+      const audioAdapters = [
+        new AudioObservationAdapter({
+          id: AUDIO_OBSERVATION_ADAPTER_ID,
+          segments: audioRead.segments,
+          scope: audioScope,
+          permission,
+          protectedApps
+        }),
+        new TranscriptObservationAdapter({
+          id: TRANSCRIPT_OBSERVATION_ADAPTER_ID,
+          segments: audioRead.segments,
+          scope: audioScope,
+          provider: mockTranscriptionProvider,
+          policy: transcriptPolicyFromPerceptionStatus(readPerceptionStatus(database.db)),
+          permission,
+          protectedApps
+        })
+      ];
+      for (const adapter of audioAdapters) {
+        sourceRepository.upsertFromAdapter(adapter);
+        const cursor = sourceRepository.getCursor(adapter.id);
+        const result = await ingestEventsFromAdapter(adapter, eventRepository, cursor);
+        sourceRepository.setCursor(adapter.id, result.nextCursor);
+        sourceRepository.recordSyncSuccess(adapter.id, { lastEventAt: result.lastEventAt });
+        const warnings = [...audioRead.warnings, ...result.warnings];
+        auditRepository.log("perception.audio_fixture_ingest", "source", adapter.id, {
+          mode: "explicit_fixture_import",
+          read: result.read,
+          inserted: result.inserted,
+          skipped: result.skipped,
+          warnings
+        });
+        results.push({
+          adapterId: result.adapterId,
+          read: result.read,
+          inserted: result.inserted,
+          skipped: result.skipped,
+          ...(result.nextCursor ? { nextCursor: result.nextCursor } : {}),
+          warnings
+        });
+      }
+    }
+
     const pipeline = runSemanticPipeline(database);
 
     return {
@@ -172,4 +227,10 @@ const defaultFixtureScope: ScreenCaptureScope = {
   kind: "display",
   label: "Fixture Display",
   displayId: "fixture-display"
+};
+
+const defaultAudioFixtureScope = {
+  kind: "microphone" as const,
+  label: "Goal 8D mock meeting",
+  deviceId: "fixture-mic"
 };

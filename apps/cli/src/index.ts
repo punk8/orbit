@@ -106,9 +106,13 @@ export function buildProgram(): Command {
     .command("perception-fixtures")
     .description("Ingest explicit screen/OCR perception fixtures")
     .option("--vision", "also run mock vision summarization when perception policy allows it")
+    .option("--audio", "also run mock meeting audio/transcript fixtures when policy allows it")
     .option("--json", "output JSON")
-    .action(async (options: { vision?: boolean; json?: boolean }) => {
-      const result = await ingestPerceptionFixtures({ includeVision: options.vision ?? false });
+    .action(async (options: { vision?: boolean; audio?: boolean; json?: boolean }) => {
+      const result = await ingestPerceptionFixtures({
+        includeVision: options.vision ?? false,
+        includeAudio: options.audio ?? false
+      });
       writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
     });
 

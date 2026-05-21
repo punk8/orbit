@@ -302,6 +302,40 @@ describe("cli commands", () => {
     expect(JSON.stringify(artifact)).not.toContain("sk-test");
   });
 
+  it("feeds mock meeting audio transcripts into Activity when policy allows", async () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-audio-fixture-test-"));
+    tempDirs.push(orbitHome);
+    process.env.ORBIT_HOME = orbitHome;
+
+    const database = openOrbitDatabase({ orbitHome });
+    try {
+      updatePerceptionSourcePolicy(database.db, "microphone_audio", { canUseForAI: true });
+      updatePerceptionSourcePolicy(database.db, "transcript", { canUseForAI: true });
+      updatePerceptionProviderRoute(database.db, "transcription", "mock");
+    } finally {
+      database.close();
+    }
+
+    const result = await ingestPerceptionFixtures({ includeAudio: true });
+    expect(result.sources.find((source) => source.adapterId === "perception_audio")?.inserted).toBe(
+      3
+    );
+    expect(
+      result.sources.find((source) => source.adapterId === "perception_transcript")?.inserted
+    ).toBe(2);
+    expect(result.sources.flatMap((source) => source.warnings)).toEqual(
+      expect.arrayContaining([
+        "Suppressed protected audio segment audio_protected_vault.",
+        "Suppressed transcript for protected audio segment audio_protected_vault.",
+        "Skipped transcript for failed-redaction segment audio_failed_redaction."
+      ])
+    );
+    expect(result.pipeline.activitySessions.total).toBe(2);
+    expect(JSON.stringify(listActivitySessions())).toContain("transcript://meeting");
+    expect(JSON.stringify(listActivitySessions())).not.toContain("hunter2");
+    expect(JSON.stringify(listActivitySessions())).not.toContain("sk-test");
+  });
+
   it("runs a mock screen/OCR start pause resume stop smoke", async () => {
     const smoke = await runScreenOcrSmoke("window");
     expect(smoke.scope.kind).toBe("window");

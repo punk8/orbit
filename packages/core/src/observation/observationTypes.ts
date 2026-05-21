@@ -109,6 +109,24 @@ export interface ObservationInput {
     confidence?: number;
     sourceFrameHash?: string;
   };
+  audio?: {
+    scopeKind: "microphone" | "system_audio" | "mixed";
+    scopeLabel?: string;
+    segmentId: string;
+    segmentHash: string;
+    durationMs: number;
+    redactedSummary?: string;
+    rawLocalRef?: string;
+    sizeBytes?: number;
+  };
+  transcript?: {
+    text?: string;
+    textHash: string;
+    language?: string;
+    confidence?: number;
+    sourceSegmentHash?: string;
+    provider?: string;
+  };
   permission?: ObservationPermissionStatus;
   raw?: {
     text?: string;
@@ -151,7 +169,7 @@ export interface ObservationTierStatus {
 }
 
 export interface ObservationPermissionStatus {
-  kind: "accessibility" | "screen" | "microphone" | "filesystem" | "automation";
+  kind: "accessibility" | "screen" | "microphone" | "system_audio" | "filesystem" | "automation";
   requiredFor: ObservationSourceKind[];
   status: "not_required" | "not_determined" | "granted" | "denied" | "restricted" | "unknown";
   canRequestFromApp: boolean;
