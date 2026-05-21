@@ -23,6 +23,7 @@ describe("desktop main process runtime guards", () => {
     expect(main).toContain("orbit:getRecommendationDetail");
     expect(main).toContain("orbit:cleanupPerceptionSidecars");
     expect(main).toContain("orbit:startObservation");
+    expect(main).toContain("orbit:captureScreenOcr");
     expect(main).toContain("orbit:updatePerceptionSourceRuntime");
     expect(main).toContain("orbit:updatePerceptionSourcePolicy");
     expect(main).toContain("orbit:updatePerceptionProviderRoute");
@@ -38,6 +39,6 @@ describe("desktop main process runtime guards", () => {
     const data = readFileSync(new URL("./data.ts", import.meta.url), "utf8");
 
     expect(data).toContain("isGenericBackgroundSource");
-    expect(data).toContain('if (!isGenericBackgroundSource(source.kind)) continue;');
+    expect(data).toContain("if (!isGenericBackgroundSource(source.kind)) continue;");
   });
 });

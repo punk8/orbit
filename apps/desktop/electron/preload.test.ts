@@ -23,6 +23,7 @@ describe("desktop preload API", () => {
     expect(source).toContain("pauseObservation");
     expect(source).toContain("resumeObservation");
     expect(source).toContain("stopObservation");
+    expect(source).toContain("captureScreenOcr");
     expect(source).toContain("updatePerceptionSourceRuntime");
     expect(source).toContain("updatePerceptionSourcePolicy");
     expect(source).toContain("updatePerceptionProviderRoute");

@@ -18,6 +18,8 @@ export interface OrbitDatabase {
 }
 
 const busyTimeoutMs = 10_000;
+const initialPragmaRetries = 20;
+const initialPragmaRetryMs = 50;
 const activeMigrationPaths = new Set<string>();
 
 export function openOrbitDatabase(options: OpenOrbitDatabaseOptions = {}): OrbitDatabase {
@@ -26,9 +28,9 @@ export function openOrbitDatabase(options: OpenOrbitDatabaseOptions = {}): Orbit
   mkdirSync(dirname(dbPath), { recursive: true });
 
   const db = new Database(dbPath);
-  db.pragma(`busy_timeout = ${busyTimeoutMs}`);
-  db.pragma("journal_mode = WAL");
-  db.pragma("foreign_keys = ON");
+  runInitialPragmaWithRetry(() => db.pragma(`busy_timeout = ${busyTimeoutMs}`));
+  runInitialPragmaWithRetry(() => db.pragma("journal_mode = WAL"));
+  runInitialPragmaWithRetry(() => db.pragma("foreign_keys = ON"));
 
   if (options.migrate ?? true) {
     migrateWithProcessGuard(dbPath, () => migrate(db));
@@ -40,6 +42,33 @@ export function openOrbitDatabase(options: OpenOrbitDatabaseOptions = {}): Orbit
     dbPath,
     close: () => db.close()
   };
+}
+
+function runInitialPragmaWithRetry(run: () => void): void {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= initialPragmaRetries; attempt += 1) {
+    try {
+      run();
+      return;
+    } catch (error) {
+      lastError = error;
+      if (!isSqliteBusy(error) || attempt === initialPragmaRetries) {
+        throw error;
+      }
+      sleepSync(initialPragmaRetryMs);
+    }
+  }
+  throw lastError;
+}
+
+function isSqliteBusy(error: unknown): boolean {
+  return (
+    typeof error === "object" && error !== null && "code" in error && error.code === "SQLITE_BUSY"
+  );
+}
+
+function sleepSync(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
 function migrateWithProcessGuard(dbPath: string, run: () => void): void {

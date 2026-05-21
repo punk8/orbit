@@ -136,7 +136,7 @@ export type DesktopSettingKey =
 
 export type DesktopLanguage = "system" | "en" | "zh-CN";
 
-export type DesktopAIProviderKind = "disabled" | "mock" | "openai-compatible";
+export type DesktopAIProviderKind = "disabled" | "openai-compatible";
 export type DesktopOpenAITokenLimitParameter = "max_tokens" | "max_completion_tokens";
 export type DesktopRuntimeStatus = "idle" | "collecting" | "paused" | "error";
 export type DesktopSourceRuntimeAction = "pause" | "resume" | "enable" | "disable";
@@ -232,6 +232,7 @@ export interface OrbitDesktopApi {
   resetSourceCursor(sourceId: string): Promise<DesktopActionResult>;
   cleanupLegacyEventPrivacy(): Promise<DesktopActionResult>;
   cleanupPerceptionSidecars(): Promise<DesktopActionResult>;
+  captureScreenOcr(): Promise<DesktopActionResult>;
   generateHandoff(input: DesktopHandoffRequest): Promise<DesktopHandoffResult>;
   reindexLocalData(): Promise<DesktopActionResult>;
   clearLocalData(): Promise<DesktopActionResult>;

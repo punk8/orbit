@@ -217,6 +217,10 @@ export function App(): ReactElement {
     );
   }
 
+  async function captureScreenOcr(): Promise<void> {
+    await runDesktopAction(() => window.orbit.captureScreenOcr(), t("error.perceptionCapture"));
+  }
+
   async function reindexLocalData(): Promise<void> {
     await runDesktopAction(() => window.orbit.reindexLocalData(), t("error.reindex"));
   }
@@ -380,6 +384,7 @@ export function App(): ReactElement {
                 resetSourceCursor,
                 cleanupLegacyEventPrivacy,
                 cleanupPerceptionSidecars,
+                captureScreenOcr,
                 reindexLocalData,
                 clearLocalData,
                 exportContext,
@@ -438,6 +443,7 @@ interface PageActions {
   resetSourceCursor(sourceId: string): Promise<void>;
   cleanupLegacyEventPrivacy(): Promise<void>;
   cleanupPerceptionSidecars(): Promise<void>;
+  captureScreenOcr(): Promise<void>;
   reindexLocalData(): Promise<void>;
   clearLocalData(): Promise<void>;
   exportContext(): Promise<void>;
@@ -452,7 +458,12 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
     case "today":
       return <TodayPage snapshot={snapshot} />;
     case "activity":
-      return <ActivityPage sessions={snapshot.activitySessions} />;
+      return (
+        <ActivityPage
+          sessions={snapshot.activitySessions}
+          onCaptureScreenOcr={actions.captureScreenOcr}
+        />
+      );
     case "knowledge":
       return (
         <KnowledgePage

@@ -30,7 +30,7 @@ import {
   readAIProviderConfigFromEnv,
   type VisionProvider
 } from "@orbit/ai";
-import { ingestEventsFromAdapter } from "@orbit/core";
+import { ingestEventsFromAdapter, normalizeObservationInput } from "@orbit/core";
 import type { SourceAdapter } from "@orbit/core";
 import {
   AuditRepository,
@@ -306,7 +306,8 @@ export async function captureScreenOcrOnce(
       });
     const capture = await helper.captureOnce();
     const warnings = [...capture.warnings];
-    const permission = capture.permission ?? screenPermission(capture.frame ? "granted" : "unknown");
+    const permission =
+      capture.permission ?? screenPermission(capture.frame ? "granted" : "unknown");
     const results: CaptureScreenOcrCommandResult["sources"] = [];
 
     if (!capture.frame) {
@@ -390,6 +391,28 @@ export async function captureScreenOcrOnce(
         warnings: sourceWarnings
       });
     }
+
+    const boundaryEvent = normalizeObservationInput(
+      {
+        type: "observation_state",
+        tier: "tier3",
+        sourceKind: "screen",
+        occurredAt: new Date(new Date(capture.frame.capturedAt).getTime() + 1).toISOString(),
+        runtimeSessionId: capture.frame.runtimeSessionId,
+        sequence: capture.frame.sequence + 10_000
+      },
+      { adapterId: SCREEN_OBSERVATION_ADAPTER_ID, protectedApps: perception.protectedApps }
+    );
+    const insertedBoundary = eventRepository.upsertEvent(boundaryEvent);
+    auditRepository.log(
+      "perception.capture_screen_ocr_boundary",
+      "source",
+      SCREEN_OBSERVATION_ADAPTER_ID,
+      {
+        mode: "manual_live_screen_ocr",
+        inserted: insertedBoundary
+      }
+    );
 
     const pipeline = runSemanticPipeline(database);
     return {

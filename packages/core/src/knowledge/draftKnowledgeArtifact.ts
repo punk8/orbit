@@ -48,7 +48,7 @@ export function draftKnowledgeArtifact(input: KnowledgeDraftInput): KnowledgeArt
       apps: session.apps,
       projects: session.project ? [session.project] : [],
       sourceSessionIds: [session.id],
-      generatedBy: input.generatedBy ?? "mock_provider",
+      generatedBy: input.generatedBy ?? "deterministic_local",
       language: "en"
     },
     content: {

@@ -228,7 +228,9 @@ function buildContext(
     type === "screen_observation" ||
     type === "ocr_text" ||
     type === "audio_segment" ||
-    type === "transcript_segment"
+    type === "transcript_segment" ||
+    type === "observation_state" ||
+    type === "permission_state"
   ) {
     context.threadId = input.runtimeSessionId;
   }

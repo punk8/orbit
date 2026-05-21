@@ -31,9 +31,9 @@ export function SourcesPage({
   ): Promise<void>;
 }): ReactElement {
   const { t, sensitivity, sourceKind } = useI18n();
-  const [codexPath, setCodexPath] = useState("fixtures/realistic/codex");
-  const [localAgentPath, setLocalAgentPath] = useState("fixtures/realistic/local-agent");
-  const [seatalkPath, setSeatalkPath] = useState("fixtures/seatalk");
+  const [codexPath, setCodexPath] = useState("");
+  const [localAgentPath, setLocalAgentPath] = useState("");
+  const [seatalkPath, setSeatalkPath] = useState("");
 
   return (
     <div className="page-grid">
@@ -111,12 +111,9 @@ export function SourcesPage({
                       const config = snapshot.sourceAdapterConfigs[source.id];
                       const setupKind = readReconfigurableSetupKind(config?.setupKind, source.kind);
                       if (!setupKind) return;
-                      const nextPath =
-                        setupKind === "fixtures"
-                          ? undefined
-                          : window.prompt(t("prompt.sourcePath"), config?.path ?? "");
-                      if (setupKind !== "fixtures" && !nextPath) return;
-                      void onReconfigureSource(source.id, setupKind, nextPath ?? undefined);
+                      const nextPath = window.prompt(t("prompt.sourcePath"), config?.path ?? "");
+                      if (!nextPath) return;
+                      void onReconfigureSource(source.id, setupKind, nextPath);
                     }}
                     type="button"
                   >
@@ -251,17 +248,6 @@ export function SourcesPage({
       >
         <div className="source-setup-grid">
           <article className="setup-card">
-            <h3>{t("source.fixtures")}</h3>
-            <p>{t("source.fixturesDescription")}</p>
-            <button
-              className="secondary-button"
-              onClick={() => void onSetupSource("fixtures")}
-              type="button"
-            >
-              {t("action.loadFixtures")}
-            </button>
-          </article>
-          <article className="setup-card">
             <h3>Codex</h3>
             <p>{t("source.codexDescription")}</p>
             <input
@@ -271,6 +257,7 @@ export function SourcesPage({
             />
             <button
               className="secondary-button"
+              disabled={codexPath.trim().length === 0}
               onClick={() => void onSetupSource("codex", codexPath)}
               type="button"
             >
@@ -287,6 +274,7 @@ export function SourcesPage({
             />
             <button
               className="secondary-button"
+              disabled={localAgentPath.trim().length === 0}
               onClick={() => void onSetupSource("local_agent", localAgentPath)}
               type="button"
             >
@@ -303,6 +291,7 @@ export function SourcesPage({
             />
             <button
               className="secondary-button"
+              disabled={seatalkPath.trim().length === 0}
               onClick={() => void onSetupSource("seatalk", seatalkPath)}
               type="button"
             >
@@ -373,7 +362,7 @@ function readReconfigurableSetupKind(
   configuredKind: SourceSetupKind | undefined,
   sourceKind: string
 ): SourceSetupKind | undefined {
-  if (configuredKind) return configuredKind;
+  if (configuredKind && configuredKind !== "fixtures") return configuredKind;
   if (sourceKind === "codex" || sourceKind === "local_agent" || sourceKind === "seatalk") {
     return sourceKind;
   }

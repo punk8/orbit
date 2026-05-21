@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 import { openOrbitDatabase } from "./connection";
 import { AuditRepository } from "./repositories/auditRepository";
+import { SourceRepository } from "./repositories/sourceRepository";
+import type { SourceRecord } from "@orbit/core";
 import {
   readPerceptionStatus,
   updatePerceptionProviderRoute,
@@ -102,4 +104,48 @@ describe("perception control-plane settings", () => {
       close();
     }
   });
+
+  it("syncs existing perception source records when source export policy changes", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-perception-source-sync-test-"));
+    tempDirs.push(orbitHome);
+    const { db, close } = openOrbitDatabase({ orbitHome });
+    try {
+      const sources = new SourceRepository(db);
+      sources.upsertSource(makePerceptionSource("perception_screen", "screen"));
+
+      updatePerceptionSourcePolicy(db, "screen", {
+        canExportToAgent: true,
+        canUseForAI: true
+      });
+
+      const source = sources.getSource("perception_screen");
+      expect(source?.permissionScope.canExportToAgent).toBe(true);
+      expect(source?.permissionScope.canUseForAI).toBe(true);
+      expect(source?.permissionScope.retentionPolicyId).toBe("perception_summary_only");
+    } finally {
+      close();
+    }
+  });
 });
+
+function makePerceptionSource(id: string, kind: "screen" | "ocr"): SourceRecord {
+  return {
+    id,
+    kind,
+    displayName: id,
+    enabled: true,
+    paused: false,
+    defaultSensitivity: "confidential",
+    permissionScope: {
+      sourceKind: kind,
+      readableFields: ["title", "summary", "timestamp", "app", "project"],
+      canStoreRaw: false,
+      canStoreSummary: true,
+      canUseForAI: false,
+      canExportToAgent: false,
+      retentionPolicyId: "perception_summary_only"
+    },
+    createdAt: "2026-05-21T00:00:00.000Z",
+    updatedAt: "2026-05-21T00:00:00.000Z"
+  };
+}

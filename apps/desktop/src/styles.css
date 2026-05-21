@@ -840,6 +840,21 @@ button {
   content: "";
 }
 
+.activity-capture-note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  border-bottom: 1px solid #ebe8e1;
+  color: #596164;
+  font-size: 12px;
+  padding: 0 16px 12px;
+}
+
+.activity-capture-note strong {
+  color: #273235;
+}
+
 .activity-detail-close {
   width: 30px;
   height: 30px;
@@ -874,9 +889,7 @@ button {
   min-height: 340px;
   overflow: hidden;
   border-radius: 8px;
-  background:
-    radial-gradient(circle at 50% 42%, rgba(62, 84, 103, 0.24), transparent 32%),
-    #030405;
+  background: radial-gradient(circle at 50% 42%, rgba(62, 84, 103, 0.24), transparent 32%), #030405;
 }
 
 .activity-frame-stage {
@@ -979,7 +992,13 @@ button {
   height: 18px;
   border-radius: 99px;
   background:
-    linear-gradient(90deg, rgba(104, 157, 230, 0.28) 0 12%, transparent 12% 17%, rgba(104, 157, 230, 0.28) 17% 30%, transparent 30% 100%),
+    linear-gradient(
+      90deg,
+      rgba(104, 157, 230, 0.28) 0 12%,
+      transparent 12% 17%,
+      rgba(104, 157, 230, 0.28) 17% 30%,
+      transparent 30% 100%
+    ),
     #f1f4f7;
 }
 

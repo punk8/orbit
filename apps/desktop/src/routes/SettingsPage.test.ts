@@ -6,7 +6,6 @@ describe("SettingsPage privacy and provider hardening", () => {
     const source = readFileSync(new URL("./SettingsPage.tsx", import.meta.url), "utf8");
 
     expect(source).toContain("settings.providerTaskBoundary");
-    expect(source).toContain("settings.providerTaskSyntheticTest");
     expect(source).toContain("settings.perceptionProviderRouting");
     expect(source).toContain("settings.providerRuntimeRegistry");
     expect(source).toContain("snapshot.aiProviderRuntime.tasks");
@@ -23,6 +22,17 @@ describe("SettingsPage privacy and provider hardening", () => {
     expect(source).toContain("settings.blockedUntilReview");
     expect(source).toContain("settings.reindexIdempotent");
     expect(source).toContain("confirm.clearLocalData");
+  });
+
+  it("does not expose mock providers as product configuration choices", () => {
+    const source = readFileSync(new URL("./SettingsPage.tsx", import.meta.url), "utf8");
+    const i18n = readFileSync(new URL("../i18n.tsx", import.meta.url), "utf8");
+
+    expect(source).not.toContain('<option value="mock">');
+    expect(source).not.toContain("settings.providerTaskMockDrafting");
+    expect(source).not.toContain("provider.mock");
+    expect(i18n).not.toContain("settings.providerTaskMockDrafting");
+    expect(i18n).not.toContain("provider.mock");
   });
 
   it("keeps settings navigation and content independently scrollable", () => {

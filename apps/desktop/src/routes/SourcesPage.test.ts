@@ -16,4 +16,14 @@ describe("SourcesPage source governance controls", () => {
     expect(source).toContain("onUpdatePerceptionSourceRuntime");
     expect(source).toContain("perception.permissions");
   });
+
+  it("does not expose bundled fixtures as a first-run product setup path", () => {
+    const source = readFileSync(new URL("./SourcesPage.tsx", import.meta.url), "utf8");
+
+    expect(source).not.toContain('onSetupSource("fixtures")');
+    expect(source).not.toContain('useState("fixtures/realistic/codex")');
+    expect(source).not.toContain('useState("fixtures/realistic/local-agent")');
+    expect(source).not.toContain('useState("fixtures/seatalk")');
+    expect(source).not.toContain("source.fixturesDescription");
+  });
 });

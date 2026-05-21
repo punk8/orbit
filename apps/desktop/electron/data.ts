@@ -6,6 +6,7 @@ import {
   formatHandoffMarkdown,
   getLocalDateKey,
   ingestEventsFromAdapter,
+  normalizeObservationInput,
   type AllowedFolderRule,
   type EvidenceRef,
   type KnowledgeArtifact,
@@ -22,11 +23,18 @@ import {
   type SourceKind
 } from "@orbit/core";
 import {
+  CapturedTextOcrEngine,
   CodexAdapter,
   DesktopObservationAdapter,
   FixtureAdapter,
   LocalAgentAdapter,
-  SeaTalkAdapter
+  MacScreenOcrCaptureHelper,
+  OCR_OBSERVATION_ADAPTER_ID,
+  OcrObservationAdapter,
+  SeaTalkAdapter,
+  SCREEN_OBSERVATION_ADAPTER_ID,
+  ScreenObservationAdapter,
+  type ScreenOcrTextResult
 } from "@orbit/adapters";
 import {
   buildAIProvider,
@@ -39,7 +47,6 @@ import {
   type AIProvider,
   type AIProviderConfig,
   type AIProviderConnectionTestResult,
-  type AIProviderKind,
   type OpenAICompatibleTokenLimitParameter
 } from "@orbit/ai";
 import {
@@ -728,6 +735,129 @@ export function cleanupPerceptionSidecarsForDesktop(): DesktopActionResult {
   }
 }
 
+export async function captureScreenOcrForDesktop(): Promise<DesktopActionResult> {
+  const database = openOrbitDatabase();
+  try {
+    const sourceRepository = new SourceRepository(database.db);
+    const eventRepository = new EventRepository(database.db);
+    const auditRepository = new AuditRepository(database.db);
+    const settingsRepository = new SettingsRepository(database.db);
+    const perception = readPerceptionStatus(database.db);
+    const helper = new MacScreenOcrCaptureHelper();
+    const capture = await helper.captureOnce();
+    const warnings = [...capture.warnings];
+
+    if (!capture.frame) {
+      auditRepository.log(
+        "perception.capture_screen_ocr",
+        "source",
+        SCREEN_OBSERVATION_ADAPTER_ID,
+        {
+          mode: "desktop_manual_live_screen_ocr",
+          inserted: 0,
+          permission: capture.permission.status,
+          warnings
+        }
+      );
+      return {
+        snapshot: readDesktopSnapshot(),
+        warnings,
+        message: `Screen/OCR capture did not record a frame; permission is ${capture.permission.status}`
+      };
+    }
+
+    const screenPolicy = perception.sources.find(
+      (source) => source.sourceKind === "screen"
+    )?.policy;
+    const ocrPolicy = perception.sources.find((source) => source.sourceKind === "ocr")?.policy;
+    const adapters: SourceAdapter[] = [
+      new ScreenObservationAdapter({
+        id: SCREEN_OBSERVATION_ADAPTER_ID,
+        frames: [capture.frame],
+        scope: capture.frame.scope,
+        permission: capture.permission,
+        protectedApps: perception.protectedApps,
+        allowRawFrameStorage: false,
+        canUseForAI: screenPolicy?.canUseForAI === true,
+        canExportToAgent: screenPolicy?.canExportToAgent === true
+      })
+    ];
+
+    if (capture.ocr?.text.trim()) {
+      adapters.push(
+        new OcrObservationAdapter({
+          id: OCR_OBSERVATION_ADAPTER_ID,
+          frames: [capture.frame],
+          scope: capture.frame.scope,
+          engine: new CapturedTextOcrEngine(
+            new Map<string, ScreenOcrTextResult>([[capture.frame.frameHash, capture.ocr]])
+          ),
+          permission: capture.permission,
+          protectedApps: perception.protectedApps,
+          canUseForAI: ocrPolicy?.canUseForAI === true,
+          canExportToAgent: ocrPolicy?.canExportToAgent === true
+        })
+      );
+    } else {
+      warnings.push("Screen capture succeeded, but OCR produced no text.");
+    }
+
+    const results = [];
+    for (const adapter of adapters) {
+      sourceRepository.upsertFromAdapter(adapter);
+      const cursor = sourceRepository.getCursor(adapter.id);
+      const result = await ingestEventsFromAdapter(adapter, eventRepository, cursor);
+      sourceRepository.setCursor(adapter.id, result.nextCursor);
+      sourceRepository.recordSyncSuccess(adapter.id, { lastEventAt: result.lastEventAt });
+      auditRepository.log("perception.capture_screen_ocr", "source", adapter.id, {
+        mode: "desktop_manual_live_screen_ocr",
+        kind: adapter.kind,
+        read: result.read,
+        inserted: result.inserted,
+        skipped: result.skipped,
+        rawStored: false,
+        warnings: result.warnings
+      });
+      results.push(result);
+    }
+
+    const boundaryEvent = normalizeObservationInput(
+      {
+        type: "observation_state",
+        tier: "tier3",
+        sourceKind: "screen",
+        occurredAt: new Date(new Date(capture.frame.capturedAt).getTime() + 1).toISOString(),
+        runtimeSessionId: capture.frame.runtimeSessionId,
+        sequence: capture.frame.sequence + 10_000
+      },
+      { adapterId: SCREEN_OBSERVATION_ADAPTER_ID, protectedApps: perception.protectedApps }
+    );
+    const insertedBoundary = eventRepository.upsertEvent(boundaryEvent);
+    auditRepository.log(
+      "perception.capture_screen_ocr_boundary",
+      "source",
+      SCREEN_OBSERVATION_ADAPTER_ID,
+      {
+        mode: "desktop_manual_live_screen_ocr",
+        inserted: insertedBoundary
+      }
+    );
+
+    settingsRepository.set(SETTING_KEYS.sourceSetupCompleted, true);
+    const pipeline = (
+      await reindexLocalDataWithProvider(database, buildDesktopPipelineOptions(settingsRepository))
+    ).pipeline;
+    const inserted = results.reduce((total, result) => total + result.inserted, 0);
+    return {
+      snapshot: readDesktopSnapshot(),
+      warnings: results.flatMap((result) => result.warnings).concat(warnings),
+      message: `Captured current screen/OCR into ${inserted} event(s); ${pipeline.activitySessions.total} activity sessions available`
+    };
+  } finally {
+    database.close();
+  }
+}
+
 export function generateHandoffForDesktop(input: DesktopHandoffRequest): DesktopHandoffResult {
   const database = openOrbitDatabase();
   try {
@@ -1310,8 +1440,8 @@ function buildDesktopPipelineOptions(settings: SettingsRepository): { aiProvider
   return aiProvider ? { aiProvider } : {};
 }
 
-function readAIProviderKind(value: string | undefined): AIProviderKind {
-  if (value === "mock" || value === "openai-compatible") return value;
+function readAIProviderKind(value: string | undefined): "disabled" | "openai-compatible" {
+  if (value === "openai-compatible") return value;
   return "disabled";
 }
 

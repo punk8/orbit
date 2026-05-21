@@ -202,7 +202,6 @@ export function SettingsPage({
                       value={aiProviderKind}
                     >
                       <option value="disabled">{t("provider.disabled")}</option>
-                      <option value="mock">{t("provider.mock")}</option>
                       <option value="openai-compatible">{t("provider.openaiCompatible")}</option>
                     </select>
                   </dd>
@@ -397,7 +396,6 @@ export function SettingsPage({
                           value={route.provider}
                         >
                           <option value="disabled">{t("provider.disabled")}</option>
-                          <option value="mock">{t("provider.mock")}</option>
                           <option value="local">{t("provider.local")}</option>
                           <option value="openai-compatible">
                             {t("provider.openaiCompatible")}
@@ -950,7 +948,6 @@ function providerBoundaryValue(
   providerKind: DesktopAIProviderKind
 ): string {
   if (providerKind === "disabled") return t("settings.providerTaskDisabled");
-  if (providerKind === "mock") return t("settings.providerTaskMockDrafting");
   return t("settings.providerTaskExternalDrafting");
 }
 
@@ -991,7 +988,6 @@ function providerKindLabel(
   t: ReturnType<typeof useI18n>["t"],
   providerKind: DesktopSnapshot["aiProviderRuntime"]["tasks"][number]["providerKind"]
 ): string {
-  if (providerKind === "mock") return t("provider.mock");
   if (providerKind === "local") return t("provider.local");
   if (providerKind === "openai-compatible") return t("provider.openaiCompatible");
   return t("provider.disabled");

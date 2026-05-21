@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
 import type { DesktopHandoffResult, DesktopSnapshot } from "../orbitApi";
+import type { HandoffExclusionReason } from "@orbit/core";
 import { MetricCard } from "../components/MetricCard";
 import { Section } from "../components/Section";
 import { useI18n } from "../i18n";
@@ -21,7 +22,9 @@ export function HandoffPage({
   const [copied, setCopied] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
 
-  async function generate(input: { kind: "today"; date?: string } | { kind: "project"; project: string }) {
+  async function generate(
+    input: { kind: "today"; date?: string } | { kind: "project"; project: string }
+  ) {
     setIsGenerating(true);
     setError(undefined);
     setCopied(false);
@@ -43,7 +46,10 @@ export function HandoffPage({
   return (
     <div className="page-grid">
       <div className="metrics-row">
-        <MetricCard label={t("handoff.evidence")} value={result?.handoff.evidenceIndex.length ?? 0} />
+        <MetricCard
+          label={t("handoff.evidence")}
+          value={result?.handoff.evidenceIndex.length ?? 0}
+        />
         <MetricCard
           label={t("section.recentActivity")}
           value={result?.handoff.recentActivity.length ?? snapshot.today.activitySessions.length}
@@ -90,6 +96,29 @@ export function HandoffPage({
 
       {error ? <div className="error-banner">{`${t("handoff.error")}: ${error}`}</div> : null}
 
+      {result ? (
+        <Section title={t("handoff.excluded")}>
+          {result.handoff.excluded.length > 0 ? (
+            <div className="item-list compact">
+              {result.handoff.excluded.map((excluded) => (
+                <article
+                  className="list-item vertical"
+                  key={`${excluded.objectType}:${excluded.objectId}:${excluded.reason}`}
+                >
+                  <h3>{`${t(`handoff.object.${excluded.objectType}`)} · ${handoffExclusionReasonLabel(
+                    t,
+                    excluded.reason
+                  )}`}</h3>
+                  <p>{excluded.objectId}</p>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state">{t("handoff.noExcluded")}</div>
+          )}
+        </Section>
+      ) : null}
+
       <Section
         title={t("handoff.preview")}
         action={
@@ -133,4 +162,17 @@ export function HandoffPage({
       ) : null}
     </div>
   );
+}
+
+function handoffExclusionReasonLabel(
+  t: ReturnType<typeof useI18n>["t"],
+  reason: HandoffExclusionReason
+): string {
+  if (reason === "draft_knowledge") return t("handoff.exclusion.draftKnowledge");
+  if (reason === "memory_not_confirmed") return t("handoff.exclusion.memoryNotConfirmed");
+  if (reason === "recommendation_terminal") return t("handoff.exclusion.recommendationTerminal");
+  if (reason === "missing_evidence") return t("handoff.exclusion.missingEvidence");
+  if (reason === "secret_content") return t("handoff.exclusion.secretContent");
+  if (reason === "failed_redaction") return t("handoff.exclusion.failedRedaction");
+  return t("handoff.exclusion.sourceExportBlocked");
 }

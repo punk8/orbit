@@ -32,6 +32,7 @@ const orbitApi: OrbitDesktopApi = {
   resetSourceCursor: (sourceId) => ipcRenderer.invoke("orbit:resetSourceCursor", sourceId),
   cleanupLegacyEventPrivacy: () => ipcRenderer.invoke("orbit:cleanupLegacyEventPrivacy"),
   cleanupPerceptionSidecars: () => ipcRenderer.invoke("orbit:cleanupPerceptionSidecars"),
+  captureScreenOcr: () => ipcRenderer.invoke("orbit:captureScreenOcr"),
   generateHandoff: (input) => ipcRenderer.invoke("orbit:generateHandoff", input),
   reindexLocalData: () => ipcRenderer.invoke("orbit:reindexLocalData"),
   clearLocalData: () => ipcRenderer.invoke("orbit:clearLocalData"),

@@ -11,6 +11,8 @@ describe("HandoffPage", () => {
     expect(source).toContain("handoff.copyMarkdown");
     expect(source).toContain("handoff.safetyBoundaries");
     expect(source).toContain("handoff.evidence");
+    expect(source).toContain("handoff.excluded");
+    expect(source).toContain("handoffExclusionReasonLabel");
     expect(source).toContain("handoff.empty");
     expect(source).toContain("handoff.error");
     expect(source).toContain("navigator.clipboard.writeText");

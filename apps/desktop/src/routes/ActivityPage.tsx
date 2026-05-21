@@ -38,13 +38,20 @@ const defaultFilters: ActivityFilters = {
   query: ""
 };
 
-export function ActivityPage({ sessions }: { sessions: ActivitySession[] }): ReactElement {
+export function ActivityPage({
+  sessions,
+  onCaptureScreenOcr
+}: {
+  sessions: ActivitySession[];
+  onCaptureScreenOcr(): Promise<void>;
+}): ReactElement {
   const { t, sourceKind, formatTimeRange } = useI18n();
   const [filters, setFilters] = useState<ActivityFilters>(defaultFilters);
   const [selectedId, setSelectedId] = useState<string | undefined>(sessions[0]?.id);
   const [detail, setDetail] = useState<DesktopActivitySessionDetail | undefined>();
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | undefined>();
+  const [isCapturingScreenOcr, setIsCapturingScreenOcr] = useState(false);
 
   const filterOptions = useMemo(() => buildFilterOptions(sessions), [sessions]);
   const filteredSessions = useMemo(
@@ -94,7 +101,31 @@ export function ActivityPage({ sessions }: { sessions: ActivitySession[] }): Rea
 
   return (
     <div className="page-grid activity-playback-page">
-      <Section title={t("section.activityTimeline")}>
+      <Section
+        title={t("section.activityTimeline")}
+        action={
+          <button
+            className="secondary-button"
+            data-activity-action="capture-screen-ocr"
+            disabled={isCapturingScreenOcr}
+            onClick={async () => {
+              setIsCapturingScreenOcr(true);
+              try {
+                await onCaptureScreenOcr();
+              } finally {
+                setIsCapturingScreenOcr(false);
+              }
+            }}
+            type="button"
+          >
+            {isCapturingScreenOcr ? t("activity.capturingScreenOcr") : t("action.captureScreenOcr")}
+          </button>
+        }
+      >
+        <div className="activity-capture-note">
+          <strong>{t("activity.captureScreenOcrNoFixtures")}</strong>
+          <span>{t("activity.captureScreenOcrDescription")}</span>
+        </div>
         <div className="activity-playback-workbench">
           <aside className="activity-timeline-rail" aria-label={t("activity.sessionList")}>
             <div className="activity-rail-tabs" aria-label={t("activity.timelineViews")}>
@@ -254,7 +285,9 @@ function ActivityDetail({
             </span>
             <span>{session.sourceKinds.map(sourceKind).join(", ") || t("fallback.none")}</span>
             <span>
-              {session.localState.rawAvailable ? t("activity.rawAvailable") : t("activity.localOnly")}
+              {session.localState.rawAvailable
+                ? t("activity.rawAvailable")
+                : t("activity.localOnly")}
             </span>
           </div>
         </div>
@@ -332,9 +365,7 @@ function ActivityDetail({
           <button aria-label={t("activity.previousFrame")} type="button">
             <ChevronLeft aria-hidden="true" size={14} />
           </button>
-          <span>
-            {frames.length ? `1 / ${frames.length}` : `0 / 0`}
-          </span>
+          <span>{frames.length ? `1 / ${frames.length}` : `0 / 0`}</span>
           <button aria-label={t("activity.nextFrame")} type="button">
             <ChevronRight aria-hidden="true" size={14} />
           </button>

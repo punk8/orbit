@@ -1,6 +1,7 @@
 import { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage } from "electron";
 import { join } from "node:path";
 import {
+  captureScreenOcrForDesktop,
   cleanupLegacyEventPrivacyForDesktop,
   cleanupPerceptionSidecarsForDesktop,
   clearLocalDataForDesktop,
@@ -170,6 +171,12 @@ ipcMain.handle("orbit:resetSourceCursor", (_event, sourceId: string) =>
 );
 ipcMain.handle("orbit:cleanupLegacyEventPrivacy", () => cleanupLegacyEventPrivacyForDesktop());
 ipcMain.handle("orbit:cleanupPerceptionSidecars", () => cleanupPerceptionSidecarsForDesktop());
+ipcMain.handle("orbit:captureScreenOcr", async () => {
+  const result = await captureScreenOcrForDesktop();
+  applyRuntimeSettings();
+  notifySnapshotChanged();
+  return result;
+});
 ipcMain.handle("orbit:generateHandoff", (_event, input) => generateHandoffForDesktop(input));
 ipcMain.handle("orbit:reindexLocalData", () => reindexForDesktop());
 ipcMain.handle("orbit:clearLocalData", () => clearLocalDataForDesktop());

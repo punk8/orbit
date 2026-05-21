@@ -26,4 +26,13 @@ describe("ActivityPage evidence workbench", () => {
     expect(source).toContain("activity.noRawFramesYet");
     expect(source).toContain("buildPlaybackFrames");
   });
+
+  it("offers a real manual Screen/OCR capture action for product dogfooding", () => {
+    const source = readFileSync(new URL("./ActivityPage.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("onCaptureScreenOcr");
+    expect(source).toContain("action.captureScreenOcr");
+    expect(source).toContain("activity.captureScreenOcrDescription");
+    expect(source).toContain("activity.captureScreenOcrNoFixtures");
+  });
 });

@@ -560,7 +560,7 @@ describe("cli commands", () => {
     expect(ingestHelp).toContain("perception-fixtures");
   });
 
-  it("ingests a manual live screen/OCR capture without storing raw screenshots by default", async () => {
+  it("turns a manual live screen/OCR capture into Activity, Knowledge, and Memory review state", async () => {
     const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-live-screen-ocr-test-"));
     tempDirs.push(orbitHome);
     process.env.ORBIT_HOME = orbitHome;
@@ -591,9 +591,9 @@ describe("cli commands", () => {
               frameHash: "manual_frame_hash_1",
               rawLocalRef: "file:///tmp/raw-screen.png",
               sizeBytes: 123_456
-          },
-          permission: screenPermission("granted"),
-          ocr: {
+            },
+            permission: screenPermission("granted"),
+            ocr: {
               text: "Orbit real screen OCR 支持中文 password=hunter2",
               confidence: 0.93,
               languages: ["zh-Hans", "en-US"]
@@ -604,14 +604,42 @@ describe("cli commands", () => {
       }
     });
 
-    expect(result.sources.find((source) => source.adapterId === "perception_screen")?.inserted).toBe(
+    expect(
+      result.sources.find((source) => source.adapterId === "perception_screen")?.inserted
+    ).toBe(1);
+    expect(result.sources.find((source) => source.adapterId === "perception_ocr")?.inserted).toBe(
       1
     );
-    expect(result.sources.find((source) => source.adapterId === "perception_ocr")?.inserted).toBe(1);
     expect(result.pipeline.activitySessions.total).toBe(1);
+    expect(result.pipeline.knowledgeArtifacts.generated).toBe(1);
+    expect(result.pipeline.knowledgeArtifacts.total).toBe(1);
     expect(JSON.stringify(listActivitySessions())).toContain("Orbit real screen OCR");
     expect(JSON.stringify(listActivitySessions())).not.toContain("raw-screen.png");
     expect(JSON.stringify(listActivitySessions())).not.toContain("hunter2");
+    const artifacts = listKnowledgeArtifacts();
+    expect(artifacts).toHaveLength(1);
+    expect(artifacts[0]?.status).toBe("draft");
+    const review = runKnowledgeReviewAction(artifacts[0]!.id, "confirm");
+    expect(review.generatedMemories.length).toBeGreaterThan(0);
+    runMemoryReviewAction(review.generatedMemories[0]!.id, "confirm");
+    expect(listMemories().length).toBeGreaterThan(0);
+
+    const blockedHandoff = getTodayHandoff({ date: "2026-05-22" });
+    expect(blockedHandoff.recentActivity).toHaveLength(0);
+    expect(blockedHandoff.confirmedKnowledge).toHaveLength(0);
+    expect(blockedHandoff.excluded.map((item) => item.reason)).toContain("source_export_blocked");
+
+    const database = openOrbitDatabase({ orbitHome });
+    try {
+      updatePerceptionSourcePolicy(database.db, "screen", { canExportToAgent: true });
+      updatePerceptionSourcePolicy(database.db, "ocr", { canExportToAgent: true });
+    } finally {
+      database.close();
+    }
+    const exportableHandoff = getTodayHandoff({ date: "2026-05-22" });
+    expect(exportableHandoff.recentActivity).toHaveLength(1);
+    expect(exportableHandoff.confirmedKnowledge).toHaveLength(1);
+    expect(exportableHandoff.activeMemories).toHaveLength(1);
 
     const program = buildProgram();
     const perceptionHelp = program.commands

@@ -17,6 +17,7 @@ import {
 } from "@orbit/core";
 import { AuditRepository } from "./repositories/auditRepository";
 import { SettingsRepository } from "./repositories/settingsRepository";
+import { SourceRepository } from "./repositories/sourceRepository";
 
 export const PERCEPTION_SOURCES_SETTING_KEY = "perception.sources";
 export const PERCEPTION_PROVIDER_ROUTES_SETTING_KEY = "perception.providerRoutes";
@@ -107,6 +108,7 @@ export function updatePerceptionSourcePolicy(
   writeStoredSources(settings, storedSources);
   const next = readPerceptionStatusFromSettings(settings);
   const nextSource = requirePerceptionSource(next, sourceKind);
+  syncPerceptionSourceRecordPolicy(db, nextSource);
   audit.log("perception.policy_change", "perception_source", sourceKind, {
     previous: previousSource.policy,
     next: nextSource.policy
@@ -239,6 +241,33 @@ function normalizePolicyPatch(patch: PerceptionSourcePolicyPatch): PerceptionSou
     next.rawRetentionTtlMinutes = null;
   }
   return next;
+}
+
+function syncPerceptionSourceRecordPolicy(
+  db: Database.Database,
+  source: PerceptionSourceControl
+): void {
+  const repository = new SourceRepository(db);
+  const sourceRecord = repository
+    .listSources()
+    .find(
+      (item) => item.id === `perception_${source.sourceKind}` || item.kind === source.sourceKind
+    );
+  if (!sourceRecord) return;
+  repository.upsertSource({
+    ...sourceRecord,
+    defaultSensitivity: source.policy.sensitivity,
+    permissionScope: {
+      ...sourceRecord.permissionScope,
+      sourceKind: sourceRecord.kind,
+      canStoreRaw: source.policy.canStoreRaw,
+      canStoreSummary: source.policy.canStoreSummary,
+      canUseForAI: source.policy.canUseForAI,
+      canExportToAgent: source.policy.canExportToAgent,
+      retentionPolicyId: source.policy.retentionPolicyId
+    },
+    updatedAt: new Date().toISOString()
+  });
 }
 
 function summarizePerceptionSource(source: PerceptionSourceControl): object {
