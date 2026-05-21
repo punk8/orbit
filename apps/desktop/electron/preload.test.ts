@@ -10,6 +10,9 @@ describe("desktop preload API", () => {
     expect(source).toContain("searchKnowledge");
     expect(source).toContain("getKnowledgeArtifactDetail");
     expect(source).toContain("editKnowledge");
+    expect(source).toContain("searchMemory");
+    expect(source).toContain("getMemoryDetail");
+    expect(source).toContain("editMemory");
     expect(source).toContain("deleteSource");
     expect(source).toContain("resetSourceCursor");
     expect(source).toContain("cleanupLegacyEventPrivacy");

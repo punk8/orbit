@@ -8,6 +8,9 @@ const orbitApi: OrbitDesktopApi = {
   getKnowledgeArtifactDetail: (id) => ipcRenderer.invoke("orbit:getKnowledgeArtifactDetail", id),
   editKnowledge: (id, patch) => ipcRenderer.invoke("orbit:editKnowledge", id, patch),
   reviewKnowledge: (id, action) => ipcRenderer.invoke("orbit:reviewKnowledge", id, action),
+  searchMemory: (query, filters) => ipcRenderer.invoke("orbit:searchMemory", query, filters),
+  getMemoryDetail: (id) => ipcRenderer.invoke("orbit:getMemoryDetail", id),
+  editMemory: (id, patch) => ipcRenderer.invoke("orbit:editMemory", id, patch),
   reviewMemory: (id, action) => ipcRenderer.invoke("orbit:reviewMemory", id, action),
   reviewRecommendation: (id, action, options) =>
     ipcRenderer.invoke("orbit:reviewRecommendation", id, action, options),

@@ -13,7 +13,11 @@ describe("desktop main process runtime guards", () => {
     expect(main).toContain("orbit:searchKnowledge");
     expect(main).toContain("orbit:getKnowledgeArtifactDetail");
     expect(main).toContain("orbit:editKnowledge");
+    expect(main).toContain("orbit:searchMemory");
+    expect(main).toContain("orbit:getMemoryDetail");
+    expect(main).toContain("orbit:editMemory");
     expect(main).toContain(".knowledge-list-item");
+    expect(main).toContain(".memory-list-item");
     expect(smoke).toContain("ORBIT_SKIP_LOGIN_ITEM_SETTINGS");
     expect(smoke).toContain("ORBIT_E2E_RENDERER_SMOKE");
   });

@@ -16,6 +16,7 @@ import { MemoryRepository } from "./repositories/memoryRepository";
 import { AuditRepository } from "./repositories/auditRepository";
 import {
   editKnowledgeArtifact,
+  editMemory,
   reviewKnowledgeArtifact,
   reviewMemory,
   reviewRecommendation
@@ -157,6 +158,33 @@ describe("sqlite store", () => {
       );
       const operations = new AuditRepository(db).listAuditLogs().map((log) => log.operation);
       expect(operations).toContain("knowledge.edit");
+    } finally {
+      close();
+    }
+  });
+
+  it("edits memory content without dropping evidence or FTS indexing", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-db-memory-edit-test-"));
+    tempDirs.push(orbitHome);
+    const { db, close } = openOrbitDatabase({ orbitHome });
+    try {
+      const event = makeEvent();
+      new EventRepository(db).upsertEvent(event);
+      const repository = new MemoryRepository(db);
+      repository.upsertMemory(makeMemory(event));
+
+      const updated = editMemory(db, "memory_fixture", {
+        title: "Edited fixture memory",
+        body: "Edited memory body.",
+        tags: ["edited", "fixture"]
+      });
+
+      expect(updated.evidence).toEqual([evidenceFromEvent(event, "Synthetic fixture event")]);
+      expect(repository.searchMemory("Edited").map((memory) => memory.id)).toContain(
+        "memory_fixture"
+      );
+      const operations = new AuditRepository(db).listAuditLogs().map((log) => log.operation);
+      expect(operations).toContain("memory.edit");
     } finally {
       close();
     }

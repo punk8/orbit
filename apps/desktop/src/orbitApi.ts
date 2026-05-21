@@ -5,12 +5,14 @@ import type {
   KnowledgeArtifact,
   KnowledgeArtifactType,
   Memory,
+  MemoryKind,
   Recommendation,
   SourceRecord,
   TodayContext
 } from "@orbit/core";
 import type {
   KnowledgeReviewAction,
+  MemoryEditInput,
   MemoryReviewAction,
   RecommendationReviewAction
 } from "@orbit/db";
@@ -83,6 +85,20 @@ export interface DesktopKnowledgeArtifactDetail {
   artifact: KnowledgeArtifact;
   sourceSessions: ActivitySession[];
   relatedMemories: Memory[];
+}
+
+export interface DesktopMemorySearchFilters {
+  status?: Memory["status"] | undefined;
+  kind?: MemoryKind | undefined;
+  project?: string | undefined;
+  sourceKind?: string | undefined;
+  tag?: string | undefined;
+}
+
+export interface DesktopMemoryDetail {
+  memory: Memory;
+  sourceKnowledge: KnowledgeArtifact[];
+  sourceSessions: ActivitySession[];
 }
 
 export type DesktopSettingKey =
@@ -159,6 +175,9 @@ export interface OrbitDesktopApi {
   getKnowledgeArtifactDetail(id: string): Promise<DesktopKnowledgeArtifactDetail>;
   editKnowledge(id: string, patch: KnowledgeEditInput): Promise<DesktopSnapshot>;
   reviewKnowledge(id: string, action: KnowledgeReviewAction): Promise<DesktopSnapshot>;
+  searchMemory(query: string, filters?: DesktopMemorySearchFilters): Promise<Memory[]>;
+  getMemoryDetail(id: string): Promise<DesktopMemoryDetail>;
+  editMemory(id: string, patch: MemoryEditInput): Promise<DesktopSnapshot>;
   reviewMemory(id: string, action: MemoryReviewAction): Promise<DesktopSnapshot>;
   reviewRecommendation(
     id: string,

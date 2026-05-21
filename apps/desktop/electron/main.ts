@@ -5,10 +5,12 @@ import {
   clearLocalDataForDesktop,
   deleteSourceForDesktop,
   editKnowledgeForDesktop,
+  editMemoryForDesktop,
   exportContextForDesktop,
   generateHandoffForDesktop,
   getActivitySessionDetailForDesktop,
   getKnowledgeArtifactDetailForDesktop,
+  getMemoryDetailForDesktop,
   readDesktopSnapshot,
   readDesktopSettings,
   reconfigureSourceForDesktop,
@@ -20,6 +22,7 @@ import {
   runBackgroundIngestionForDesktop,
   setCollectionPausedForDesktop,
   searchKnowledgeForDesktop,
+  searchMemoryForDesktop,
   setupSourceForDesktop,
   testAIProviderForDesktop,
   updateSourceRuntimeForDesktop,
@@ -85,6 +88,11 @@ ipcMain.handle("orbit:editKnowledge", (_event, id: string, patch) =>
 ipcMain.handle("orbit:reviewKnowledge", (_event, id: string, action: string) =>
   reviewKnowledgeForDesktop(id, requireKnowledgeAction(action))
 );
+ipcMain.handle("orbit:searchMemory", (_event, query: string, filters = {}) =>
+  searchMemoryForDesktop(String(query ?? ""), filters)
+);
+ipcMain.handle("orbit:getMemoryDetail", (_event, id: string) => getMemoryDetailForDesktop(id));
+ipcMain.handle("orbit:editMemory", (_event, id: string, patch) => editMemoryForDesktop(id, patch));
 ipcMain.handle("orbit:reviewMemory", (_event, id: string, action: string) =>
   reviewMemoryForDesktop(id, requireMemoryAction(action))
 );
@@ -294,6 +302,11 @@ async function runRendererSmoke(window: BrowserWindow): Promise<void> {
           artifact.click();
           await waitFor(".knowledge-detail-pane .detail-header");
           await waitFor(".markdown-preview");
+          await click('[data-page-id="memory"]');
+          const memory = await waitFor(".memory-list-item");
+          memory.click();
+          await waitFor(".memory-detail-pane .detail-header");
+          await waitFor(".memory-detail-pane .detail-grid");
           await click('[data-page-id="activity"]');
           const session = await waitFor(".activity-list-item");
           session.click();

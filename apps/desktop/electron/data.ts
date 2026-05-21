@@ -5,6 +5,7 @@ import {
   ingestEventsFromAdapter,
   type EvidenceRef,
   type KnowledgeArtifact,
+  type Memory,
   type SourceAdapter,
   type SourceKind
 } from "@orbit/core";
@@ -39,6 +40,7 @@ import {
   SettingsRepository,
   SourceRepository,
   editKnowledgeArtifact,
+  editMemory,
   reviewKnowledgeArtifact,
   reviewMemory,
   reviewRecommendation,
@@ -48,6 +50,7 @@ import { safeStorage } from "electron";
 import type {
   KnowledgeEditInput,
   KnowledgeReviewAction,
+  MemoryEditInput,
   MemoryReviewAction,
   RecommendationReviewAction
 } from "@orbit/db";
@@ -60,6 +63,8 @@ import type {
   DesktopHandoffResult,
   DesktopKnowledgeArtifactDetail,
   DesktopKnowledgeSearchFilters,
+  DesktopMemoryDetail,
+  DesktopMemorySearchFilters,
   DesktopRuntimeStatus,
   DesktopSourceRuntimeAction,
   DesktopSettingKey,
@@ -274,6 +279,64 @@ export function reviewMemoryForDesktop(id: string, action: MemoryReviewAction): 
   const database = openOrbitDatabase();
   try {
     reviewMemory(database.db, id, action);
+  } finally {
+    database.close();
+  }
+  return readDesktopSnapshot();
+}
+
+export function searchMemoryForDesktop(
+  query = "",
+  filters: DesktopMemorySearchFilters = {}
+): Memory[] {
+  const database = openOrbitDatabase();
+  try {
+    const repository = new MemoryRepository(database.db);
+    const trimmedQuery = query.trim();
+    const memories = trimmedQuery
+      ? repository.searchMemory(toFtsQuery(trimmedQuery))
+      : repository.listMemories();
+    return filterMemories(memories, filters);
+  } finally {
+    database.close();
+  }
+}
+
+export function getMemoryDetailForDesktop(id: string): DesktopMemoryDetail {
+  const database = openOrbitDatabase();
+  try {
+    const memoryRepository = new MemoryRepository(database.db);
+    const knowledgeRepository = new KnowledgeRepository(database.db);
+    const activityRepository = new ActivityRepository(database.db);
+    const memory = memoryRepository.getMemory(id);
+    if (!memory) {
+      throw new Error(`Unknown memory: ${id}`);
+    }
+
+    const evidenceKeys = evidenceKeySet(memory.evidence);
+    const sourceKnowledge = knowledgeRepository.listKnowledgeArtifacts().filter((artifact) => {
+      if (artifact.memoryCandidateIds?.includes(memory.id)) return true;
+      return artifact.evidence.some((ref) => evidenceKeys.has(evidenceKey(ref)));
+    });
+    const sourceSessionIds = new Set(memory.evidence.flatMap((ref) => ref.activitySessionId ?? []));
+    const eventIds = new Set(memory.evidence.flatMap((ref) => ref.eventId ?? []));
+    const sourcePointers = new Set(memory.evidence.map((ref) => ref.sourcePointer));
+    const sourceSessions = activityRepository.listActivitySessions().filter((session) => {
+      if (sourceSessionIds.has(session.id)) return true;
+      if (session.eventIds.some((eventId) => eventIds.has(eventId))) return true;
+      return session.evidence.some((ref) => sourcePointers.has(ref.sourcePointer));
+    });
+
+    return { memory, sourceKnowledge, sourceSessions };
+  } finally {
+    database.close();
+  }
+}
+
+export function editMemoryForDesktop(id: string, patch: MemoryEditInput): DesktopSnapshot {
+  const database = openOrbitDatabase();
+  try {
+    editMemory(database.db, id, patch);
   } finally {
     database.close();
   }
@@ -745,6 +808,23 @@ function filterKnowledgeArtifacts(
     const date = artifact.metadata.timeWindow?.startAt ?? artifact.createdAt;
     if (filters.dateFrom && date < `${filters.dateFrom}T00:00:00.000Z`) return false;
     if (filters.dateTo && date > `${filters.dateTo}T23:59:59.999Z`) return false;
+    return true;
+  });
+}
+
+function filterMemories(memories: Memory[], filters: DesktopMemorySearchFilters): Memory[] {
+  return memories.filter((memory) => {
+    if (filters.status && memory.status !== filters.status) return false;
+    if (filters.kind && memory.kind !== filters.kind) return false;
+    if (filters.project && memory.scope.project !== filters.project) return false;
+    if (
+      filters.sourceKind &&
+      !memory.scope.sourceKinds?.some((kind) => kind === filters.sourceKind) &&
+      !memory.evidence.some((ref) => ref.sourceKind === filters.sourceKind)
+    ) {
+      return false;
+    }
+    if (filters.tag && !memory.tags.includes(filters.tag)) return false;
     return true;
   });
 }

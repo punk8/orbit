@@ -24,6 +24,7 @@ import type {
 import type {
   KnowledgeEditInput,
   KnowledgeReviewAction,
+  MemoryEditInput,
   MemoryReviewAction,
   RecommendationReviewAction
 } from "@orbit/db";
@@ -209,6 +210,10 @@ export function App(): ReactElement {
     return runReviewAction(() => window.orbit.reviewMemory(id, action), t("error.memoryReview"));
   }
 
+  function editMemory(id: string, patch: MemoryEditInput): Promise<void> {
+    return runReviewAction(() => window.orbit.editMemory(id, patch), t("error.memoryEdit"));
+  }
+
   function reviewRecommendation(id: string, action: RecommendationReviewAction): Promise<void> {
     return runReviewAction(
       () => window.orbit.reviewRecommendation(id, action),
@@ -293,6 +298,7 @@ export function App(): ReactElement {
                 reviewKnowledge,
                 editKnowledge,
                 reviewMemory,
+                editMemory,
                 reviewRecommendation,
                 updateSetting,
                 setCollectionPaused,
@@ -329,6 +335,7 @@ interface PageActions {
   reviewKnowledge(id: string, action: KnowledgeReviewAction): Promise<void>;
   editKnowledge(id: string, patch: KnowledgeEditInput): Promise<void>;
   reviewMemory(id: string, action: MemoryReviewAction): Promise<void>;
+  editMemory(id: string, patch: MemoryEditInput): Promise<void>;
   reviewRecommendation(id: string, action: RecommendationReviewAction): Promise<void>;
   updateSetting(key: DesktopSettingKey, value: unknown): Promise<void>;
   setCollectionPaused(paused: boolean): Promise<void>;
@@ -362,7 +369,13 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
         />
       );
     case "memory":
-      return <MemoryPage memories={snapshot.memories} />;
+      return (
+        <MemoryPage
+          memories={snapshot.memories}
+          onEditMemory={actions.editMemory}
+          onReviewMemory={actions.reviewMemory}
+        />
+      );
     case "recommendations":
       return (
         <RecommendationsPage
