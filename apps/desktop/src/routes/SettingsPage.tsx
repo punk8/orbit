@@ -409,6 +409,24 @@ export function SettingsPage({
                 </dl>
                 <p className="muted">{t("settings.perceptionProviderRoutingNote")}</p>
               </div>
+              <div className="settings-policy-block provider-runtime-registry">
+                <h3>{t("settings.providerRuntimeRegistry")}</h3>
+                <dl className="mini-grid">
+                  {snapshot.aiProviderRuntime.tasks.map((resolution) => (
+                    <div key={resolution.task}>
+                      <dt>{providerRuntimeTaskLabel(t, resolution.task)}</dt>
+                      <dd>
+                        <span className={`status-pill ${resolution.state}`}>
+                          {providerKindLabel(t, resolution.providerKind)} ·{" "}
+                          {providerRuntimeStateLabel(t, resolution.state)}
+                        </span>
+                        <small>{resolution.reason}</small>
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+                <p className="muted">{t("settings.providerRuntimeRegistryNote")}</p>
+              </div>
             </div>
           </Section>
         ) : null}
@@ -943,6 +961,40 @@ function perceptionProviderTaskLabel(
   if (task === "vision") return t("perception.providerTaskVision");
   if (task === "transcription") return t("perception.providerTaskTranscription");
   return t("perception.providerTaskOcr");
+}
+
+function providerRuntimeTaskLabel(
+  t: ReturnType<typeof useI18n>["t"],
+  task: DesktopSnapshot["aiProviderRuntime"]["tasks"][number]["task"]
+): string {
+  if (task === "knowledge_draft") return t("providerRuntime.taskKnowledgeDraft");
+  if (task === "vision_summary") return t("providerRuntime.taskVisionSummary");
+  if (task === "ocr_postprocess") return t("providerRuntime.taskOcrPostprocess");
+  if (task === "transcription") return t("providerRuntime.taskTranscription");
+  if (task === "memory_candidate") return t("providerRuntime.taskMemoryCandidate");
+  if (task === "recommendation") return t("providerRuntime.taskRecommendation");
+  return t("providerRuntime.taskContextCompression");
+}
+
+function providerRuntimeStateLabel(
+  t: ReturnType<typeof useI18n>["t"],
+  state: DesktopSnapshot["aiProviderRuntime"]["tasks"][number]["state"]
+): string {
+  if (state === "ready") return t("providerRuntime.stateReady");
+  if (state === "skipped_by_policy") return t("providerRuntime.stateSkippedByPolicy");
+  if (state === "missing_configuration") return t("providerRuntime.stateMissingConfiguration");
+  if (state === "not_implemented") return t("providerRuntime.stateNotImplemented");
+  return t("providerRuntime.stateDisabled");
+}
+
+function providerKindLabel(
+  t: ReturnType<typeof useI18n>["t"],
+  providerKind: DesktopSnapshot["aiProviderRuntime"]["tasks"][number]["providerKind"]
+): string {
+  if (providerKind === "mock") return t("provider.mock");
+  if (providerKind === "local") return t("provider.local");
+  if (providerKind === "openai-compatible") return t("provider.openaiCompatible");
+  return t("provider.disabled");
 }
 
 function tPerceptionStatus(

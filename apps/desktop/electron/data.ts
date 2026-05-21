@@ -30,6 +30,7 @@ import {
 } from "@orbit/adapters";
 import {
   buildAIProvider,
+  buildAIProviderRuntimeRegistry,
   DEFAULT_OPENAI_COMPATIBLE_MAX_TOKENS,
   DEFAULT_OPENAI_COMPATIBLE_TEST_MAX_TOKENS,
   normalizeChatCompletionsUrl,
@@ -164,6 +165,8 @@ export function readDesktopSnapshot(date = getLocalDateKey()): DesktopSnapshot {
       events
     });
 
+    const perception = readPerceptionStatus(database.db);
+
     return {
       orbitHome: database.orbitHome,
       dbPath: database.dbPath,
@@ -186,7 +189,11 @@ export function readDesktopSnapshot(date = getLocalDateKey()): DesktopSnapshot {
       today,
       runtime: readRuntime(settingsRepository),
       observation: readObservationStatus(settingsRepository),
-      perception: readPerceptionStatus(database.db),
+      perception,
+      aiProviderRuntime: buildAIProviderRuntimeRegistry({
+        aiProviderConfig: buildDesktopAIProviderConfig(settingsRepository),
+        perceptionStatus: perception
+      }),
       settings: readSettings(settingsRepository)
     };
   } finally {

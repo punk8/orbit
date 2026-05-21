@@ -17,6 +17,7 @@ import type {
   SourceRecord,
   TodayContext
 } from "@orbit/core";
+import type { AIProviderRuntimeRegistry } from "@orbit/ai";
 import type {
   KnowledgeReviewAction,
   MemoryEditInput,
@@ -54,6 +55,7 @@ export interface DesktopSnapshot {
   };
   observation: ObservationStatus;
   perception: PerceptionControlPlaneStatus;
+  aiProviderRuntime: AIProviderRuntimeRegistry;
   settings: {
     localOnly: boolean;
     aiProvider: string;

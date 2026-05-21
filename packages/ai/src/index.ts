@@ -1,6 +1,7 @@
 import type { ActivitySession, Event, ID, PermissionScope } from "@orbit/core";
 export * from "./tasks/vision";
 export * from "./tasks/transcription";
+export * from "./providerRegistry";
 
 export type AIProviderKind = "disabled" | "mock" | "openai-compatible";
 export type OpenAICompatibleTokenLimitParameter = "max_tokens" | "max_completion_tokens";

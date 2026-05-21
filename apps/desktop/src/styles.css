@@ -693,6 +693,43 @@ button {
   font-size: 13px;
 }
 
+.mini-grid dd small {
+  color: #73736b;
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+  margin-top: 4px;
+}
+
+.status-pill {
+  border: 1px solid #d8d3ca;
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 8px;
+}
+
+.status-pill.ready {
+  background: rgba(33, 128, 91, 0.12);
+  border-color: rgba(33, 128, 91, 0.28);
+  color: #146c4c;
+}
+
+.status-pill.disabled,
+.status-pill.not_implemented {
+  background: rgba(89, 95, 108, 0.1);
+  color: #73736b;
+}
+
+.status-pill.skipped_by_policy,
+.status-pill.missing_configuration {
+  background: rgba(186, 92, 22, 0.12);
+  border-color: rgba(186, 92, 22, 0.28);
+  color: #915117;
+}
+
 .detail-block {
   display: grid;
   gap: 10px;

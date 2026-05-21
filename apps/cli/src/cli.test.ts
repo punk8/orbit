@@ -38,11 +38,16 @@ import {
   searchMemories
 } from "./commands/readModels";
 import { getStatus } from "./commands/status";
+import { getAIStatus, testAITask } from "./commands/ai";
 
 const tempDirs: string[] = [];
 
 afterEach(() => {
   delete process.env.ORBIT_HOME;
+  delete process.env.ORBIT_AI_PROVIDER;
+  delete process.env.ORBIT_OPENAI_BASE_URL;
+  delete process.env.ORBIT_OPENAI_MODEL;
+  delete process.env.ORBIT_OPENAI_API_KEY;
   for (const dir of tempDirs.splice(0)) {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -255,6 +260,46 @@ describe("cli commands", () => {
       .find((command) => command.name() === "perception")
       ?.helpInformation();
     expect(perceptionHelp).toContain("status");
+  });
+
+  it("reports Goal 9A AI provider runtime routing without running capture", async () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-ai-status-test-"));
+    tempDirs.push(orbitHome);
+    process.env.ORBIT_HOME = orbitHome;
+
+    const status = getAIStatus();
+    expect(status.providerRegistry.tasks.map((task) => task.task)).toEqual([
+      "knowledge_draft",
+      "vision_summary",
+      "ocr_postprocess",
+      "transcription",
+      "memory_candidate",
+      "recommendation",
+      "context_compression"
+    ]);
+    expect(status.providerRegistry.summary.disabled).toBe(7);
+
+    process.env.ORBIT_AI_PROVIDER = "mock";
+    const mockTest = await testAITask("knowledge_draft");
+    expect(mockTest.ok).toBe(true);
+    expect(mockTest.provider).toBe("mock");
+    expect(mockTest.message).toContain("Mock provider");
+
+    const database = openOrbitDatabase({ orbitHome });
+    try {
+      updatePerceptionProviderRoute(database.db, "vision", "mock");
+    } finally {
+      database.close();
+    }
+    const blocked = getAIStatus();
+    expect(
+      blocked.providerRegistry.tasks.find((task) => task.task === "vision_summary")?.state
+    ).toBe("skipped_by_policy");
+
+    const program = buildProgram();
+    const aiHelp = program.commands.find((command) => command.name() === "ai")?.helpInformation();
+    expect(aiHelp).toContain("status");
+    expect(aiHelp).toContain("test");
   });
 
   it("ingests explicit screen/OCR perception fixtures into Activity", async () => {

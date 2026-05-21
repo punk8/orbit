@@ -48,6 +48,7 @@ import {
 } from "./commands/perception";
 import { runSemanticPipeline } from "./commands/semanticPipeline";
 import { getStatus } from "./commands/status";
+import { getAIStatus, testAITask } from "./commands/ai";
 import { buildAIProvider, isAIProviderConfigured, readAIProviderConfigFromEnv } from "@orbit/ai";
 import { openOrbitDatabase } from "@orbit/db";
 import { runSemanticPipelineWithProvider } from "@orbit/db";
@@ -139,6 +140,25 @@ export function buildProgram(): Command {
       } finally {
         database.close();
       }
+    });
+
+  const ai = program.command("ai").description("Inspect AI provider runtime routing");
+  ai.command("status")
+    .description("Show effective AI provider task routing without running model jobs")
+    .option("--json", "output JSON")
+    .action((options: { json?: boolean }) => {
+      writeOutput(getAIStatus(), { json: options.json ?? program.opts<{ json?: boolean }>().json });
+    });
+  ai.command("test")
+    .description("Run a synthetic provider test for one AI task")
+    .requiredOption(
+      "--task <task>",
+      "knowledge_draft, vision_summary, ocr_postprocess, transcription, memory_candidate, recommendation, or context_compression"
+    )
+    .option("--json", "output JSON")
+    .action(async (options: { task: string; json?: boolean }) => {
+      const result = await testAITask(options.task);
+      writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
     });
 
   const activity = program.command("activity").description("Read Activity Sessions");
