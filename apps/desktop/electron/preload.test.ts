@@ -18,5 +18,9 @@ describe("desktop preload API", () => {
     expect(source).toContain("resetSourceCursor");
     expect(source).toContain("cleanupLegacyEventPrivacy");
     expect(source).toContain("generateHandoff");
+    expect(source).toContain("startObservation");
+    expect(source).toContain("pauseObservation");
+    expect(source).toContain("resumeObservation");
+    expect(source).toContain("stopObservation");
   });
 });

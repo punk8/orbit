@@ -6,6 +6,7 @@ import type {
   KnowledgeArtifactType,
   Memory,
   MemoryKind,
+  ObservationStatus,
   Recommendation,
   SourceRecord,
   TodayContext
@@ -45,6 +46,7 @@ export interface DesktopSnapshot {
     lastCompletedAt?: string;
     lastError?: string;
   };
+  observation: ObservationStatus;
   settings: {
     localOnly: boolean;
     aiProvider: string;
@@ -213,6 +215,10 @@ export interface OrbitDesktopApi {
   clearLocalData(): Promise<DesktopActionResult>;
   exportContext(): Promise<DesktopActionResult>;
   testAIProvider(config: DesktopAIProviderTestConfig): Promise<DesktopAIProviderTestResult>;
+  startObservation(): Promise<DesktopSnapshot>;
+  pauseObservation(): Promise<DesktopSnapshot>;
+  resumeObservation(): Promise<DesktopSnapshot>;
+  stopObservation(): Promise<DesktopSnapshot>;
   onSnapshotChanged(callback: () => void): () => void;
 }
 

@@ -21,7 +21,11 @@ export function SettingsPage({
   onClearLocalData,
   onExportContext,
   onTestAIProvider,
-  onSetCollectionPaused
+  onSetCollectionPaused,
+  onStartObservation,
+  onPauseObservation,
+  onResumeObservation,
+  onStopObservation
 }: {
   snapshot: DesktopSnapshot;
   onUpdateSetting(key: DesktopSettingKey, value: unknown): Promise<void>;
@@ -30,6 +34,10 @@ export function SettingsPage({
   onExportContext(): Promise<void>;
   onTestAIProvider(config: DesktopAIProviderTestConfig): Promise<DesktopAIProviderTestResult>;
   onSetCollectionPaused(paused: boolean): Promise<void>;
+  onStartObservation(): Promise<void>;
+  onPauseObservation(): Promise<void>;
+  onResumeObservation(): Promise<void>;
+  onStopObservation(): Promise<void>;
 }): ReactElement {
   const { t, sensitivity, sourceKind } = useI18n();
   const [activeSection, setActiveSection] = useState<SettingsSectionId>("provider");
@@ -555,6 +563,77 @@ export function SettingsPage({
                 </dd>
               </div>
             </dl>
+            <div className="settings-policy-block observation-settings-panel">
+              <h3>{t("settings.observationTitle")}</h3>
+              <dl className="mini-grid">
+                <DetailRow
+                  label={t("settings.observationStatus")}
+                  value={tObservationStatus(t, snapshot.observation.status)}
+                />
+                <DetailRow
+                  label={t("settings.observationTier1")}
+                  value={
+                    snapshot.observation.tiers.tier1.enabled
+                      ? t("state.enabled")
+                      : t("state.disabled")
+                  }
+                />
+                <DetailRow
+                  label={t("settings.observationLastEvent")}
+                  value={snapshot.observation.lastEventAt ?? t("fallback.none")}
+                />
+                <DetailRow
+                  label={t("settings.observationProtectedApps")}
+                  value={String(
+                    snapshot.observation.protectedApps.filter((rule) => rule.enabled).length
+                  )}
+                />
+                <DetailRow
+                  label={t("settings.observationTier2")}
+                  value={t("settings.observationTier2Disabled")}
+                />
+                <DetailRow
+                  label={t("settings.observationTier3")}
+                  value={t("settings.observationTier3Disabled")}
+                />
+              </dl>
+              <div className="provider-actions">
+                <button
+                  className="secondary-button"
+                  data-observation-action={
+                    snapshot.observation.enabled ? "resume" : "start"
+                  }
+                  disabled={snapshot.observation.enabled && !snapshot.observation.paused}
+                  onClick={() =>
+                    void (snapshot.observation.enabled
+                      ? onResumeObservation()
+                      : onStartObservation())
+                  }
+                  type="button"
+                >
+                  {snapshot.observation.enabled ? t("action.resume") : t("action.startObservation")}
+                </button>
+                <button
+                  className="secondary-button"
+                  data-observation-action="pause"
+                  disabled={!snapshot.observation.enabled || snapshot.observation.paused}
+                  onClick={() => void onPauseObservation()}
+                  type="button"
+                >
+                  {t("action.pause")}
+                </button>
+                <button
+                  className="secondary-button"
+                  data-observation-action="stop"
+                  disabled={!snapshot.observation.enabled}
+                  onClick={() => void onStopObservation()}
+                  type="button"
+                >
+                  {t("action.stopObservation")}
+                </button>
+              </div>
+              <p className="muted">{t("settings.observationNote")}</p>
+            </div>
           </Section>
         ) : null}
 
@@ -702,6 +781,20 @@ function providerBoundaryValue(
   if (providerKind === "disabled") return t("settings.providerTaskDisabled");
   if (providerKind === "mock") return t("settings.providerTaskMockDrafting");
   return t("settings.providerTaskExternalDrafting");
+}
+
+function tObservationStatus(
+  t: ReturnType<typeof useI18n>["t"],
+  status: DesktopSnapshot["observation"]["status"]
+): string {
+  if (status === "not_configured") return t("observation.not_configured");
+  if (status === "needs_permission") return t("observation.needs_permission");
+  if (status === "ready") return t("observation.ready");
+  if (status === "collecting") return t("observation.collecting");
+  if (status === "paused") return t("observation.paused");
+  if (status === "warning") return t("observation.warning");
+  if (status === "error") return t("observation.error");
+  return t("observation.disabled");
 }
 
 function tRuntimeStatus(

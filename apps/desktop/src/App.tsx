@@ -105,6 +105,22 @@ export function App(): ReactElement {
     await runReviewAction(() => window.orbit.setCollectionPaused(paused), t("error.setting"));
   }
 
+  async function startObservation(): Promise<void> {
+    await runReviewAction(() => window.orbit.startObservation(), t("error.observation"));
+  }
+
+  async function pauseObservation(): Promise<void> {
+    await runReviewAction(() => window.orbit.pauseObservation(), t("error.observation"));
+  }
+
+  async function resumeObservation(): Promise<void> {
+    await runReviewAction(() => window.orbit.resumeObservation(), t("error.observation"));
+  }
+
+  async function stopObservation(): Promise<void> {
+    await runReviewAction(() => window.orbit.stopObservation(), t("error.observation"));
+  }
+
   async function updateSourceRuntime(
     sourceId: string,
     action: DesktopSourceRuntimeAction
@@ -306,6 +322,10 @@ export function App(): ReactElement {
                 reviewRecommendation,
                 updateSetting,
                 setCollectionPaused,
+                startObservation,
+                pauseObservation,
+                resumeObservation,
+                stopObservation,
                 updateSourceRuntime,
                 setupSource,
                 reconfigureSource,
@@ -347,6 +367,10 @@ interface PageActions {
   ): Promise<void>;
   updateSetting(key: DesktopSettingKey, value: unknown): Promise<void>;
   setCollectionPaused(paused: boolean): Promise<void>;
+  startObservation(): Promise<void>;
+  pauseObservation(): Promise<void>;
+  resumeObservation(): Promise<void>;
+  stopObservation(): Promise<void>;
   updateSourceRuntime(sourceId: string, action: DesktopSourceRuntimeAction): Promise<void>;
   setupSource(kind: SourceSetupKind, path?: string): Promise<void>;
   reconfigureSource(sourceId: string, kind: SourceSetupKind, path?: string): Promise<void>;
@@ -422,6 +446,10 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
           onReindexLocalData={actions.reindexLocalData}
           onTestAIProvider={actions.testAIProvider}
           onSetCollectionPaused={actions.setCollectionPaused}
+          onStartObservation={actions.startObservation}
+          onPauseObservation={actions.pauseObservation}
+          onResumeObservation={actions.resumeObservation}
+          onStopObservation={actions.stopObservation}
           onUpdateSetting={actions.updateSetting}
         />
       );

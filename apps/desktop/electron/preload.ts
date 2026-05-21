@@ -30,6 +30,10 @@ const orbitApi: OrbitDesktopApi = {
   clearLocalData: () => ipcRenderer.invoke("orbit:clearLocalData"),
   exportContext: () => ipcRenderer.invoke("orbit:exportContext"),
   testAIProvider: (config) => ipcRenderer.invoke("orbit:testAIProvider", config),
+  startObservation: () => ipcRenderer.invoke("orbit:startObservation"),
+  pauseObservation: () => ipcRenderer.invoke("orbit:pauseObservation"),
+  resumeObservation: () => ipcRenderer.invoke("orbit:resumeObservation"),
+  stopObservation: () => ipcRenderer.invoke("orbit:stopObservation"),
   onSnapshotChanged: (callback) => {
     const listener = (): void => callback();
     ipcRenderer.on("orbit:snapshotChanged", listener);

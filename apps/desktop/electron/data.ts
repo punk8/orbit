@@ -1,15 +1,26 @@
 import {
   buildTodayContext,
+  createDefaultObservationStatus,
+  defaultProtectedAppRules,
+  DESKTOP_OBSERVATION_ADAPTER_ID,
   formatHandoffMarkdown,
   getLocalDateKey,
   ingestEventsFromAdapter,
   type EvidenceRef,
   type KnowledgeArtifact,
   type Memory,
+  type ObservationRuntimeStatus,
+  type ObservationStatus,
   type SourceAdapter,
   type SourceKind
 } from "@orbit/core";
-import { CodexAdapter, FixtureAdapter, LocalAgentAdapter, SeaTalkAdapter } from "@orbit/adapters";
+import {
+  CodexAdapter,
+  DesktopObservationAdapter,
+  FixtureAdapter,
+  LocalAgentAdapter,
+  SeaTalkAdapter
+} from "@orbit/adapters";
 import {
   buildAIProvider,
   DEFAULT_OPENAI_COMPATIBLE_MAX_TOKENS,
@@ -91,6 +102,15 @@ const SETTING_KEYS = {
   runtimeLastRunAt: "runtime.lastRunAt",
   runtimeLastCompletedAt: "runtime.lastCompletedAt",
   runtimeLastError: "runtime.lastError",
+  observationEnabled: "observation.enabled",
+  observationPaused: "observation.paused",
+  observationStatus: "observation.status",
+  observationLastStartedAt: "observation.lastStartedAt",
+  observationLastStoppedAt: "observation.lastStoppedAt",
+  observationLastEventAt: "observation.lastEventAt",
+  observationLastError: "observation.lastError",
+  observationProtectedApps: "observation.protectedApps",
+  observationAllowedFolders: "observation.allowedFolders",
   sourceAdapterConfigs: "sources.adapterConfigs",
   sourceSetupCompleted: "sources.setupCompleted"
 } as const;
@@ -149,6 +169,7 @@ export function readDesktopSnapshot(date = getLocalDateKey()): DesktopSnapshot {
       recommendations,
       today,
       runtime: readRuntime(settingsRepository),
+      observation: readObservationStatus(settingsRepository),
       settings: readSettings(settingsRepository)
     };
   } finally {
@@ -405,6 +426,82 @@ export function readDesktopSettings(): DesktopSnapshot["settings"] {
     return readSettings(new SettingsRepository(database.db));
   } finally {
     database.close();
+  }
+}
+
+export function readObservationStatusForDesktop(queueDepth = 0): ObservationStatus {
+  const database = openOrbitDatabase();
+  try {
+    return readObservationStatus(new SettingsRepository(database.db), queueDepth);
+  } finally {
+    database.close();
+  }
+}
+
+export function upsertDesktopObservationSourceForDesktop(): void {
+  const database = openOrbitDatabase();
+  try {
+    const settings = new SettingsRepository(database.db);
+    const protectedApps =
+      settings.get<ObservationStatus["protectedApps"]>(SETTING_KEYS.observationProtectedApps) ??
+      defaultProtectedAppRules();
+    new SourceRepository(database.db).upsertFromAdapter(
+      new DesktopObservationAdapter({
+        inputs: [],
+        id: DESKTOP_OBSERVATION_ADAPTER_ID,
+        protectedApps
+      })
+    );
+  } finally {
+    database.close();
+  }
+}
+
+export function writeObservationStatusForDesktop(
+  status: ObservationRuntimeStatus,
+  input: {
+    enabled: boolean;
+    paused: boolean;
+    lastStartedAt?: string;
+    lastStoppedAt?: string;
+    lastEventAt?: string;
+    lastError?: string;
+  }
+): void {
+  const database = openOrbitDatabase();
+  try {
+    writeObservationStatusToSettings(new SettingsRepository(database.db), status, input);
+  } finally {
+    database.close();
+  }
+}
+
+export function writeObservationStatusToSettings(
+  settings: SettingsRepository,
+  status: ObservationRuntimeStatus,
+  input: {
+    enabled: boolean;
+    paused: boolean;
+    lastStartedAt?: string;
+    lastStoppedAt?: string;
+    lastEventAt?: string;
+    lastError?: string;
+  }
+): void {
+  settings.set(SETTING_KEYS.observationStatus, status);
+  settings.set(SETTING_KEYS.observationEnabled, input.enabled);
+  settings.set(SETTING_KEYS.observationPaused, input.paused);
+  if (input.lastStartedAt) settings.set(SETTING_KEYS.observationLastStartedAt, input.lastStartedAt);
+  if (input.lastStoppedAt) settings.set(SETTING_KEYS.observationLastStoppedAt, input.lastStoppedAt);
+  if (input.lastEventAt) settings.set(SETTING_KEYS.observationLastEventAt, input.lastEventAt);
+  if (input.lastError !== undefined) {
+    settings.set(SETTING_KEYS.observationLastError, input.lastError);
+  }
+  const existingProtectedApps = settings.get<ObservationStatus["protectedApps"]>(
+    SETTING_KEYS.observationProtectedApps
+  );
+  if (!existingProtectedApps) {
+    settings.set(SETTING_KEYS.observationProtectedApps, defaultProtectedAppRules());
   }
 }
 
@@ -745,6 +842,7 @@ export async function runBackgroundIngestionForDesktop(): Promise<BackgroundInge
     const errors: string[] = [];
 
     for (const source of sources) {
+      if (source.kind === "desktop") continue;
       if (!source.enabled || source.paused) continue;
       attempted += 1;
       try {
@@ -941,6 +1039,59 @@ function readRuntime(settings: SettingsRepository): DesktopSnapshot["runtime"] {
   if (lastCompletedAt) runtime.lastCompletedAt = lastCompletedAt;
   if (lastError) runtime.lastError = lastError;
   return runtime;
+}
+
+function readObservationStatus(
+  settings: SettingsRepository,
+  queueDepth = 0
+): ObservationStatus {
+  const runtimeStatus =
+    settings.get<ObservationRuntimeStatus>(SETTING_KEYS.observationStatus) ?? "not_configured";
+  const enabled = settings.get<boolean>(SETTING_KEYS.observationEnabled) ?? false;
+  const paused = settings.get<boolean>(SETTING_KEYS.observationPaused) ?? false;
+  const protectedApps =
+    settings.get<ObservationStatus["protectedApps"]>(SETTING_KEYS.observationProtectedApps) ??
+    defaultProtectedAppRules();
+  const allowedFolders =
+    settings.get<ObservationStatus["allowedFolders"]>(SETTING_KEYS.observationAllowedFolders) ?? [];
+  const lastStartedAt = settings.get<string>(SETTING_KEYS.observationLastStartedAt);
+  const lastStoppedAt = settings.get<string>(SETTING_KEYS.observationLastStoppedAt);
+  const lastEventAt = settings.get<string>(SETTING_KEYS.observationLastEventAt);
+  const lastError = settings.get<string>(SETTING_KEYS.observationLastError);
+  const overrides: Partial<ObservationStatus> = {
+    status: runtimeStatus,
+    enabled,
+    paused,
+    protectedApps,
+    allowedFolders,
+    queueDepth
+  };
+  if (lastStartedAt) overrides.lastStartedAt = lastStartedAt;
+  if (lastStoppedAt) overrides.lastStoppedAt = lastStoppedAt;
+  if (lastEventAt) overrides.lastEventAt = lastEventAt;
+  if (lastError) overrides.lastError = lastError;
+  if (enabled) {
+    overrides.tiers = {
+      tier1: {
+        enabled: true,
+        status: paused ? "paused" : runtimeStatus,
+        sourceKinds: ["desktop"],
+        ...(lastEventAt ? { lastEventAt } : {}),
+        ...(lastError ? { lastError } : {})
+      },
+      tier2: {
+        enabled: false,
+        status: "disabled",
+        sourceKinds: ["accessibility", "browser", "terminal", "clipboard", "filesystem"]
+      },
+      tier3: {
+        enabled: false,
+        status: "disabled",
+        sourceKinds: ["screen", "ocr", "audio", "transcript"]
+      }
+    };
+  }
+  return createDefaultObservationStatus(overrides);
 }
 
 function readRuntimeStatus(value: string | undefined): DesktopRuntimeStatus {

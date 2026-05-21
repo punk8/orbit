@@ -29,6 +29,7 @@ import {
   updateSourceRuntimeForDesktop,
   updateSettingForDesktop
 } from "./data";
+import { DesktopObservationService } from "./observation/observationService";
 
 const currentDir = __dirname;
 const backgroundIngestionIntervalMs = 60_000;
@@ -36,6 +37,7 @@ let mainWindow: BrowserWindow | undefined;
 let tray: Tray | undefined;
 let backgroundIngestionTimer: NodeJS.Timeout | undefined;
 let backgroundIngestionRunning = false;
+const observationService = new DesktopObservationService({ notifyChanged: notifySnapshotChanged });
 
 async function createMainWindow(): Promise<BrowserWindow> {
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -146,10 +148,31 @@ ipcMain.handle("orbit:reindexLocalData", () => reindexForDesktop());
 ipcMain.handle("orbit:clearLocalData", () => clearLocalDataForDesktop());
 ipcMain.handle("orbit:exportContext", () => exportContextForDesktop());
 ipcMain.handle("orbit:testAIProvider", (_event, config) => testAIProviderForDesktop(config));
+ipcMain.handle("orbit:startObservation", async () => {
+  await observationService.start();
+  applyRuntimeSettings();
+  return readDesktopSnapshot();
+});
+ipcMain.handle("orbit:pauseObservation", () => {
+  observationService.pause();
+  applyRuntimeSettings();
+  return readDesktopSnapshot();
+});
+ipcMain.handle("orbit:resumeObservation", async () => {
+  await observationService.resume();
+  applyRuntimeSettings();
+  return readDesktopSnapshot();
+});
+ipcMain.handle("orbit:stopObservation", () => {
+  observationService.stop();
+  applyRuntimeSettings();
+  return readDesktopSnapshot();
+});
 
 app.whenReady().then(async () => {
   applyRuntimeSettings();
   const window = await createMainWindow();
+  await observationService.restoreFromSettings();
   if (process.env.ORBIT_E2E_RENDERER_SMOKE === "1") {
     void runRendererSmoke(window);
   } else {
@@ -198,10 +221,12 @@ function ensureTray(): void {
       tray.setTitle("Orbit");
     }
   }
-  const runtime = readDesktopSnapshot().runtime;
+  const snapshot = readDesktopSnapshot();
+  const runtime = snapshot.runtime;
+  const observation = snapshot.observation;
   const paused = runtime.collectionPaused;
   const status = runtime.status;
-  tray.setToolTip(`Orbit: ${status}`);
+  tray.setToolTip(`Orbit: ${status}; observation: ${observation.status}`);
   if (process.platform === "darwin") {
     tray.setTitle(paused ? "Orbit Paused" : "Orbit");
   }
@@ -219,8 +244,28 @@ function ensureTray(): void {
           void handleTrayPauseToggle(!paused);
         }
       },
+      { type: "separator" },
       {
-        label: `Status: ${status}`,
+        label:
+          observation.enabled && observation.paused
+            ? "Resume Observation"
+            : observation.enabled
+              ? "Pause Observation"
+              : "Start Observation",
+        click: () => {
+          void handleTrayObservationToggle();
+        }
+      },
+      {
+        label: "Stop Observation",
+        enabled: observation.enabled,
+        click: () => {
+          observationService.stop();
+          applyRuntimeSettings();
+        }
+      },
+      {
+        label: `Status: ${status}; Observation: ${observation.status}`,
         enabled: false
       },
       {
@@ -229,6 +274,18 @@ function ensureTray(): void {
       }
     ])
   );
+}
+
+async function handleTrayObservationToggle(): Promise<void> {
+  const observation = readDesktopSnapshot().observation;
+  if (!observation.enabled) {
+    await observationService.start();
+  } else if (observation.paused) {
+    await observationService.resume();
+  } else {
+    observationService.pause();
+  }
+  applyRuntimeSettings();
 }
 
 async function handleTrayPauseToggle(paused: boolean): Promise<void> {
@@ -304,6 +361,11 @@ async function runRendererSmoke(window: BrowserWindow): Promise<void> {
           await waitFor(".provider-boundary");
           await click('[data-settings-section-id="privacy"]');
           await waitFor(".privacy-settings-panel");
+          await click('[data-settings-section-id="runtime"]');
+          await waitFor(".observation-settings-panel");
+          await click('[data-observation-action="start"]');
+          await sleep(1200);
+          await click('[data-observation-action="stop"]');
           await click('[data-settings-section-id="indexing"]');
           await waitFor(".index-settings-panel");
           await click('[data-page-id="knowledge"]');

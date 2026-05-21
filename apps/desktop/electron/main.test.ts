@@ -17,6 +17,8 @@ describe("desktop main process runtime guards", () => {
     expect(main).toContain("orbit:getMemoryDetail");
     expect(main).toContain("orbit:editMemory");
     expect(main).toContain("orbit:getRecommendationDetail");
+    expect(main).toContain("orbit:startObservation");
+    expect(main).toContain("DesktopObservationService");
     expect(main).toContain(".knowledge-list-item");
     expect(main).toContain(".memory-list-item");
     expect(main).toContain(".recommendation-list-item");
