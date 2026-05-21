@@ -6,6 +6,7 @@ describe("desktop preload API", () => {
     const source = readFileSync(new URL("./preload.ts", import.meta.url), "utf8");
 
     expect(source).toContain("reconfigureSource");
+    expect(source).toContain("getActivitySessionDetail");
     expect(source).toContain("deleteSource");
     expect(source).toContain("resetSourceCursor");
     expect(source).toContain("cleanupLegacyEventPrivacy");

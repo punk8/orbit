@@ -6,6 +6,7 @@ describe("desktop e2e smoke script", () => {
     const script = readFileSync(new URL("./e2e-smoke.mjs", import.meta.url), "utf8");
 
     expect(script).toContain('"install-app-deps"');
+    expect(script).toContain("ORBIT_E2E_RENDERER_SMOKE");
     expect(script).not.toContain('"install-app-deps", "--config"');
   });
 });

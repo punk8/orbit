@@ -244,6 +244,7 @@ export function App(): ReactElement {
               return (
                 <button
                   className={`nav-item ${activePage === page.id ? "active" : ""}`}
+                  data-page-id={page.id}
                   key={page.id}
                   onClick={() => setActivePage(page.id)}
                   title={label}

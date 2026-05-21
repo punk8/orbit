@@ -3,6 +3,7 @@ import {
   formatHandoffMarkdown,
   getLocalDateKey,
   ingestEventsFromAdapter,
+  type EvidenceRef,
   type SourceAdapter,
   type SourceKind
 } from "@orbit/core";
@@ -50,6 +51,7 @@ import type {
 import { isAbsolute, join, resolve } from "node:path";
 import type {
   DesktopActionResult,
+  DesktopActivitySessionDetail,
   DesktopAIProviderTestConfig,
   DesktopHandoffRequest,
   DesktopHandoffResult,
@@ -137,6 +139,52 @@ export function readDesktopSnapshot(date = getLocalDateKey()): DesktopSnapshot {
       today,
       runtime: readRuntime(settingsRepository),
       settings: readSettings(settingsRepository)
+    };
+  } finally {
+    database.close();
+  }
+}
+
+export function getActivitySessionDetailForDesktop(id: string): DesktopActivitySessionDetail {
+  const database = openOrbitDatabase();
+  try {
+    const activityRepository = new ActivityRepository(database.db);
+    const eventRepository = new EventRepository(database.db);
+    const knowledgeRepository = new KnowledgeRepository(database.db);
+    const memoryRepository = new MemoryRepository(database.db);
+    const recommendationRepository = new RecommendationRepository(database.db);
+
+    const session = activityRepository.getActivitySession(id);
+    if (!session) {
+      throw new Error(`Unknown activity session: ${id}`);
+    }
+
+    const eventIds = new Set(session.eventIds);
+    const sourcePointers = new Set(session.evidence.map((ref) => ref.sourcePointer));
+    const matchesActivity = (evidence: EvidenceRef[]): boolean =>
+      evidence.some(
+        (ref) =>
+          ref.activitySessionId === session.id ||
+          (ref.eventId ? eventIds.has(ref.eventId) : false) ||
+          sourcePointers.has(ref.sourcePointer)
+      );
+
+    return {
+      session,
+      events: eventRepository.listEventsByIds(session.eventIds),
+      linkedKnowledge: knowledgeRepository
+        .listKnowledgeArtifacts()
+        .filter(
+          (artifact) =>
+            artifact.metadata.sourceSessionIds.includes(session.id) ||
+            matchesActivity(artifact.evidence)
+        ),
+      linkedMemories: memoryRepository
+        .listMemories()
+        .filter((memory) => matchesActivity(memory.evidence)),
+      linkedRecommendations: recommendationRepository
+        .listRecommendations()
+        .filter((recommendation) => matchesActivity(recommendation.evidence))
     };
   } finally {
     database.close();

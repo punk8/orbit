@@ -6,6 +6,7 @@ import {
   deleteSourceForDesktop,
   exportContextForDesktop,
   generateHandoffForDesktop,
+  getActivitySessionDetailForDesktop,
   readDesktopSnapshot,
   readDesktopSettings,
   reconfigureSourceForDesktop,
@@ -66,6 +67,9 @@ async function createMainWindow(): Promise<BrowserWindow> {
 }
 
 ipcMain.handle("orbit:getSnapshot", () => readDesktopSnapshot());
+ipcMain.handle("orbit:getActivitySessionDetail", (_event, id: string) =>
+  getActivitySessionDetailForDesktop(id)
+);
 ipcMain.handle("orbit:reviewKnowledge", (_event, id: string, action: string) =>
   reviewKnowledgeForDesktop(id, requireKnowledgeAction(action))
 );
@@ -121,8 +125,12 @@ ipcMain.handle("orbit:testAIProvider", (_event, config) => testAIProviderForDesk
 
 app.whenReady().then(async () => {
   applyRuntimeSettings();
-  await createMainWindow();
-  startBackgroundIngestion();
+  const window = await createMainWindow();
+  if (process.env.ORBIT_E2E_RENDERER_SMOKE === "1") {
+    void runRendererSmoke(window);
+  } else {
+    startBackgroundIngestion();
+  }
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -230,6 +238,63 @@ async function runBackgroundIngestionTick(): Promise<void> {
 function notifySnapshotChanged(): void {
   for (const window of BrowserWindow.getAllWindows()) {
     window.webContents.send("orbit:snapshotChanged");
+  }
+}
+
+async function runRendererSmoke(window: BrowserWindow): Promise<void> {
+  try {
+    await setupSourceForDesktop("fixtures");
+    notifySnapshotChanged();
+    await window.webContents.executeJavaScript(
+      `
+        (async () => {
+          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+          const waitFor = async (selector) => {
+            for (let index = 0; index < 120; index += 1) {
+              const element = document.querySelector(selector);
+              if (element) return element;
+              await sleep(100);
+            }
+            throw new Error("Missing selector: " + selector);
+          };
+          const click = async (selector) => {
+            const element = await waitFor(selector);
+            element.click();
+            await sleep(150);
+          };
+          const pageIds = [
+            "today",
+            "activity",
+            "knowledge",
+            "memory",
+            "recommendations",
+            "handoff",
+            "review",
+            "sources",
+            "settings"
+          ];
+          for (const pageId of pageIds) {
+            await click('[data-page-id="' + pageId + '"]');
+            await waitFor('[data-page-id="' + pageId + '"].active');
+          }
+          await click('[data-page-id="activity"]');
+          const session = await waitFor(".activity-list-item");
+          session.click();
+          await waitFor(".detail-header");
+          await waitFor(".detail-grid");
+          await waitFor(".event-stream .event-row");
+          await waitFor(".derived-grid");
+          return true;
+        })()
+      `,
+      true
+    );
+    app.exit(0);
+  } catch (error) {
+    console.error(
+      `Orbit renderer smoke failed: ${error instanceof Error ? error.message : String(error)}`
+    );
+    app.exit(1);
   }
 }
 

@@ -3,6 +3,7 @@ import type { OrbitDesktopApi } from "../src/orbitApi";
 
 const orbitApi: OrbitDesktopApi = {
   getSnapshot: () => ipcRenderer.invoke("orbit:getSnapshot"),
+  getActivitySessionDetail: (id) => ipcRenderer.invoke("orbit:getActivitySessionDetail", id),
   reviewKnowledge: (id, action) => ipcRenderer.invoke("orbit:reviewKnowledge", id, action),
   reviewMemory: (id, action) => ipcRenderer.invoke("orbit:reviewMemory", id, action),
   reviewRecommendation: (id, action, options) =>

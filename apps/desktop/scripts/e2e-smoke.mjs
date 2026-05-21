@@ -11,11 +11,16 @@ if (!existsSync(appEntry) && !existsSync(packagedEntry)) {
 }
 
 const orbitHome = mkdtempSync(join(tmpdir(), "orbit-desktop-e2e-"));
-const env = { ...process.env, ORBIT_HOME: orbitHome, ORBIT_SKIP_LOGIN_ITEM_SETTINGS: "1" };
+const env = {
+  ...process.env,
+  ORBIT_HOME: orbitHome,
+  ORBIT_E2E_RENDERER_SMOKE: "1",
+  ORBIT_SKIP_LOGIN_ITEM_SETTINGS: "1"
+};
 delete env.ELECTRON_RUN_AS_NODE;
 delete env.VITE_DEV_SERVER_URL;
 
-const usePackagedApp = existsSync(packagedEntry);
+const usePackagedApp = !existsSync(appEntry) && existsSync(packagedEntry);
 if (!usePackagedApp) {
   run("pnpm", ["exec", "electron-builder", "install-app-deps"]);
 }
@@ -45,9 +50,11 @@ const timeout = setTimeout(() => {
   setTimeout(() => {
     child.kill("SIGKILL");
     cleanup();
-    process.exit(0);
+    console.error("Electron renderer smoke timed out.");
+    console.error(output);
+    process.exit(1);
   }, 500).unref();
-}, 3000);
+}, 15000);
 
 child.on("exit", (code, signal) => {
   if (completed) return;

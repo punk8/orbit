@@ -65,6 +65,32 @@ describe("sqlite store", () => {
     }
   });
 
+  it("lists activity detail events by ids without duplicating repeated ids", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-db-event-detail-test-"));
+    tempDirs.push(orbitHome);
+    const { db, close } = openOrbitDatabase({ orbitHome });
+    try {
+      const eventRepo = new EventRepository(db);
+      const secondEvent = makeEvent({
+        pointer: "fixture://codex/day-1#2",
+        text: "Second fixture event"
+      });
+      const firstEvent = makeEvent({
+        pointer: "fixture://codex/day-1#1",
+        text: "First fixture event"
+      });
+      eventRepo.upsertEvent(secondEvent);
+      eventRepo.upsertEvent(firstEvent);
+
+      const events = eventRepo.listEventsByIds([secondEvent.id, firstEvent.id, secondEvent.id]);
+
+      expect(events.map((event) => event.id)).toEqual([firstEvent.id, secondEvent.id].sort());
+      expect(events).toHaveLength(2);
+    } finally {
+      close();
+    }
+  });
+
   it("reviews knowledge, memories, and recommendations with audit logs", () => {
     const orbitHome = mkdtempSync(join(tmpdir(), "orbit-db-review-test-"));
     tempDirs.push(orbitHome);

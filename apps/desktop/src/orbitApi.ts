@@ -1,5 +1,6 @@
 import type {
   ActivitySession,
+  Event,
   HandoffPack,
   KnowledgeArtifact,
   Memory,
@@ -57,6 +58,14 @@ export interface DesktopSnapshot {
     configuredDatabasePath?: string;
     sourceSetupCompleted: boolean;
   };
+}
+
+export interface DesktopActivitySessionDetail {
+  session: ActivitySession;
+  events: Event[];
+  linkedKnowledge: KnowledgeArtifact[];
+  linkedMemories: Memory[];
+  linkedRecommendations: Recommendation[];
 }
 
 export type DesktopSettingKey =
@@ -125,6 +134,7 @@ export interface DesktopHandoffResult extends DesktopActionResult {
 
 export interface OrbitDesktopApi {
   getSnapshot(): Promise<DesktopSnapshot>;
+  getActivitySessionDetail(id: string): Promise<DesktopActivitySessionDetail>;
   reviewKnowledge(id: string, action: KnowledgeReviewAction): Promise<DesktopSnapshot>;
   reviewMemory(id: string, action: MemoryReviewAction): Promise<DesktopSnapshot>;
   reviewRecommendation(

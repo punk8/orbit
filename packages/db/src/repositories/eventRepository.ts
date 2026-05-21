@@ -68,6 +68,17 @@ export class EventRepository {
     return row ? mapEvent(row) : undefined;
   }
 
+  listEventsByIds(ids: string[]): Event[] {
+    if (ids.length === 0) return [];
+
+    const uniqueIds = [...new Set(ids)];
+    const placeholders = uniqueIds.map(() => "?").join(", ");
+    const rows = this.db
+      .prepare(`SELECT * FROM events WHERE id IN (${placeholders}) ORDER BY occurred_at, id`)
+      .all(...uniqueIds) as EventRow[];
+    return rows.map((row) => mapEvent(row));
+  }
+
   updateEventPrivacyAndContent(event: Event): void {
     this.db
       .prepare(
