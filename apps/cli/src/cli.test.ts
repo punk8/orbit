@@ -19,7 +19,8 @@ import {
   cleanupPerceptionRawSidecars,
   getPerceptionReleaseGate,
   getPerceptionStatus,
-  runScreenOcrSmoke
+  runScreenOcrSmoke,
+  transcribeAudioFixture
 } from "./commands/perception";
 import {
   openOrbitDatabase,
@@ -388,6 +389,36 @@ describe("cli commands", () => {
     expect(JSON.stringify(listActivitySessions())).not.toContain("sk-test");
   });
 
+  it("runs Goal 9B configured transcription fixture through provider policy", async () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-transcribe-fixture-test-"));
+    tempDirs.push(orbitHome);
+    process.env.ORBIT_HOME = orbitHome;
+
+    const blocked = await transcribeAudioFixture();
+    expect(blocked.source.inserted).toBe(0);
+    expect(blocked.source.warnings).toContain("Transcription provider route is disabled.");
+
+    const database = openOrbitDatabase({ orbitHome });
+    try {
+      updatePerceptionSourcePolicy(database.db, "microphone_audio", { canUseForAI: true });
+      updatePerceptionSourcePolicy(database.db, "transcript", { canUseForAI: true });
+      updatePerceptionProviderRoute(database.db, "transcription", "mock");
+    } finally {
+      database.close();
+    }
+
+    const result = await transcribeAudioFixture();
+    expect(result.source.adapterId).toBe("perception_transcript");
+    expect(result.source.inserted).toBe(2);
+    expect(result.source.warnings).toEqual(
+      expect.arrayContaining([
+        "Suppressed transcript for protected audio segment audio_protected_vault.",
+        "Skipped transcript for failed-redaction segment audio_failed_redaction."
+      ])
+    );
+    expect(result.pipeline.activitySessions.total).toBeGreaterThan(0);
+  });
+
   it("completes Goal 8E perception context with safe summaries and preserved review state", async () => {
     const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-perception-context-test-"));
     tempDirs.push(orbitHome);
@@ -470,6 +501,7 @@ describe("cli commands", () => {
     expect(perceptionHelp).toContain("screen-ocr-smoke");
     expect(perceptionHelp).toContain("source-policy");
     expect(perceptionHelp).toContain("provider-route");
+    expect(perceptionHelp).toContain("transcribe-fixture");
     expect(perceptionHelp).toContain("cleanup");
     expect(perceptionHelp).toContain("release-gate");
     expect(ingestHelp).toContain("perception-fixtures");

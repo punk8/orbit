@@ -146,9 +146,9 @@ function resolveTask(
       {
         perceptionStatus,
         budget,
-        implementedProviderKinds: ["mock"],
+        implementedProviderKinds: ["mock", "openai-compatible"],
         plannedReason:
-          "Transcription route is registered; real local/OpenAI-compatible transcription providers land in Goal 9B."
+          "Transcription route is registered; local transcription provider setup lands in a later checkpoint."
       }
     );
   }

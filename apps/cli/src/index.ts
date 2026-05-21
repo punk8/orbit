@@ -44,7 +44,8 @@ import {
   getPerceptionStatus,
   runScreenOcrSmoke,
   setPerceptionProviderRoute,
-  setPerceptionSourcePolicy
+  setPerceptionSourcePolicy,
+  transcribeAudioFixture
 } from "./commands/perception";
 import { runSemanticPipeline } from "./commands/semanticPipeline";
 import { getStatus } from "./commands/status";
@@ -509,6 +510,14 @@ export function buildProgram(): Command {
     .option("--json", "output JSON")
     .action((task: string, provider: string, options: { json?: boolean }) => {
       const result = setPerceptionProviderRoute({ task, provider });
+      writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
+    });
+  perception
+    .command("transcribe-fixture")
+    .description("Run explicit audio fixture transcription through the configured provider route")
+    .option("--json", "output JSON")
+    .action(async (options: { json?: boolean }) => {
+      const result = await transcribeAudioFixture();
       writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
     });
   perception

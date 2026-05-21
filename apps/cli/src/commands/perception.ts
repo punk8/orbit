@@ -1,22 +1,37 @@
 import {
+  audioPermission,
   MockScreenCaptureNativeHelper,
+  readAudioFixtures,
   ScreenObservationSession,
   type ScreenCaptureScope,
-  screenPermission
+  screenPermission,
+  TRANSCRIPT_OBSERVATION_ADAPTER_ID,
+  TranscriptObservationAdapter,
+  transcriptPolicyFromPerceptionStatus
 } from "@orbit/adapters";
+import {
+  buildTranscriptionProvider,
+  disabledTranscriptionProvider,
+  readAIProviderConfigFromEnv
+} from "@orbit/ai";
+import { ingestEventsFromAdapter } from "@orbit/core";
 import {
   AuditRepository,
   cleanupPerceptionSidecars,
+  EventRepository,
   openOrbitDatabase,
   readPerceptionProviderKind,
   readPerceptionProviderTask,
   readPerceptionSourceKind,
   readPerceptionStatus,
+  SourceRepository,
   updatePerceptionProviderRoute,
   updatePerceptionSourcePolicy
 } from "@orbit/db";
 import { evaluatePerceptionReleaseGate } from "@orbit/privacy";
 import { getCliConfig } from "../config";
+import { runSemanticPipeline, type SemanticPipelineResult } from "./semanticPipeline";
+import { join } from "node:path";
 import type { PerceptionControlPlaneStatus, PerceptionSourcePolicyPatch } from "@orbit/core";
 
 export interface PerceptionStatusResult {
@@ -58,6 +73,20 @@ export interface PerceptionReleaseGateCommandResult {
   releaseGate: ReturnType<typeof evaluatePerceptionReleaseGate>;
 }
 
+export interface TranscribeFixtureCommandResult {
+  orbitHome: string;
+  dbPath: string;
+  source: {
+    adapterId: string;
+    read: number;
+    inserted: number;
+    skipped: number;
+    nextCursor?: string;
+    warnings: string[];
+  };
+  pipeline: SemanticPipelineResult;
+}
+
 export function getPerceptionStatus(): PerceptionStatusResult {
   const config = getCliConfig();
   const database = openOrbitDatabase({ orbitHome: config.orbitHome });
@@ -79,11 +108,7 @@ export function setPerceptionSourcePolicy(
   const database = openOrbitDatabase({ orbitHome: config.orbitHome });
   try {
     const sourceKind = readPerceptionSourceKind(input.sourceKind);
-    const perception = updatePerceptionSourcePolicy(
-      database.db,
-      sourceKind,
-      input.patch
-    );
+    const perception = updatePerceptionSourcePolicy(database.db, sourceKind, input.patch);
     if (input.patch.canStoreRaw === false || input.patch.rawRetentionTtlMinutes === null) {
       cleanupPerceptionSidecars(database, { sourceKind });
     }
@@ -207,9 +232,11 @@ export async function runScreenOcrSmoke(
   }
 }
 
-export function cleanupPerceptionRawSidecars(options: {
-  dryRun?: boolean;
-} = {}): PerceptionCleanupCommandResult {
+export function cleanupPerceptionRawSidecars(
+  options: {
+    dryRun?: boolean;
+  } = {}
+): PerceptionCleanupCommandResult {
   const config = getCliConfig();
   const database = openOrbitDatabase({ orbitHome: config.orbitHome });
   try {
@@ -247,6 +274,90 @@ export function getPerceptionReleaseGate(): PerceptionReleaseGateCommandResult {
     };
   } finally {
     database.close();
+  }
+}
+
+export async function transcribeAudioFixture(): Promise<TranscribeFixtureCommandResult> {
+  const config = getCliConfig();
+  const database = openOrbitDatabase({ orbitHome: config.orbitHome });
+  try {
+    const sourceRepository = new SourceRepository(database.db);
+    const eventRepository = new EventRepository(database.db);
+    const auditRepository = new AuditRepository(database.db);
+    const perception = readPerceptionStatus(database.db);
+    const audioRead = readAudioFixtures(join(config.fixturesRoot, "perception/audio"));
+    const audioScope = audioRead.segments[0]?.scope ?? {
+      kind: "microphone" as const,
+      label: "Goal 9B transcription fixture",
+      deviceId: "fixture-mic"
+    };
+    const providerBuild = buildCliTranscriptionProvider(perception);
+    const adapter = new TranscriptObservationAdapter({
+      id: TRANSCRIPT_OBSERVATION_ADAPTER_ID,
+      segments: audioRead.segments,
+      scope: audioScope,
+      provider: providerBuild.provider,
+      policy: transcriptPolicyFromPerceptionStatus(perception),
+      permission: audioPermission("microphone", "granted"),
+      protectedApps: perception.protectedApps
+    });
+    sourceRepository.upsertFromAdapter(adapter);
+    const cursor = sourceRepository.getCursor(adapter.id);
+    const result = await ingestEventsFromAdapter(adapter, eventRepository, cursor);
+    sourceRepository.setCursor(adapter.id, result.nextCursor);
+    sourceRepository.recordSyncSuccess(adapter.id, { lastEventAt: result.lastEventAt });
+    const warnings = [...audioRead.warnings, ...providerBuild.warnings, ...result.warnings];
+    auditRepository.log("perception.transcription_fixture", "source", adapter.id, {
+      mode: "explicit_fixture_transcription",
+      provider: providerBuild.provider.kind,
+      read: result.read,
+      inserted: result.inserted,
+      skipped: result.skipped,
+      warnings
+    });
+    const pipeline = runSemanticPipeline(database);
+    return {
+      orbitHome: database.orbitHome,
+      dbPath: database.dbPath,
+      source: {
+        adapterId: result.adapterId,
+        read: result.read,
+        inserted: result.inserted,
+        skipped: result.skipped,
+        ...(result.nextCursor ? { nextCursor: result.nextCursor } : {}),
+        warnings
+      },
+      pipeline
+    };
+  } finally {
+    database.close();
+  }
+}
+
+function buildCliTranscriptionProvider(perception: PerceptionControlPlaneStatus): {
+  provider: ReturnType<typeof buildTranscriptionProvider>;
+  warnings: string[];
+} {
+  const route = perception.providerRoutes.find((item) => item.task === "transcription");
+  const aiConfig = readAIProviderConfigFromEnv();
+  try {
+    return {
+      provider: buildTranscriptionProvider({
+        kind: route?.provider ?? "disabled",
+        ...(aiConfig.baseUrl ? { baseUrl: aiConfig.baseUrl } : {}),
+        ...((process.env.ORBIT_OPENAI_TRANSCRIPTION_MODEL ?? aiConfig.model)
+          ? { model: process.env.ORBIT_OPENAI_TRANSCRIPTION_MODEL ?? aiConfig.model }
+          : {}),
+        ...(aiConfig.apiKey ? { apiKey: aiConfig.apiKey } : {}),
+        ...(aiConfig.timeoutMs ? { timeoutMs: aiConfig.timeoutMs } : {})
+      }),
+      warnings: []
+    };
+  } catch (error) {
+    return {
+      provider: disabledTranscriptionProvider,
+      warnings: [error instanceof Error ? error.message : String(error)]
+    };
   }
 }
 
