@@ -431,10 +431,10 @@ async function runRendererSmoke(window: BrowserWindow): Promise<void> {
           await waitFor(".recommendation-detail-pane .detail-header");
           await waitFor(".snooze-control");
           await click('[data-page-id="activity"]');
-          const session = await waitFor(".activity-list-item");
+          const session = await waitFor(".activity-timeline-item");
           session.click();
-          await waitFor(".detail-header");
-          await waitFor(".detail-grid");
+          await waitFor(".activity-playback-header");
+          await waitFor(".mini-grid");
           await waitFor(".event-stream .event-row");
           await waitFor(".derived-grid");
           return true;

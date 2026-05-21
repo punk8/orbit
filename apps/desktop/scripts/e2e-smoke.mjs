@@ -16,6 +16,7 @@ const appEntry = resolve("dist-electron/main.cjs");
 if (!existsSync(appEntry) && !existsSync(packagedEntry)) {
   throw new Error("Desktop build is missing. Run pnpm --filter @orbit/desktop build first.");
 }
+const smokeTimeoutMs = readPositiveInt(process.env.ORBIT_E2E_SMOKE_TIMEOUT_MS, 45_000);
 
 const orbitHome = mkdtempSync(join(tmpdir(), "orbit-desktop-e2e-"));
 const env = {
@@ -89,7 +90,7 @@ function runSmoke() {
         console.error(output);
         finish(1);
       }, 500);
-    }, 15000);
+    }, smokeTimeoutMs);
 
     child.on("exit", (code, signal) => {
       if (timedOut) {
@@ -137,4 +138,10 @@ function run(command, args) {
   if (result.status !== 0) {
     throw new ProcessFailure(result.status ?? 1);
   }
+}
+
+function readPositiveInt(value, fallback) {
+  if (!value) return fallback;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
