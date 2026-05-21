@@ -214,9 +214,13 @@ export function App(): ReactElement {
     return runReviewAction(() => window.orbit.editMemory(id, patch), t("error.memoryEdit"));
   }
 
-  function reviewRecommendation(id: string, action: RecommendationReviewAction): Promise<void> {
+  function reviewRecommendation(
+    id: string,
+    action: RecommendationReviewAction,
+    options?: { snoozeUntil?: string | undefined }
+  ): Promise<void> {
     return runReviewAction(
-      () => window.orbit.reviewRecommendation(id, action),
+      () => window.orbit.reviewRecommendation(id, action, options),
       t("error.recommendationReview")
     );
   }
@@ -336,7 +340,11 @@ interface PageActions {
   editKnowledge(id: string, patch: KnowledgeEditInput): Promise<void>;
   reviewMemory(id: string, action: MemoryReviewAction): Promise<void>;
   editMemory(id: string, patch: MemoryEditInput): Promise<void>;
-  reviewRecommendation(id: string, action: RecommendationReviewAction): Promise<void>;
+  reviewRecommendation(
+    id: string,
+    action: RecommendationReviewAction,
+    options?: { snoozeUntil?: string | undefined }
+  ): Promise<void>;
   updateSetting(key: DesktopSettingKey, value: unknown): Promise<void>;
   setCollectionPaused(paused: boolean): Promise<void>;
   updateSourceRuntime(sourceId: string, action: DesktopSourceRuntimeAction): Promise<void>;

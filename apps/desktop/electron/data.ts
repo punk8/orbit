@@ -65,6 +65,7 @@ import type {
   DesktopKnowledgeSearchFilters,
   DesktopMemoryDetail,
   DesktopMemorySearchFilters,
+  DesktopRecommendationDetail,
   DesktopRuntimeStatus,
   DesktopSourceRuntimeAction,
   DesktopSettingKey,
@@ -341,6 +342,47 @@ export function editMemoryForDesktop(id: string, patch: MemoryEditInput): Deskto
     database.close();
   }
   return readDesktopSnapshot();
+}
+
+export function getRecommendationDetailForDesktop(id: string): DesktopRecommendationDetail {
+  const database = openOrbitDatabase();
+  try {
+    const recommendationRepository = new RecommendationRepository(database.db);
+    const eventRepository = new EventRepository(database.db);
+    const activityRepository = new ActivityRepository(database.db);
+    const knowledgeRepository = new KnowledgeRepository(database.db);
+    const memoryRepository = new MemoryRepository(database.db);
+    const recommendation = recommendationRepository.getRecommendation(id);
+    if (!recommendation) {
+      throw new Error(`Unknown recommendation: ${id}`);
+    }
+
+    const evidenceKeys = evidenceKeySet(recommendation.evidence);
+    const eventIds = recommendation.evidence.flatMap((ref) => ref.eventId ?? []);
+    const sourceSessionIds = new Set(
+      recommendation.evidence.flatMap((ref) => ref.activitySessionId ?? [])
+    );
+    const sourcePointers = new Set(recommendation.evidence.map((ref) => ref.sourcePointer));
+    const sourceSessions = activityRepository.listActivitySessions().filter((session) => {
+      if (sourceSessionIds.has(session.id)) return true;
+      if (session.eventIds.some((eventId) => eventIds.includes(eventId))) return true;
+      return session.evidence.some((ref) => sourcePointers.has(ref.sourcePointer));
+    });
+
+    return {
+      recommendation,
+      events: eventRepository.listEventsByIds(eventIds),
+      sourceSessions,
+      knowledgeArtifacts: knowledgeRepository
+        .listKnowledgeArtifacts()
+        .filter((artifact) => artifact.evidence.some((ref) => evidenceKeys.has(evidenceKey(ref)))),
+      memories: memoryRepository
+        .listMemories()
+        .filter((memory) => memory.evidence.some((ref) => evidenceKeys.has(evidenceKey(ref))))
+    };
+  } finally {
+    database.close();
+  }
 }
 
 export function reviewRecommendationForDesktop(

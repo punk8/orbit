@@ -12,6 +12,7 @@ const orbitApi: OrbitDesktopApi = {
   getMemoryDetail: (id) => ipcRenderer.invoke("orbit:getMemoryDetail", id),
   editMemory: (id, patch) => ipcRenderer.invoke("orbit:editMemory", id, patch),
   reviewMemory: (id, action) => ipcRenderer.invoke("orbit:reviewMemory", id, action),
+  getRecommendationDetail: (id) => ipcRenderer.invoke("orbit:getRecommendationDetail", id),
   reviewRecommendation: (id, action, options) =>
     ipcRenderer.invoke("orbit:reviewRecommendation", id, action, options),
   updateSetting: (key, value) => ipcRenderer.invoke("orbit:updateSetting", key, value),

@@ -11,6 +11,7 @@ import {
   getActivitySessionDetailForDesktop,
   getKnowledgeArtifactDetailForDesktop,
   getMemoryDetailForDesktop,
+  getRecommendationDetailForDesktop,
   readDesktopSnapshot,
   readDesktopSettings,
   reconfigureSourceForDesktop,
@@ -95,6 +96,9 @@ ipcMain.handle("orbit:getMemoryDetail", (_event, id: string) => getMemoryDetailF
 ipcMain.handle("orbit:editMemory", (_event, id: string, patch) => editMemoryForDesktop(id, patch));
 ipcMain.handle("orbit:reviewMemory", (_event, id: string, action: string) =>
   reviewMemoryForDesktop(id, requireMemoryAction(action))
+);
+ipcMain.handle("orbit:getRecommendationDetail", (_event, id: string) =>
+  getRecommendationDetailForDesktop(id)
 );
 ipcMain.handle(
   "orbit:reviewRecommendation",
@@ -307,6 +311,11 @@ async function runRendererSmoke(window: BrowserWindow): Promise<void> {
           memory.click();
           await waitFor(".memory-detail-pane .detail-header");
           await waitFor(".memory-detail-pane .detail-grid");
+          await click('[data-page-id="recommendations"]');
+          const recommendation = await waitFor(".recommendation-list-item");
+          recommendation.click();
+          await waitFor(".recommendation-detail-pane .detail-header");
+          await waitFor(".snooze-control");
           await click('[data-page-id="activity"]');
           const session = await waitFor(".activity-list-item");
           session.click();

@@ -101,6 +101,14 @@ export interface DesktopMemoryDetail {
   sourceSessions: ActivitySession[];
 }
 
+export interface DesktopRecommendationDetail {
+  recommendation: Recommendation;
+  events: Event[];
+  sourceSessions: ActivitySession[];
+  knowledgeArtifacts: KnowledgeArtifact[];
+  memories: Memory[];
+}
+
 export type DesktopSettingKey =
   | "desktop.menuBarEnabled"
   | "desktop.launchAtLoginEnabled"
@@ -179,6 +187,7 @@ export interface OrbitDesktopApi {
   getMemoryDetail(id: string): Promise<DesktopMemoryDetail>;
   editMemory(id: string, patch: MemoryEditInput): Promise<DesktopSnapshot>;
   reviewMemory(id: string, action: MemoryReviewAction): Promise<DesktopSnapshot>;
+  getRecommendationDetail(id: string): Promise<DesktopRecommendationDetail>;
   reviewRecommendation(
     id: string,
     action: RecommendationReviewAction,

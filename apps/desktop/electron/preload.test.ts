@@ -13,6 +13,7 @@ describe("desktop preload API", () => {
     expect(source).toContain("searchMemory");
     expect(source).toContain("getMemoryDetail");
     expect(source).toContain("editMemory");
+    expect(source).toContain("getRecommendationDetail");
     expect(source).toContain("deleteSource");
     expect(source).toContain("resetSourceCursor");
     expect(source).toContain("cleanupLegacyEventPrivacy");

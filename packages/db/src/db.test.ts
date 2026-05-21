@@ -121,15 +121,19 @@ describe("sqlite store", () => {
 
       const recommendationRepo = new RecommendationRepository(db);
       recommendationRepo.upsertRecommendation(makeRecommendation(event));
-      expect(reviewRecommendation(db, "recommendation_fixture", "dismiss").status).toBe(
-        "dismissed"
-      );
+      expect(
+        reviewRecommendation(db, "recommendation_fixture", "snooze", {
+          snoozeUntil: "2026-05-21T09:00:00.000Z"
+        }).dueAt
+      ).toBe("2026-05-21T09:00:00.000Z");
+      expect(reviewRecommendation(db, "recommendation_fixture", "accept").status).toBe("accepted");
 
       const operations = new AuditRepository(db).listAuditLogs().map((log) => log.operation);
       expect(operations).toContain("knowledge.confirm");
       expect(operations).toContain("memory.generate_candidate");
       expect(operations).toContain("memory.confirm");
-      expect(operations).toContain("recommendation.dismiss");
+      expect(operations).toContain("recommendation.snooze");
+      expect(operations).toContain("recommendation.accept");
     } finally {
       close();
     }

@@ -458,6 +458,12 @@ button {
   min-height: 560px;
 }
 
+.recommendation-workbench {
+  display: grid;
+  grid-template-columns: minmax(340px, 0.85fr) minmax(0, 1.45fr);
+  min-height: 560px;
+}
+
 .activity-list {
   display: grid;
   align-content: start;
@@ -482,6 +488,16 @@ button {
   display: grid;
   align-content: start;
   gap: 10px;
+  max-height: calc(100vh - 230px);
+  overflow: auto;
+  border-right: 1px solid #ece9e2;
+  padding: 12px;
+}
+
+.recommendation-list {
+  display: grid;
+  align-content: start;
+  gap: 8px;
   max-height: calc(100vh - 230px);
   overflow: auto;
   border-right: 1px solid #ece9e2;
@@ -527,25 +543,42 @@ button {
   text-align: left;
 }
 
+.recommendation-list-item {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #e2dfd8;
+  border-radius: 8px;
+  background: #ffffff;
+  cursor: pointer;
+  padding: 14px 16px;
+  text-align: left;
+}
+
 .activity-list-item:hover,
 .activity-list-item.active,
 .knowledge-list-item:hover,
 .knowledge-list-item.active,
 .memory-list-item:hover,
-.memory-list-item.active {
+.memory-list-item.active,
+.recommendation-list-item:hover,
+.recommendation-list-item.active {
   border-color: #cfdad5;
   background: #f8fbf9;
 }
 
 .activity-list-item.active,
 .knowledge-list-item.active,
-.memory-list-item.active {
+.memory-list-item.active,
+.recommendation-list-item.active {
   box-shadow: inset 3px 0 0 #4c9083;
 }
 
 .activity-list-item p,
 .knowledge-list-item p,
-.memory-list-item p {
+.memory-list-item p,
+.recommendation-list-item p {
   margin: 0;
   color: #4f5759;
   font-size: 13px;
@@ -567,6 +600,13 @@ button {
 }
 
 .memory-detail-pane {
+  min-width: 0;
+  max-height: calc(100vh - 230px);
+  overflow: auto;
+  padding: 16px;
+}
+
+.recommendation-detail-pane {
   min-width: 0;
   max-height: calc(100vh - 230px);
   overflow: auto;
@@ -833,6 +873,13 @@ button {
     Menlo,
     Consolas,
     monospace;
+}
+
+.snooze-control {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
 }
 
 .empty-state.compact,
