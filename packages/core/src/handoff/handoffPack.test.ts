@@ -65,6 +65,7 @@ describe("handoff pack", () => {
     expect(pack.confirmedKnowledge).toHaveLength(0);
     expect(pack.activeMemories).toHaveLength(0);
     expect(pack.recommendedNextActions).toHaveLength(0);
+    expect(pack.evidenceIndex).toHaveLength(0);
     expect(pack.excluded.map((item) => item.reason)).toEqual(
       expect.arrayContaining([
         "draft_knowledge",

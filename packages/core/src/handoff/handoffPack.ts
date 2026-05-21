@@ -156,6 +156,7 @@ export interface BuildHandoffPackInput {
 
 interface EvidenceBuildResult {
   evidenceIds: string[];
+  evidenceItems: HandoffEvidenceItem[];
   exclusions: HandoffExclusionReason[];
 }
 
@@ -182,10 +183,10 @@ export function buildHandoffPack(input: BuildHandoffPackInput): HandoffPack {
       eventSafety: input.eventSafety,
       objectType: "activity",
       objectId: session.id,
-      packScope,
-      evidence
+      packScope
     });
     if (!includeOrExclude(result, excluded, "activity", session.id)) continue;
+    mergeEvidence(evidence, result);
     const activityItem: HandoffActivityItem = {
       id: session.id,
       title: session.title,
@@ -209,14 +210,14 @@ export function buildHandoffPack(input: BuildHandoffPackInput): HandoffPack {
       eventSafety: input.eventSafety,
       objectType: "knowledge",
       objectId: artifact.id,
-      packScope,
-      evidence
+      packScope
     });
     if (artifact.status !== "confirmed") {
       excluded.push({ objectType: "knowledge", objectId: artifact.id, reason: "draft_knowledge" });
       continue;
     }
     if (!includeOrExclude(result, excluded, "knowledge", artifact.id)) continue;
+    mergeEvidence(evidence, result);
     confirmedKnowledge.push({
       id: artifact.id,
       title: artifact.title,
@@ -254,14 +255,14 @@ export function buildHandoffPack(input: BuildHandoffPackInput): HandoffPack {
       eventSafety: input.eventSafety,
       objectType: "memory",
       objectId: memory.id,
-      packScope,
-      evidence
+      packScope
     });
     if (memory.status !== "confirmed") {
       excluded.push({ objectType: "memory", objectId: memory.id, reason: "memory_not_confirmed" });
       continue;
     }
     if (!includeOrExclude(result, excluded, "memory", memory.id)) continue;
+    mergeEvidence(evidence, result);
     activeMemories.push({
       id: memory.id,
       title: memory.title,
@@ -290,8 +291,7 @@ export function buildHandoffPack(input: BuildHandoffPackInput): HandoffPack {
       eventSafety: input.eventSafety,
       objectType: "recommendation",
       objectId: recommendation.id,
-      packScope,
-      evidence
+      packScope
     });
     if (recommendation.status === "dismissed" || recommendation.status === "resolved") {
       excluded.push({
@@ -302,6 +302,7 @@ export function buildHandoffPack(input: BuildHandoffPackInput): HandoffPack {
       continue;
     }
     if (!includeOrExclude(result, excluded, "recommendation", recommendation.id)) continue;
+    mergeEvidence(evidence, result);
     const item: HandoffRecommendationItem = {
       id: recommendation.id,
       title: recommendation.title,
@@ -368,10 +369,10 @@ function buildEvidenceIds(input: {
   objectType: HandoffEvidenceItem["objectType"];
   objectId: string;
   packScope: HandoffPackScope;
-  evidence: Map<string, HandoffEvidenceItem>;
 }): EvidenceBuildResult {
   const exclusions = new Set<HandoffExclusionReason>();
   const evidenceIds: string[] = [];
+  const evidenceItems: HandoffEvidenceItem[] = [];
   const refs = [...input.refs];
   for (const eventId of input.eventIds ?? []) {
     if (!refs.some((ref) => ref.eventId === eventId)) {
@@ -418,16 +419,14 @@ function buildEvidenceIds(input: {
       ref.sourcePointer
     ]);
     evidenceIds.push(evidenceId);
-    if (!input.evidence.has(evidenceId)) {
-      input.evidence.set(evidenceId, {
-        id: evidenceId,
-        sourceKind: safety?.sourceKind ?? ref.sourceKind,
-        sourcePointer: safety?.sourcePointer ?? ref.sourcePointer,
-        timestamp: safety?.timestamp ?? ref.timestamp,
-        objectType: input.objectType,
-        objectId: input.objectId
-      });
-    }
+    evidenceItems.push({
+      id: evidenceId,
+      sourceKind: safety?.sourceKind ?? ref.sourceKind,
+      sourcePointer: safety?.sourcePointer ?? ref.sourcePointer,
+      timestamp: safety?.timestamp ?? ref.timestamp,
+      objectType: input.objectType,
+      objectId: input.objectId
+    });
   }
 
   if (evidenceIds.length === 0 && exclusions.size === 0) {
@@ -436,8 +435,17 @@ function buildEvidenceIds(input: {
 
   return {
     evidenceIds,
+    evidenceItems,
     exclusions: [...exclusions]
   };
+}
+
+function mergeEvidence(evidence: Map<string, HandoffEvidenceItem>, result: EvidenceBuildResult): void {
+  for (const item of result.evidenceItems) {
+    if (!evidence.has(item.id)) {
+      evidence.set(item.id, item);
+    }
+  }
 }
 
 function includeOrExclude(
