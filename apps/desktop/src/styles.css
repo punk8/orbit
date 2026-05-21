@@ -903,8 +903,12 @@ button {
 
 .settings-layout {
   display: grid;
+  flex: 1;
   grid-template-columns: 240px minmax(0, 1fr);
   gap: 16px;
+  min-height: 0;
+  overflow: auto;
+  padding: 22px 28px 32px;
 }
 
 .settings-subnav {
