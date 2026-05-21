@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
-import type { Event, KnowledgeArtifact, Memory } from "@orbit/core";
+import type { Event, KnowledgeArtifact, Memory, SourceKind, SourceRecord } from "@orbit/core";
 import {
   createStableId,
   defaultPermissionScopeForSource,
@@ -10,6 +10,7 @@ import {
   hashObject
 } from "@orbit/core";
 import { EventRepository } from "./repositories/eventRepository";
+import { ActivityRepository } from "./repositories/activityRepository";
 import { KnowledgeRepository } from "./repositories/knowledgeRepository";
 import { MemoryRepository } from "./repositories/memoryRepository";
 import { AuditRepository } from "./repositories/auditRepository";
@@ -18,6 +19,8 @@ import { RecommendationRepository } from "./repositories/recommendationRepositor
 import { openOrbitDatabase } from "./connection";
 import { resolveOrbitDbPath, writeOrbitRuntimeConfig } from "./orbitHome";
 import { SourceRepository } from "./repositories/sourceRepository";
+import { cleanupLegacyEventPrivacy } from "./privacyCleanup";
+import { runSemanticPipeline } from "./semanticPipeline";
 
 const tempDirs: string[] = [];
 
@@ -147,22 +150,224 @@ describe("sqlite store", () => {
       close();
     }
   });
+
+  it("resets source cursor without deleting the source", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-db-source-reset-test-"));
+    tempDirs.push(orbitHome);
+    const { db, close } = openOrbitDatabase({ orbitHome });
+    try {
+      const sources = new SourceRepository(db);
+      sources.upsertSource(makeSource("fixture_codex"));
+      sources.setCursor("fixture_codex", "12");
+
+      sources.resetCursor("fixture_codex");
+
+      expect(sources.getSource("fixture_codex")).toBeTruthy();
+      expect(sources.getCursor("fixture_codex")).toBeUndefined();
+    } finally {
+      close();
+    }
+  });
+
+  it("deletes source runtime rows without deleting unrelated sources", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-db-source-delete-test-"));
+    tempDirs.push(orbitHome);
+    const { db, close } = openOrbitDatabase({ orbitHome });
+    try {
+      const sources = new SourceRepository(db);
+      sources.upsertSource(makeSource("fixture_codex"));
+      sources.upsertSource(makeSource("fixture_seatalk", "seatalk"));
+      sources.setCursor("fixture_codex", "12");
+      sources.setCursor("fixture_seatalk", "7");
+
+      const result = sources.deleteSource("fixture_codex");
+
+      expect(result.deletedSources).toBe(1);
+      expect(result.deletedCursors).toBe(1);
+      expect(sources.getSource("fixture_codex")).toBeUndefined();
+      expect(sources.getCursor("fixture_codex")).toBeUndefined();
+      expect(sources.getSource("fixture_seatalk")).toBeTruthy();
+      expect(sources.getCursor("fixture_seatalk")).toBe("7");
+    } finally {
+      close();
+    }
+  });
+
+  it("cleans legacy raw event text when source policy disallows raw storage", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-db-privacy-cleanup-test-"));
+    tempDirs.push(orbitHome);
+    const { db, close } = openOrbitDatabase({ orbitHome });
+    try {
+      const sources = new SourceRepository(db);
+      sources.upsertSource(makeSource("fixture_codex"));
+      const eventRepo = new EventRepository(db);
+      const event = makeEvent({
+        pointer: "fixture://codex/day-1#legacy",
+        text: "legacy raw content that should not remain stored as raw text"
+      });
+      eventRepo.upsertEvent(event);
+
+      const cleanup = cleanupLegacyEventPrivacy({
+        db,
+        orbitHome,
+        dbPath: join(orbitHome, "orbit.db"),
+        close
+      });
+      const cleanedEvent = eventRepo.getEvent(event.id);
+      const auditOperations = new AuditRepository(db).listAuditLogs().map((log) => log.operation);
+
+      expect(cleanup.cleanedEvents).toBe(1);
+      expect(cleanedEvent?.content.text).toBeUndefined();
+      expect(cleanedEvent?.content.summary).toContain("legacy raw content");
+      expect(cleanedEvent?.source.pointer).toBe("fixture://codex/day-1#legacy");
+      expect(cleanedEvent?.privacy.redactionState).toBe("redacted");
+      expect(auditOperations).toContain("privacy.cleanup_legacy_events");
+    } finally {
+      close();
+    }
+  });
+
+  it("cleans event raw text without deleting derived context evidence", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-db-privacy-derived-test-"));
+    tempDirs.push(orbitHome);
+    const { db, close } = openOrbitDatabase({ orbitHome });
+    try {
+      const source = makeSource("fixture_codex");
+      new SourceRepository(db).upsertSource(source);
+      const event = makeEvent({
+        pointer: "fixture://codex/day-1#derived",
+        text: "legacy raw context with durable derived evidence"
+      });
+      new EventRepository(db).upsertEvent(event);
+      const knowledge = makeKnowledge(event);
+      new KnowledgeRepository(db).upsertKnowledgeArtifact(knowledge);
+      new MemoryRepository(db).upsertMemory(makeMemory(event));
+      new RecommendationRepository(db).upsertRecommendation(makeRecommendation(event));
+
+      cleanupLegacyEventPrivacy({ db, orbitHome, dbPath: join(orbitHome, "orbit.db"), close });
+
+      expect(
+        new KnowledgeRepository(db).getKnowledgeArtifact(knowledge.id)?.evidence[0]?.eventId
+      ).toBe(event.id);
+      expect(new MemoryRepository(db).getMemory("memory_fixture")?.evidence[0]?.eventId).toBe(
+        event.id
+      );
+      expect(
+        new RecommendationRepository(db).getRecommendation("recommendation_fixture")?.evidence[0]
+          ?.eventId
+      ).toBe(event.id);
+    } finally {
+      close();
+    }
+  });
+
+  it("does not summarize secret or failed-redaction legacy raw text", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-db-privacy-secret-test-"));
+    tempDirs.push(orbitHome);
+    const { db, close } = openOrbitDatabase({ orbitHome });
+    try {
+      new SourceRepository(db).upsertSource(makeSource("fixture_codex"));
+      const eventRepo = new EventRepository(db);
+      const secretEvent = makeEvent({
+        pointer: "fixture://codex/day-1#secret",
+        text: "password=do-not-keep",
+        sensitivity: "secret"
+      });
+      const failedEvent = makeEvent({
+        pointer: "fixture://codex/day-1#failed",
+        text: "raw text from failed redaction",
+        redactionState: "failed"
+      });
+      eventRepo.upsertEvent(secretEvent);
+      eventRepo.upsertEvent(failedEvent);
+
+      cleanupLegacyEventPrivacy({ db, orbitHome, dbPath: join(orbitHome, "orbit.db"), close });
+
+      const cleanedSecret = eventRepo.getEvent(secretEvent.id);
+      const cleanedFailed = eventRepo.getEvent(failedEvent.id);
+      expect(cleanedSecret?.content.text).toBeUndefined();
+      expect(cleanedSecret?.content.summary).not.toContain("do-not-keep");
+      expect(cleanedSecret?.content.summary).toBe("[REDACTED SECRET]");
+      expect(cleanedSecret?.privacy.redactionState).toBe("redacted");
+      expect(cleanedFailed?.content.text).toBeUndefined();
+      expect(cleanedFailed?.content.summary).not.toContain("failed redaction");
+      expect(cleanedFailed?.privacy.redactionState).toBe("failed");
+    } finally {
+      close();
+    }
+  });
+
+  it("refreshes activity summaries after cleaning legacy raw text", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-db-privacy-activity-test-"));
+    tempDirs.push(orbitHome);
+    const { db, close } = openOrbitDatabase({ orbitHome });
+    try {
+      new SourceRepository(db).upsertSource(makeSource("fixture_codex"));
+      const eventRepo = new EventRepository(db);
+      const event = makeEvent({
+        pointer: "fixture://codex/day-1#activity",
+        text: "legacy raw activity details",
+        title: ""
+      });
+      eventRepo.upsertEvent(event);
+      runSemanticPipeline({ db, orbitHome, dbPath: join(orbitHome, "orbit.db"), close });
+      expect(new ActivityRepository(db).listActivitySessions()[0]?.summary).toContain(
+        "legacy raw activity details"
+      );
+      db.prepare("UPDATE activity_sessions SET summary = ?").run("stale raw activity summary");
+
+      cleanupLegacyEventPrivacy({ db, orbitHome, dbPath: join(orbitHome, "orbit.db"), close });
+
+      expect(new ActivityRepository(db).listActivitySessions()[0]?.summary).not.toContain(
+        "stale raw activity summary"
+      );
+      expect(new ActivityRepository(db).listActivitySessions()[0]?.summary).toContain(
+        "legacy raw activity details"
+      );
+    } finally {
+      close();
+    }
+  });
 });
 
-function makeEvent(): Event {
+function makeSource(id: string, kind: SourceKind = "codex"): SourceRecord {
+  const sensitivity = kind === "seatalk" ? "confidential" : "internal";
+  const now = "2026-05-20T09:00:00.000Z";
+  return {
+    id,
+    kind,
+    displayName: id,
+    enabled: true,
+    paused: false,
+    defaultSensitivity: sensitivity,
+    permissionScope: defaultPermissionScopeForSource(kind, sensitivity),
+    createdAt: now,
+    updatedAt: now
+  };
+}
+
+function makeEvent(
+  options: {
+    pointer?: string;
+    title?: string;
+    text?: string;
+    sensitivity?: Event["privacy"]["sensitivity"];
+    redactionState?: Event["privacy"]["redactionState"];
+  } = {}
+): Event {
   const source = {
     kind: "codex" as const,
     adapterId: "fixture_codex",
     externalId: "codex-1",
-    pointer: "fixture://codex/day-1#1"
+    pointer: options.pointer ?? "fixture://codex/day-1#1"
   };
   const eventInput = {
     source,
     occurredAt: "2026-05-20T09:00:00.000Z",
     type: "message",
-    text: "Synthetic fixture event"
+    text: options.text ?? "Synthetic fixture event"
   };
-  return {
+  const event: Event = {
     id: createStableId("event", eventInput),
     schemaVersion: 1,
     source,
@@ -173,12 +378,20 @@ function makeEvent(): Event {
     type: "message",
     content: { title: "Fixture event", text: eventInput.text },
     privacy: {
-      sensitivity: "internal",
+      sensitivity: options.sensitivity ?? "internal",
       retentionPolicyId: "default",
-      redactionState: "none"
+      redactionState: options.redactionState ?? "none"
     },
     hash: hashObject(eventInput)
   };
+  if (options.title !== undefined) {
+    if (options.title) {
+      event.content.title = options.title;
+    } else {
+      delete event.content.title;
+    }
+  }
+  return event;
 }
 
 function makeKnowledge(event: Event): KnowledgeArtifact {

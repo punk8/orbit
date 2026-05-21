@@ -6,6 +6,7 @@ import {
   Brain,
   CheckSquare,
   Database,
+  FileText,
   Lightbulb,
   RefreshCw,
   Settings,
@@ -15,6 +16,7 @@ import type { DesktopSnapshot } from "./orbitApi";
 import type {
   DesktopAIProviderTestConfig,
   DesktopAIProviderTestResult,
+  DesktopHandoffResult,
   DesktopSettingKey,
   DesktopSourceRuntimeAction,
   SourceSetupKind
@@ -25,6 +27,7 @@ import type {
   RecommendationReviewAction
 } from "@orbit/db";
 import { ActivityPage } from "./routes/ActivityPage";
+import { HandoffPage } from "./routes/HandoffPage";
 import { KnowledgePage } from "./routes/KnowledgePage";
 import { MemoryPage } from "./routes/MemoryPage";
 import { RecommendationsPage } from "./routes/RecommendationsPage";
@@ -41,6 +44,7 @@ type PageId =
   | "knowledge"
   | "memory"
   | "recommendations"
+  | "handoff"
   | "review"
   | "sources"
   | "settings";
@@ -51,6 +55,7 @@ const pages = [
   { id: "knowledge", labelKey: "nav.knowledge", icon: BookOpen },
   { id: "memory", labelKey: "nav.memory", icon: Brain },
   { id: "recommendations", labelKey: "nav.recommendations", icon: Lightbulb },
+  { id: "handoff", labelKey: "nav.handoff", icon: FileText },
   { id: "review", labelKey: "nav.review", icon: CheckSquare },
   { id: "sources", labelKey: "nav.sources", icon: Database },
   { id: "settings", labelKey: "nav.settings", icon: Settings }
@@ -121,6 +126,35 @@ export function App(): ReactElement {
     }
   }
 
+  async function reconfigureSource(
+    sourceId: string,
+    kind: SourceSetupKind,
+    path?: string
+  ): Promise<void> {
+    await runDesktopAction(
+      () => window.orbit.reconfigureSource(sourceId, kind, path),
+      t("error.sourceRuntime")
+    );
+  }
+
+  async function deleteSource(sourceId: string): Promise<void> {
+    await runDesktopAction(() => window.orbit.deleteSource(sourceId), t("error.sourceRuntime"));
+  }
+
+  async function resetSourceCursor(sourceId: string): Promise<void> {
+    await runDesktopAction(
+      () => window.orbit.resetSourceCursor(sourceId),
+      t("error.sourceRuntime")
+    );
+  }
+
+  async function cleanupLegacyEventPrivacy(): Promise<void> {
+    await runDesktopAction(
+      () => window.orbit.cleanupLegacyEventPrivacy(),
+      t("error.sourceRuntime")
+    );
+  }
+
   async function reindexLocalData(): Promise<void> {
     await runDesktopAction(() => window.orbit.reindexLocalData(), t("error.reindex"));
   }
@@ -131,6 +165,12 @@ export function App(): ReactElement {
 
   async function exportContext(): Promise<void> {
     await runDesktopAction(() => window.orbit.exportContext(), t("error.export"));
+  }
+
+  async function generateHandoff(
+    input: { kind: "today"; date?: string } | { kind: "project"; project: string }
+  ): Promise<DesktopHandoffResult> {
+    return window.orbit.generateHandoff(input);
   }
 
   async function testAIProvider(
@@ -251,9 +291,14 @@ export function App(): ReactElement {
                 setCollectionPaused,
                 updateSourceRuntime,
                 setupSource,
+                reconfigureSource,
+                deleteSource,
+                resetSourceCursor,
+                cleanupLegacyEventPrivacy,
                 reindexLocalData,
                 clearLocalData,
                 exportContext,
+                generateHandoff,
                 testAIProvider
               })
             : null}
@@ -281,9 +326,16 @@ interface PageActions {
   setCollectionPaused(paused: boolean): Promise<void>;
   updateSourceRuntime(sourceId: string, action: DesktopSourceRuntimeAction): Promise<void>;
   setupSource(kind: SourceSetupKind, path?: string): Promise<void>;
+  reconfigureSource(sourceId: string, kind: SourceSetupKind, path?: string): Promise<void>;
+  deleteSource(sourceId: string): Promise<void>;
+  resetSourceCursor(sourceId: string): Promise<void>;
+  cleanupLegacyEventPrivacy(): Promise<void>;
   reindexLocalData(): Promise<void>;
   clearLocalData(): Promise<void>;
   exportContext(): Promise<void>;
+  generateHandoff(
+    input: { kind: "today"; date?: string } | { kind: "project"; project: string }
+  ): Promise<DesktopHandoffResult>;
   testAIProvider(config: DesktopAIProviderTestConfig): Promise<DesktopAIProviderTestResult>;
 }
 
@@ -304,6 +356,8 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
           onReviewRecommendation={actions.reviewRecommendation}
         />
       );
+    case "handoff":
+      return <HandoffPage snapshot={snapshot} onGenerateHandoff={actions.generateHandoff} />;
     case "review":
       return (
         <ReviewQueuePage
@@ -317,6 +371,10 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
         <SourcesPage
           snapshot={snapshot}
           onSetupSource={actions.setupSource}
+          onReconfigureSource={actions.reconfigureSource}
+          onDeleteSource={actions.deleteSource}
+          onResetSourceCursor={actions.resetSourceCursor}
+          onCleanupLegacyEventPrivacy={actions.cleanupLegacyEventPrivacy}
           onUpdateSourceRuntime={actions.updateSourceRuntime}
         />
       );

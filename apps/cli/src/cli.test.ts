@@ -2,10 +2,12 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
+import { buildProgram } from "./index";
 import { ingestCodex } from "./commands/ingestCodex";
 import { ingestFixtures } from "./commands/ingestFixtures";
 import { ingestLocalAgent } from "./commands/ingestLocalAgent";
-import { runKnowledgeReviewAction } from "./commands/governanceActions";
+import { runKnowledgeReviewAction, runMemoryReviewAction } from "./commands/governanceActions";
+import { getTodayHandoff, getTodayHandoffMarkdown } from "./commands/handoff";
 import {
   getProjectContext,
   getTodayContext,
@@ -76,6 +78,40 @@ describe("cli commands", () => {
     expect(listMemories()).toHaveLength(2);
   });
 
+  it("generates handoff packs and registers handoff commands", async () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-handoff-test-"));
+    tempDirs.push(orbitHome);
+    process.env.ORBIT_HOME = orbitHome;
+
+    await ingestFixtures();
+    const artifacts = listKnowledgeArtifacts();
+    const review = runKnowledgeReviewAction(artifacts[0]!.id, "confirm");
+    runMemoryReviewAction(review.generatedMemories[0]!.id, "confirm");
+
+    const pack = getTodayHandoff({
+      date: "2026-05-20",
+      generatedAt: "2026-05-21T08:00:00.000Z"
+    });
+    expect(pack.kind).toBe("today");
+    expect(pack.recentActivity.length).toBeGreaterThan(0);
+    expect(pack.confirmedKnowledge.length).toBeGreaterThan(0);
+    expect(pack.activeMemories.length).toBeGreaterThan(0);
+    expect(JSON.stringify(pack)).not.toContain("RAW_EVENT_TEXT");
+
+    const markdown = getTodayHandoffMarkdown({ date: "2026-05-20" });
+    expect(markdown).toContain("# Orbit Handoff");
+    expect(markdown).toContain("## Evidence Index");
+
+    const program = buildProgram();
+    const help = program.helpInformation();
+    const handoffHelp = program.commands
+      .find((command) => command.name() === "handoff")
+      ?.helpInformation();
+    expect(help).toContain("handoff");
+    expect(handoffHelp).toContain("today");
+    expect(handoffHelp).toContain("project");
+  });
+
   it("ingests sanitized Codex sessions from an explicit path", async () => {
     const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-codex-test-"));
     tempDirs.push(orbitHome);
@@ -97,14 +133,14 @@ describe("cli commands", () => {
     process.env.ORBIT_HOME = orbitHome;
 
     const codex = await ingestCodex(join(process.cwd(), "fixtures/realistic/codex"));
-    expect(codex.inserted).toBe(6);
+    expect(codex.inserted).toBe(8);
     expect(codex.warnings).toHaveLength(1);
 
     const localAgent = await ingestLocalAgent(
       join(process.cwd(), "fixtures/realistic/local-agent")
     );
-    expect(localAgent.inserted).toBe(4);
-    expect(localAgent.warnings).toHaveLength(0);
+    expect(localAgent.inserted).toBe(8);
+    expect(localAgent.warnings).toHaveLength(1);
 
     const secondCodex = await ingestCodex(join(process.cwd(), "fixtures/realistic/codex"));
     const secondLocalAgent = await ingestLocalAgent(
@@ -115,6 +151,6 @@ describe("cli commands", () => {
 
     const status = getStatus();
     expect(status.counts.sources).toBe(2);
-    expect(status.counts.events).toBe(10);
+    expect(status.counts.events).toBe(16);
   });
 });

@@ -28,8 +28,24 @@ describe("CodexAdapter", () => {
     });
 
     const result = await adapter.readCursor();
-    expect(result.events).toHaveLength(6);
+    expect(result.events).toHaveLength(8);
     expect(result.warnings).toHaveLength(1);
     expect(result.warnings?.[0]).toContain("Skipped invalid JSONL record");
+    expect(result.events.map((event) => event.source.pointer)).toEqual([
+      "codex://malformed.jsonl#1",
+      "codex://malformed.jsonl#3",
+      "codex://nested/orbit-child-session.json#1",
+      "codex://nested/orbit-child-session.json#2",
+      "codex://orbit-session.jsonl#1",
+      "codex://orbit-session.jsonl#2",
+      "codex://orbit-session.jsonl#3",
+      "codex://orbit-session.jsonl#4"
+    ]);
+    expect(result.events.map((event) => event.type)).toEqual(
+      expect.arrayContaining(["test_result", "code_change", "command"])
+    );
+
+    const second = await adapter.readCursor(result.nextCursor);
+    expect(second.events).toHaveLength(0);
   });
 });

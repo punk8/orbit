@@ -79,6 +79,8 @@ Future adapters:
 
 - Screen, calendar, email, docs, Jira, GitLab, local filesystem.
 
+Screen and audio should be treated as first-class future Source Adapters and high-risk perception inputs. Their first production shape should prefer active app/window metadata and Accessibility text before ScreenCaptureKit frames, OCR, microphone capture, or transcription. Raw perception data must stay disabled until permission UX, visible running state, pause/stop controls, retention defaults, exclusions, audit logging, redaction, and CPU/storage budgets are complete. See [Perception Research Spike](./perception-research-spike.md).
+
 ## Event And Activity Flow
 
 Events are append-oriented facts. Activity Sessions are derived groupings.
@@ -170,6 +172,8 @@ External agents need read-first access to Orbit:
 - Ask for a Handoff Pack for a day, project, or current workstream.
 
 A Handoff Pack is the agent warm-start surface over the same domain objects. It should assemble current objective, recent Activity, confirmed Knowledge, active Memories, evidence-backed Recommendations, safety boundaries, and compact source pointers. It is not a raw export and should not include draft Knowledge, unconfirmed Memory, or raw private payloads by default.
+
+Handoff Pack does not require screen or audio capture. Future perception Events may contribute only after they are redacted, source-backed, and permitted for agent export. Raw screenshots, recordings, audio, transcripts, and failed-redaction perception data remain blocked from default handoffs.
 
 Initial commands should include:
 

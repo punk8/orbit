@@ -68,6 +68,19 @@ export class EventRepository {
     return row ? mapEvent(row) : undefined;
   }
 
+  updateEventPrivacyAndContent(event: Event): void {
+    this.db
+      .prepare(
+        `
+        UPDATE events
+        SET content_json = ?,
+            privacy_json = ?
+        WHERE id = ?
+      `
+      )
+      .run(encodeJson(event.content), encodeJson(event.privacy), event.id);
+  }
+
   listEvents(): Event[] {
     return this.db
       .prepare("SELECT * FROM events ORDER BY occurred_at, id")

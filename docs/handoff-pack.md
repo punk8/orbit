@@ -42,13 +42,20 @@ Initial surfaces should be read-only:
 ```bash
 orbit handoff today --json
 orbit handoff today --format markdown
+orbit handoff today --date <YYYY-MM-DD>
 orbit handoff project <name> --json
 orbit handoff project <name> --format markdown
 ```
 
+Current desktop surface:
+
+- Desktop Handoff page generates today or project packs.
+- The page previews Markdown locally and can copy it to the clipboard.
+- Safety boundaries and evidence pointers are visible in the page.
+- The desktop action does not send the handoff to an external agent or service.
+
 Later surfaces:
 
-- Desktop "Generate Agent Handoff" action on Today and project/context views.
 - MCP resource such as `orbit://handoff/today` and `orbit://handoff/project/<name>`.
 - Codex/Claude skill wrapper that asks Orbit for a pack before answering continuity-heavy requests.
 
@@ -70,6 +77,7 @@ Default handoffs should exclude:
 - secret content.
 - events with failed redaction.
 - sources whose permission scope disallows agent export.
+- raw screenshots, recordings, audio, transcripts, and failed-redaction perception data.
 
 Optional flags can widen scope for local review, but the output must mark expanded content clearly:
 

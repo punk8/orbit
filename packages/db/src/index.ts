@@ -13,3 +13,5 @@ export * from "./repositories/settingsRepository";
 export * from "./governance";
 export * from "./semanticPipeline";
 export * from "./localDataOperations";
+export * from "./privacyCleanup";
+export * from "./handoffPack";

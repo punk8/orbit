@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { fileURLToPath } from "node:url";
 import { getDbPath } from "./commands/dbPath";
 import {
   runKnowledgeEdit,
@@ -24,6 +25,12 @@ import {
   searchKnowledgeArtifacts,
   searchMemories
 } from "./commands/readModels";
+import {
+  getProjectHandoff,
+  getProjectHandoffMarkdown,
+  getTodayHandoff,
+  getTodayHandoffMarkdown
+} from "./commands/handoff";
 import { runSemanticPipeline } from "./commands/semanticPipeline";
 import { getStatus } from "./commands/status";
 import { buildAIProvider, isAIProviderConfigured, readAIProviderConfigFromEnv } from "@orbit/ai";
@@ -333,10 +340,38 @@ export function buildProgram(): Command {
       });
     });
 
+  const handoff = program.command("handoff").description("Generate agent handoff packs");
+  handoff
+    .command("today")
+    .description("Generate today's agent handoff")
+    .option("--date <date>", "YYYY-MM-DD date override")
+    .option("--format <format>", "Output format: markdown")
+    .option("--json", "output JSON")
+    .action((options: { date?: string; format?: string; json?: boolean }) => {
+      const json = options.json ?? program.opts<{ json?: boolean }>().json;
+      const input = omitUndefined({ date: options.date });
+      writeOutput(
+        json ? getTodayHandoff(input) : getTodayHandoffMarkdown(input),
+        { json }
+      );
+    });
+  handoff
+    .command("project")
+    .description("Generate a project agent handoff")
+    .argument("<project>", "Project name")
+    .option("--format <format>", "Output format: markdown")
+    .option("--json", "output JSON")
+    .action((project: string, options: { format?: string; json?: boolean }) => {
+      const json = options.json ?? program.opts<{ json?: boolean }>().json;
+      writeOutput(json ? getProjectHandoff(project) : getProjectHandoffMarkdown(project), { json });
+    });
+
   return program;
 }
 
-await buildProgram().parseAsync(process.argv);
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  await buildProgram().parseAsync(process.argv);
+}
 
 function requireRecord<T>(record: T | undefined, label: string, id: string): T {
   if (!record) {

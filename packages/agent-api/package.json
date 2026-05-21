@@ -7,7 +7,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run --root ../.. packages/agent-api/src --passWithNoTests",
     "typecheck": "tsc --noEmit -p ../../tsconfig.json"
   }
 }

@@ -5,6 +5,7 @@ export type SourceKind =
   | "local_agent"
   | "seatalk"
   | "screen"
+  | "audio"
   | "calendar"
   | "mail"
   | "docs"

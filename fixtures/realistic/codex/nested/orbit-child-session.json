@@ -1,0 +1,26 @@
+[
+  {
+    "id": "codex-real-json-1",
+    "timestamp": "2026-05-20T09:50:00.000Z",
+    "type": "test_result",
+    "role": "assistant",
+    "project": "orbit",
+    "repository": "orbit",
+    "threadId": "codex-thread-alpha",
+    "title": "Goal 7 handoff tests pass",
+    "content": "The handoff pack builder test passed after adding source-safe evidence mapping.",
+    "topics": ["handoff", "verification"]
+  },
+  {
+    "id": "codex-real-json-2",
+    "timestamp": "2026-05-20T09:55:00.000Z",
+    "type": "code_change",
+    "role": "assistant",
+    "project": "orbit",
+    "repository": "orbit",
+    "threadId": "codex-thread-alpha",
+    "title": "Add handoff pack builder",
+    "content": "Created core handoff types and Markdown formatting.",
+    "topics": ["handoff", "code-change"]
+  }
+]

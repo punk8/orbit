@@ -103,6 +103,17 @@ Implemented and recently verified:
   - CLI context/export defaults include confirmed Knowledge/Memory only
   - Sources UI displays source permissions, readable fields, raw storage policy, AI policy, export policy, and adapter interface
   - desktop clear-local-data action has a confirmation boundary
+- Goal 7 agent continuity work on branch `codex/goal-7-agent-continuity`:
+  - privacy-safe Handoff Pack builder in `@orbit/core`
+  - DB assembly and local `handoff.generate` audit logging
+  - `orbit handoff today --json`
+  - `orbit handoff today --format markdown`
+  - `orbit handoff project <name> --json`
+  - `orbit handoff project <name> --format markdown`
+  - Desktop Handoff page for local generate, preview, and copy
+  - read-only agent resource descriptors for `orbit://handoff/today` and `orbit://handoff/project/<name>`
+  - hardened explicit-path Codex/local-agent fixture coverage for nested directories, `.json` arrays, malformed JSONL warnings, stable pointers, and cursor idempotency
+  - screen/audio research and disabled capability descriptors; no raw capture implementation
 
 ## Important Current Behavior
 
@@ -123,47 +134,109 @@ Agent-facing context defaults are now conservative:
 
 ## Known Issues / Watchouts
 
-- Existing local databases may contain old source records created before `sources.adapterConfigs`. Those sources can show `Missing adapter path; reconfigure this source before background collection.` Reconfigure or disable them from Sources.
-- Existing Events inserted before the privacy gate may still contain old `content.text`. Fresh ingestion applies the new policy, but a dedicated old-data privacy migration/cleanup has not been implemented.
+- Existing local databases may contain old source records created before `sources.adapterConfigs`. Sources now exposes a reconfigure action so a user can attach the missing adapter path/interface without deleting the database.
+- Existing Events inserted before the privacy gate may still contain old `content.text`. Sources now exposes legacy privacy cleanup, which removes raw event text when the source policy disallows raw storage while preserving summaries and evidence pointers.
 - Source permission policies are visible but not yet user-editable from the UI.
-- `packages/agent-api` is still a placeholder. CLI context commands are the only usable agent interface right now.
+- `packages/agent-api` exposes read-only handoff resource descriptors, but there is still no running MCP server or local HTTP agent API.
 - MCP/local HTTP server/Skill wrapper are not implemented yet.
 - No screen capture, OCR, audio transcription, active app/window accessibility capture, or calendar/mail/Jira/GitLab adapters have been implemented.
 - SeaTalk remains approved-import-only. Do not add speculative scraping.
 - Packaging is unsigned and not notarized. See `docs/alpha-release-checklist.md`.
 
-## Recommended Next Goal
+## Goal 7: Agent Continuity And Perception Readiness
 
-Recommended next goal:
+Status: in progress on branch `codex/goal-7-agent-continuity`.
 
-```text
-Goal 6: Source Reconfiguration And Privacy Cleanup
+Base commit before Goal 7 implementation:
+
+- `2507788 docs: plan agent continuity goal`
+
+Update this section with the final commit hash after the checkpoint commit lands.
+
+Implemented scope:
+
+- Handoff Pack domain builder and Markdown formatter.
+- Default Handoff Pack privacy exclusions for draft Knowledge, unconfirmed Memory, terminal Recommendations, missing evidence, secret content, failed redaction, and sources that disallow agent export.
+- Evidence index with compact source pointers instead of raw Event text.
+- DB assembly for today/project Handoff Packs with local `handoff.generate` audit logs.
+- CLI handoff commands:
+  - `orbit handoff today --json`
+  - `orbit handoff today --format markdown`
+  - `orbit handoff today --date <YYYY-MM-DD>`
+  - `orbit handoff project <name> --json`
+  - `orbit handoff project <name> --format markdown`
+- Desktop Handoff route:
+  - sidebar navigation item
+  - generate today handoff
+  - generate project handoff
+  - preview Markdown locally
+  - copy Markdown to clipboard
+  - safety boundary and evidence summaries
+  - English and Chinese i18n strings
+- Codex/local-agent adapter hardening tests for explicit local paths:
+  - nested directories
+  - `.json` array fixtures
+  - malformed JSONL warnings
+  - deterministic source pointers
+  - cursor idempotency
+- Agent API descriptor builders:
+  - `orbit://handoff/today`
+  - `orbit://handoff/project/<name>`
+  - read-only Markdown descriptors only
+- Screen/audio perception readiness:
+  - `SourceKind` now includes `audio`
+  - disabled descriptors for screen and audio are exported from `@orbit/core`
+  - descriptors are `research_only`, disabled by default, permission-required, non-capturing, and blocked from default agent export
+  - [Perception Research Spike](./perception-research-spike.md) documents the future macOS path and production-capture gate
+
+Exact acceptance commands for final Goal 7 verification:
+
+```bash
+rm -rf .tmp/goal-7-acceptance
+export ORBIT_HOME="$PWD/.tmp/goal-7-acceptance"
+pnpm test
+pnpm typecheck
+pnpm lint
+pnpm --filter @orbit/adapters test
+pnpm --filter @orbit/cli orbit ingest fixtures --json
+pnpm --filter @orbit/cli orbit ingest codex --path fixtures/codex-sessions --json
+pnpm --filter @orbit/cli orbit ingest local-agent --path fixtures/realistic/local-agent --json
+pnpm --filter @orbit/cli orbit pipeline run --json
+pnpm --filter @orbit/cli orbit handoff today --json
+pnpm --filter @orbit/cli orbit handoff today --format markdown
+pnpm --filter @orbit/cli orbit handoff project orbit --json
+pnpm --filter @orbit/desktop build
+pnpm --filter @orbit/desktop test:e2e
+pnpm --filter @orbit/desktop package:dir
+pnpm rebuild better-sqlite3
+pnpm --filter @orbit/cli orbit status --json
 ```
+
+Goal 7 watchouts:
+
+- Handoff generation is local read-only assembly. It does not send content to agents automatically.
+- `--format markdown` is the only non-JSON format implemented; unsupported format validation can be tightened later.
+- Desktop copy uses the user's clipboard, but there is no external send/share action.
+- Agent API is descriptor-only. MCP/local HTTP serving remains later work.
+- Screen/audio are visible as future capabilities only. Do not add ScreenCaptureKit, OCR, microphone, transcription, or raw media storage without passing the production-capture gate in `docs/perception-research-spike.md`.
+
+## Goal 6: Source Reconfiguration And Privacy Cleanup
+
+Status: completed on branch `codex/goal-6-source-privacy-cleanup`.
+
+Implemented scope:
+
+- Source cursor reset in the DB repository and Desktop Sources UI.
+- Source delete in the DB repository and Desktop Sources UI, with adapter config cleanup and audit logging.
+- Source reconfigure action for existing source records so old records missing `sources.adapterConfigs` can be repaired.
+- Source cursor presence in the Desktop snapshot and Sources UI.
+- Legacy privacy cleanup for old Events that still contain `content.text` when their source policy disallows raw storage.
+- Desktop action and Sources UI confirmation for legacy privacy cleanup.
+- Focused tests for DB source controls, legacy privacy cleanup, preload API exposure, and Sources UI control presence.
 
 After Goal 6, the next product-shaping goal should be Handoff Pack CLI and desktop review/copy UX. Handoff Pack is now a first-class Orbit output, defined in `docs/handoff-pack.md`, and should become the first agent-facing warm-start surface before broader MCP, screen capture, or automation work.
 
-Why this should be next:
-
-- The app now has background runtime and permission gates, but old/local source configuration can still be confusing.
-- Privacy defaults apply to fresh ingestion, but old event rows may predate the new raw-text minimization policy.
-- Before adding MCP, screen capture, or more real sources, users need clearer source management and cleanup controls.
-
-Suggested scope:
-
-- Add source reconfigure flow for existing source records.
-- Show exact adapter path/interface for every configured source.
-- Let users disable or delete source records with confirmation.
-- Add source-level re-ingest/reset cursor action.
-- Add one-time privacy cleanup command/action for old Events:
-  - redact text fields
-  - drop raw text when source policy disallows raw storage
-  - update `redactionState`
-  - write audit logs
-- Add a small audit viewer or source audit summary in Settings/Sources.
-- Keep SeaTalk approved-import-only.
-- Do not add screen/OCR/MCP in this goal.
-
-Suggested acceptance commands:
+Required acceptance commands:
 
 ```bash
 pnpm test
@@ -179,6 +252,8 @@ pnpm rebuild better-sqlite3
 pnpm --filter @orbit/cli orbit status --json
 ```
 
+Latest local result: all required commands passed. Run `pnpm --filter @orbit/desktop test:e2e` separately from `pnpm --filter @orbit/desktop package:dir`; both touch the packaged app path and can race if run in parallel.
+
 Functional acceptance:
 
 - A user can fix an old `Missing adapter path` source without deleting the whole DB.
@@ -186,6 +261,10 @@ Functional acceptance:
 - A source can be re-ingested after cursor reset without duplicating Events.
 - Old Events can be privacy-cleaned without losing Activity/Knowledge evidence pointers.
 - Context export remains raw-private-data-safe by default.
+
+Remaining watchout:
+
+- Sources has cleanup actions and source-level runtime controls, but it does not yet provide a full audit log viewer. Audit entries are written locally and can be surfaced in a later Knowledge/Memory detail or Settings audit view.
 
 ## Later High-Value Goals
 

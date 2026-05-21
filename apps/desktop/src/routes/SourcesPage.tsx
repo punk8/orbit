@@ -8,10 +8,18 @@ import { useI18n } from "../i18n";
 export function SourcesPage({
   snapshot,
   onSetupSource,
+  onReconfigureSource,
+  onDeleteSource,
+  onResetSourceCursor,
+  onCleanupLegacyEventPrivacy,
   onUpdateSourceRuntime
 }: {
   snapshot: DesktopSnapshot;
   onSetupSource(kind: SourceSetupKind, path?: string): Promise<void>;
+  onReconfigureSource(sourceId: string, kind: SourceSetupKind, path?: string): Promise<void>;
+  onDeleteSource(sourceId: string): Promise<void>;
+  onResetSourceCursor(sourceId: string): Promise<void>;
+  onCleanupLegacyEventPrivacy(): Promise<void>;
   onUpdateSourceRuntime(sourceId: string, action: DesktopSourceRuntimeAction): Promise<void>;
 }): ReactElement {
   const { t, sensitivity, sourceKind } = useI18n();
@@ -68,6 +76,11 @@ export function SourcesPage({
                   <span>{`${t("source.interface")} ${
                     snapshot.sourceAdapterConfigs[source.id]?.setupKind ?? source.id
                   }`}</span>
+                  <span>
+                    {snapshot.sourceCursors[source.id]
+                      ? t("source.cursorPresent")
+                      : t("source.cursorEmpty")}
+                  </span>
                   {snapshot.sourceAdapterConfigs[source.id]?.path ? (
                     <span>{`${t("source.path")} ${snapshot.sourceAdapterConfigs[source.id]?.path}`}</span>
                   ) : null}
@@ -80,6 +93,38 @@ export function SourcesPage({
                 {source.lastError ? <p className="error-text">{source.lastError}</p> : null}
               </div>
               <div className="source-actions">
+                {readReconfigurableSetupKind(
+                  snapshot.sourceAdapterConfigs[source.id]?.setupKind,
+                  source.kind
+                ) ? (
+                  <button
+                    className="secondary-button"
+                    onClick={() => {
+                      const config = snapshot.sourceAdapterConfigs[source.id];
+                      const setupKind = readReconfigurableSetupKind(config?.setupKind, source.kind);
+                      if (!setupKind) return;
+                      const nextPath =
+                        setupKind === "fixtures"
+                          ? undefined
+                          : window.prompt(t("prompt.sourcePath"), config?.path ?? "");
+                      if (setupKind !== "fixtures" && !nextPath) return;
+                      void onReconfigureSource(source.id, setupKind, nextPath ?? undefined);
+                    }}
+                    type="button"
+                  >
+                    {t("action.reconfigure")}
+                  </button>
+                ) : null}
+                <button
+                  className="secondary-button"
+                  onClick={() => {
+                    if (!window.confirm(t("confirm.resetSourceCursor"))) return;
+                    void onResetSourceCursor(source.id);
+                  }}
+                  type="button"
+                >
+                  {t("action.resetCursor")}
+                </button>
                 <button
                   className="secondary-button"
                   disabled={!source.enabled}
@@ -98,6 +143,16 @@ export function SourcesPage({
                   type="button"
                 >
                   {source.enabled ? t("action.disable") : t("action.enable")}
+                </button>
+                <button
+                  className="secondary-button danger-button"
+                  onClick={() => {
+                    if (!window.confirm(t("confirm.deleteSource"))) return;
+                    void onDeleteSource(source.id);
+                  }}
+                  type="button"
+                >
+                  {t("action.deleteSource")}
                 </button>
               </div>
             </article>
@@ -176,8 +231,41 @@ export function SourcesPage({
           </article>
         </div>
       </Section>
+      <Section title={t("section.sourcePrivacy")}>
+        <div className="item-list">
+          <article className="list-item">
+            <div>
+              <h3>{t("source.legacyPrivacyCleanup")}</h3>
+              <p>{t("source.legacyPrivacyCleanupDescription")}</p>
+            </div>
+            <div className="source-actions">
+              <button
+                className="secondary-button"
+                onClick={() => {
+                  if (!window.confirm(t("confirm.cleanupLegacyPrivacy"))) return;
+                  void onCleanupLegacyEventPrivacy();
+                }}
+                type="button"
+              >
+                {t("action.cleanupLegacyPrivacy")}
+              </button>
+            </div>
+          </article>
+        </div>
+      </Section>
     </div>
   );
+}
+
+function readReconfigurableSetupKind(
+  configuredKind: SourceSetupKind | undefined,
+  sourceKind: string
+): SourceSetupKind | undefined {
+  if (configuredKind) return configuredKind;
+  if (sourceKind === "codex" || sourceKind === "local_agent" || sourceKind === "seatalk") {
+    return sourceKind;
+  }
+  return undefined;
 }
 
 function sourceStatusLabel(
