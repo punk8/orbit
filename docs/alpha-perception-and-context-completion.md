@@ -298,3 +298,18 @@ Goal 8 is complete only when:
   Handoff.
 - Default Handoff excludes unsafe raw perception payloads.
 - Tests and macOS smoke checks verify no-default-capture behavior.
+
+## Post-Goal 8 Follow-Up
+
+Goal 8 makes the perception surface explicit, safe, and fixture/smoke verifiable. It does not by
+itself guarantee a fully model-backed daily loop.
+
+Use [LLM Perception And Context Automation](./llm-perception-and-context-automation-plan.md) for the
+next implementation goal that closes the remaining Alpha gaps:
+
+- runtime-effective provider routing for every AI task,
+- real transcription providers,
+- image-capable vision/OCR provider paths,
+- live opt-in desktop perception runtime,
+- LLM-assisted Memory and Recommendation candidates,
+- visible daily automation that refreshes Today and Handoff.

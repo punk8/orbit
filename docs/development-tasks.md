@@ -17,8 +17,11 @@ Each task is written so a goal-mode agent can execute it without re-deciding pro
 - Treat background observation as the core live input path after the local data spine and semantic pipeline are stable.
 - Do not read or depend on private local user data in tests.
 - Use synthetic fixtures for repeatable tests.
-- Do not send any raw data to external AI providers.
-- Prefer deterministic logic and mock providers before real AI.
+- Do not send raw data to external AI providers unless a later task explicitly adds the scoped
+  source policy, user consent, redaction, retention, budget, and audit gates for that specific data
+  class. Even then, keep external provider use disabled by default.
+- Prefer deterministic logic and mock providers before real AI; Goal 9 is the first explicit scope
+  for making perception, Memory, Recommendations, and daily automation genuinely model-backed.
 - Every derived object must keep evidence references.
 - Every task must end with `pnpm test` and `pnpm typecheck` once those commands exist.
 
@@ -1277,6 +1280,356 @@ pnpm --filter @orbit/cli orbit handoff today --json
 - Privacy cleanup removes raw sidecars while preserving policy-allowed summaries and evidence pointers.
 - Manual macOS permission smoke tests are documented.
 
+## Task 25: Provider Runtime Registry
+
+### Goal
+
+Make stored AI and perception provider routes runtime-effective across CLI and Desktop.
+
+This task maps to Goal 9A in
+[LLM Perception And Context Automation](./llm-perception-and-context-automation-plan.md).
+
+### Files To Create Or Modify
+
+- `docs/llm-perception-and-context-automation-plan.md`
+- `packages/ai/src/*`
+- `packages/db/src/perceptionSettings.ts`
+- `packages/privacy/src/*`
+- `apps/cli/src/commands/*`
+- `apps/desktop/electron/data.ts`
+- `apps/desktop/src/routes/SettingsPage.tsx`
+- tests for provider resolution, policy skips, missing credentials, and audit metadata
+
+### Implementation Notes
+
+- Add a provider capability registry for `knowledge_draft`, `vision_summary`, `ocr_postprocess`,
+  `transcription`, `memory_candidate`, `recommendation`, and `context_compression`.
+- Resolve providers from desktop settings, CLI env, perception routes, source policy, and
+  task-specific budgets.
+- Keep disabled and mock providers valid for every task.
+- Add `orbit ai status --json` and synthetic provider connection tests.
+- Audit provider resolution and skipped-by-policy decisions without recording prompts, credentials,
+  image bytes, or audio bytes.
+
+### Do Not Do
+
+- Do not start live capture.
+- Do not send real Orbit Events to provider connection tests.
+- Do not implement raw media upload in this task.
+- Do not auto-confirm Memory or execute side effects.
+
+### Acceptance Commands
+
+```bash
+pnpm test
+pnpm typecheck
+pnpm --filter @orbit/ai test
+pnpm --filter @orbit/privacy test
+pnpm --filter @orbit/desktop test
+pnpm --filter @orbit/cli orbit ai status --json
+pnpm --filter @orbit/cli orbit ai test --task knowledge_draft --json
+```
+
+### Done When
+
+- CLI and Desktop show effective provider resolution for each task.
+- Disabled, mock, local, and OpenAI-compatible provider states are represented consistently.
+- Provider tests use synthetic prompts only.
+- Policy skips are visible and audited.
+
+## Task 26: Real Transcription Provider Path
+
+### Goal
+
+Add real transcription capability behind explicit audio source policy.
+
+This task maps to Goal 9B in
+[LLM Perception And Context Automation](./llm-perception-and-context-automation-plan.md).
+
+### Files To Create Or Modify
+
+- `packages/ai/src/tasks/transcription.ts`
+- `packages/adapters/src/audio/*`
+- `packages/adapters/src/transcript/*`
+- `packages/privacy/src/*`
+- `packages/db/src/semanticPipeline.ts`
+- `apps/cli/src/commands/perception.ts`
+- tests for transcription provider policy, audio sidecar handling, failures, and audit logs
+
+### Implementation Notes
+
+- Add a transcription provider contract for bounded audio segments or local transcript sidecars.
+- Implement at least one real provider path: local transcription if available, or a clearly named
+  OpenAI-compatible audio transcription provider.
+- Require explicit microphone/session policy and explicit external-provider consent before sending
+  audio bytes outside the machine.
+- Enforce audio duration, file size, request rate, retry, cleanup, and TTL budgets.
+- Persist redacted transcript Events with confidence, language, provider metadata, and evidence
+  pointers.
+
+### Do Not Do
+
+- Do not enable ambient always-on audio.
+- Do not upload audio externally by default.
+- Do not persist transcript text when redaction fails.
+- Do not include raw audio or raw transcripts in default Handoff.
+
+### Acceptance Commands
+
+```bash
+pnpm test
+pnpm typecheck
+pnpm --filter @orbit/ai test
+pnpm --filter @orbit/adapters test
+pnpm --filter @orbit/cli orbit ai status --json
+pnpm --filter @orbit/cli orbit perception transcribe-fixture --json
+pnpm --filter @orbit/cli orbit context today --json
+```
+
+### Done When
+
+- Synthetic audio fixtures can be transcribed by the configured provider.
+- Default policy blocks external audio upload.
+- Provider failures do not persist unredacted transcript text.
+- Audit logs show request, success/failure, skipped-by-policy, and cleanup metadata.
+
+## Task 27: Real Vision/OCR Model Path
+
+### Goal
+
+Add real model-assisted visual context from bounded screen evidence.
+
+This task maps to Goal 9C in
+[LLM Perception And Context Automation](./llm-perception-and-context-automation-plan.md).
+
+### Files To Create Or Modify
+
+- `packages/ai/src/tasks/vision.ts`
+- `packages/adapters/src/ocr/*`
+- `packages/adapters/src/vision/*`
+- `packages/privacy/src/*`
+- `apps/cli/src/commands/perception.ts`
+- `apps/desktop/electron/observation/*`
+- tests for image input policy, local OCR, external vision blocking, redaction, and Handoff
+  exclusions
+
+### Implementation Notes
+
+- Add image-capable vision input support separate from text-only screen/OCR summaries.
+- Add local OCR provider integration where available, with Chinese and English support.
+- Allow external vision model calls only for explicitly enabled sources after protected-app,
+  redaction, downsampling/cropping, and budget checks.
+- Keep text-only vision summarization as the fallback when image bytes are blocked.
+- Record provider, model, image/text budget, redaction result, and export eligibility.
+
+### Do Not Do
+
+- Do not upload screenshots externally by default.
+- Do not bypass protected-app policy through OCR or image models.
+- Do not store raw model image inputs in audit logs.
+- Do not turn screenshots into full transcripts or raw archives.
+
+### Acceptance Commands
+
+```bash
+pnpm test
+pnpm typecheck
+pnpm --filter @orbit/ai test
+pnpm --filter @orbit/adapters test
+pnpm --filter @orbit/cli orbit ai status --json
+pnpm --filter @orbit/cli orbit perception vision-fixture --json
+pnpm --filter @orbit/cli orbit handoff today --json
+```
+
+### Done When
+
+- Synthetic image fixtures can produce OCR and vision summaries through the configured provider.
+- Failed-redaction or protected-app frames never reach OCR, vision, Activity, Today, or Handoff.
+- External vision calls require provider configuration and source policy.
+
+## Task 28: Live Perception Runtime Bridge
+
+### Goal
+
+Connect the desktop runtime to real opt-in screen/OCR/audio perception sources.
+
+This task maps to Goal 9D in
+[LLM Perception And Context Automation](./llm-perception-and-context-automation-plan.md).
+
+### Files To Create Or Modify
+
+- `apps/desktop/electron/observation/*`
+- `apps/desktop/native/*`
+- `packages/adapters/src/screen/*`
+- `packages/adapters/src/ocr/*`
+- `packages/adapters/src/audio/*`
+- `packages/adapters/src/transcript/*`
+- `apps/desktop/src/routes/SourcesPage.tsx`
+- `apps/desktop/src/routes/SettingsPage.tsx`
+- tests and manual macOS smoke documentation
+
+### Implementation Notes
+
+- Connect explicit ScreenCaptureKit or native-helper screen/window capture to the observation queue.
+- Connect Apple Vision OCR or equivalent local OCR to captured frames.
+- Connect explicit meeting/session audio capture and chunking to the transcription queue.
+- Show selected scope, live status, provider state, queue depth, last processed time, pause/resume,
+  stop, and delete controls.
+- Enforce protected apps before capture, OCR, transcription, model use, persistence, and export.
+- Run model jobs incrementally under resource budgets.
+
+### Do Not Do
+
+- Do not add default screen, OCR, audio, vision, or transcript capture.
+- Do not capture keystrokes or password fields.
+- Do not scrape browsers silently.
+- Do not scan arbitrary private folders.
+- Do not continue writing delayed perception jobs after stop.
+
+### Acceptance Commands
+
+```bash
+pnpm test
+pnpm typecheck
+pnpm --filter @orbit/adapters test
+pnpm --filter @orbit/desktop test
+pnpm --filter @orbit/desktop test:e2e
+pnpm --filter @orbit/cli orbit observe status --json
+pnpm --filter @orbit/cli orbit perception status --json
+pnpm --filter @orbit/cli orbit activity list --json
+pnpm --filter @orbit/cli orbit context today --json
+```
+
+### Done When
+
+- A local macOS smoke can start, pause, resume, stop, and delete explicit screen/OCR and audio
+  sessions.
+- Live opt-in perception Events feed Activity and Today.
+- Stopping a session tears down streams and prevents delayed jobs from writing new content.
+
+## Task 29: LLM Memory And Recommendation Candidates
+
+### Goal
+
+Use LLMs to improve durable Memory candidates and proactive Recommendations while preserving review
+control.
+
+This task maps to Goal 9E in
+[LLM Perception And Context Automation](./llm-perception-and-context-automation-plan.md).
+
+### Files To Create Or Modify
+
+- `packages/ai/src/*`
+- `packages/core/src/memory/*`
+- `packages/core/src/recommendation/*`
+- `packages/db/src/semanticPipeline.ts`
+- `docs/semantic-quality-evaluation.md`
+- tests for strict schemas, evidence validation, duplicate suppression, language, and fallback
+
+### Implementation Notes
+
+- Add LLM-assisted Memory candidate extraction from confirmed Knowledge only.
+- Add LLM-assisted Recommendation generation from safe Events, Activity, Knowledge, and confirmed
+  Memory.
+- Require strict JSON schemas, evidence ID validation, duplicate suppression, confidence bands, and
+  deterministic fallback.
+- Keep Memory candidates in `needs_review`.
+- Preserve Recommendation statuses and avoid resurrecting dismissed/resolved items without new
+  evidence.
+- Add Chinese and mixed-language fixtures.
+
+### Do Not Do
+
+- Do not create Memory directly from raw Events.
+- Do not auto-confirm Memory.
+- Do not execute recommended actions.
+- Do not allow unsupported provider claims without evidence references.
+
+### Acceptance Commands
+
+```bash
+pnpm test
+pnpm typecheck
+pnpm --filter @orbit/ai test
+pnpm --filter @orbit/core test
+pnpm --filter @orbit/cli orbit pipeline run --ai --json
+pnpm --filter @orbit/cli orbit memory list --json
+pnpm --filter @orbit/cli orbit recommendation list --json
+```
+
+### Done When
+
+- LLM Memory candidates require confirmed Knowledge and start unconfirmed.
+- LLM Recommendations include explanation, suggested action, impact, confidence, and evidence.
+- Unsupported evidence IDs are rejected or repaired by deterministic fallback.
+- Dismissed/resolved Recommendations do not reappear without new evidence.
+
+## Task 30: Daily Automation Loop And Release Gate
+
+### Goal
+
+Make "leave Orbit running, get useful daily context" work as a visible Alpha loop.
+
+This task maps to Goal 9F in
+[LLM Perception And Context Automation](./llm-perception-and-context-automation-plan.md).
+
+### Files To Create Or Modify
+
+- `apps/desktop/electron/*`
+- `apps/desktop/src/routes/TodayPage.tsx`
+- `apps/desktop/src/routes/SourcesPage.tsx`
+- `apps/desktop/src/routes/SettingsPage.tsx`
+- `apps/cli/src/commands/*`
+- `packages/db/src/semanticPipeline.ts`
+- `packages/privacy/src/*`
+- `docs/release-readiness-spec.md`
+- tests for automation status, skipped-by-policy states, release gate, and fallback behavior
+
+### Implementation Notes
+
+- Add a visible background processor for observation drain, perception processing, semantic pipeline,
+  Memory candidate scheduling, Recommendation refresh, Today refresh, and Handoff refresh.
+- Add manual run, scheduled run, pause, stop, status, queue, and audit controls.
+- Show skipped-by-policy, provider-disabled, redaction-failed, protected-app-blocked, and
+  budget-exhausted states in Desktop and CLI.
+- Add release-gate checks for provider policy, live perception smoke, model-job audit coverage,
+  resource budgets, raw sidecar cleanup, and evaluation fixtures.
+- Keep deterministic fallback available when providers are disabled or fail.
+
+### Do Not Do
+
+- Do not enable high-risk capture by default.
+- Do not run hidden model jobs outside visible status/audit.
+- Do not execute side-effect actions.
+- Do not include raw screenshots, raw audio, raw transcripts, draft Knowledge, or unconfirmed Memory
+  in default Handoff.
+
+### Acceptance Commands
+
+```bash
+rm -rf .tmp/goal-9-acceptance
+export ORBIT_HOME="$PWD/.tmp/goal-9-acceptance"
+pnpm test
+pnpm typecheck
+pnpm lint
+pnpm --filter @orbit/desktop test
+pnpm --filter @orbit/desktop build
+pnpm --filter @orbit/desktop test:e2e
+pnpm --filter @orbit/cli orbit ai status --json
+pnpm --filter @orbit/cli orbit automation run-once --json
+pnpm --filter @orbit/cli orbit automation status --json
+pnpm --filter @orbit/cli orbit automation release-gate --json
+pnpm --filter @orbit/cli orbit context today --json
+pnpm --filter @orbit/cli orbit handoff today --json
+```
+
+### Done When
+
+- Opt-in sources and configured providers can process a day of synthetic plus local smoke context into
+  Activity, Knowledge drafts, Memory candidates, Recommendations, Today, and Handoff.
+- Providers-disabled mode still produces a usable deterministic Today/Handoff.
+- Release gate reports disabled, skipped, blocked, failed, and budget-exhausted paths explicitly.
+
 ## Development Goals
 
 Use these goals to execute implementation. Do not combine unrelated tasks into one long goal unless
@@ -1657,6 +2010,102 @@ Constraints:
 - End with Goal 8 acceptance commands, available macOS smoke evidence, and a short summary of files changed.
 ```
 
+### Goal 9: LLM Perception And Daily Context Automation
+
+Scope: Task 25-30.
+
+Implementation guide: follow
+[LLM Perception And Context Automation](./llm-perception-and-context-automation-plan.md).
+Implement Goal 9 through the 9A/9B/9C/9D/9E/9F checkpoints defined there. Each checkpoint must be
+implemented, verified, committed, and pushed independently before the next one starts.
+
+Goal 9 is the explicit Alpha scope for making the existing perception and semantic stack genuinely
+model-backed: real provider routing, real transcription, real vision/OCR inputs, live opt-in
+perception runtime, LLM-assisted Memory/Recommendation candidates, and a visible daily automation
+loop. It does not make high-risk capture or external provider use default behavior.
+
+Expected deliverables:
+
+- Runtime provider registry for Knowledge, OCR, vision, transcription, Memory, Recommendations, and
+  context compression.
+- Real transcription provider path with explicit audio policy and audit.
+- Real image/vision/OCR provider path with redaction, downsampling/cropping, protected-app checks, and
+  fallback.
+- Desktop runtime bridge for explicit screen/OCR/audio sessions.
+- LLM-assisted Memory candidates and Recommendations with strict schemas and evidence validation.
+- Visible background automation loop for daily context refresh.
+- Release gates for provider policy, live perception smoke, model-job audit, budgets, cleanup, and
+  deterministic fallback.
+
+Acceptance commands:
+
+```bash
+rm -rf .tmp/goal-9-acceptance
+export ORBIT_HOME="$PWD/.tmp/goal-9-acceptance"
+pnpm test
+pnpm typecheck
+pnpm lint
+pnpm --filter @orbit/ai test
+pnpm --filter @orbit/privacy test
+pnpm --filter @orbit/adapters test
+pnpm --filter @orbit/desktop test
+pnpm --filter @orbit/desktop build
+pnpm --filter @orbit/desktop test:e2e
+pnpm --filter @orbit/cli orbit ai status --json
+pnpm --filter @orbit/cli orbit perception status --json
+pnpm --filter @orbit/cli orbit automation run-once --json
+pnpm --filter @orbit/cli orbit automation status --json
+pnpm --filter @orbit/cli orbit automation release-gate --json
+pnpm --filter @orbit/cli orbit context today --json
+pnpm --filter @orbit/cli orbit handoff today --json
+```
+
+Functional acceptance:
+
+- Provider routes are runtime-effective across CLI and Desktop.
+- Real transcription and real vision/OCR paths work on synthetic fixtures and local smoke inputs.
+- Live opt-in perception Events feed Activity, Knowledge, Memory candidates, Recommendations, Today,
+  and Handoff.
+- LLM-generated Memory candidates require confirmed Knowledge and start unconfirmed.
+- LLM-generated Recommendations are evidence-backed, reviewable, and side-effect-free.
+- The daily automation loop visibly reports active, paused, stopped, skipped, blocked, failed, and
+  budget-exhausted states.
+- Providers-disabled mode still produces deterministic fallback output.
+- Raw media and external provider use remain disabled by default.
+
+Goal 9 prompt:
+
+```text
+Implement Orbit Task 25-30 from docs/development-tasks.md.
+
+Scope:
+- Follow docs/llm-perception-and-context-automation-plan.md.
+- Implement Goal 9 through 9A/9B/9C/9D/9E/9F checkpoints.
+- Add a runtime provider registry for Knowledge, OCR, vision, transcription, Memory, Recommendations, and context compression.
+- Add real transcription provider support after audio policy and provider gates are verified.
+- Add real vision/OCR provider support after image policy and provider gates are verified.
+- Connect explicit live screen/OCR/audio sessions into the desktop observation/perception runtime.
+- Add LLM-assisted Memory candidates and Recommendations with strict schemas and evidence validation.
+- Add a visible daily automation loop and release gate.
+
+Constraints:
+- Follow AGENTS.md.
+- Follow docs/background-observation-core-spec.md.
+- Follow docs/alpha-perception-and-context-completion.md.
+- Follow docs/llm-perception-and-context-automation-plan.md.
+- Each 9A/9B/9C/9D/9E/9F checkpoint must be independently verified, committed, and pushed.
+- If a checkpoint hits a technical blocker, stop and document the blocker before continuing.
+- Do not enable raw screen recording, OCR, audio, vision, or transcription by default.
+- Do not capture keystrokes or password fields.
+- Do not scrape browsers silently.
+- Do not scan arbitrary private folders.
+- Do not send raw screenshots, raw audio, raw transcripts, raw code, or raw private messages to external providers by default.
+- Do not include raw screenshots, raw audio, raw transcripts, failed-redaction Events, draft Knowledge, or unconfirmed Memory in default Handoff.
+- Do not auto-confirm Memory.
+- Do not execute side effects.
+- End with Goal 9 acceptance commands, available provider/macOS smoke evidence, and a short summary of files changed.
+```
+
 ## Goal Sequencing
 
 Recommended order:
@@ -1668,8 +2117,10 @@ Recommended order:
 5. Goal 5-7: Alpha hardening, realistic source reliability, agent continuity, and release work as
    tracked in the Alpha and superpowers planning documents.
 6. Goal 8: Alpha Perception And Context Completion, Task 19-24.
+7. Goal 9: LLM Perception And Daily Context Automation, Task 25-30.
 
 This order keeps every goal independently verifiable, makes background observation the first
 live-input product goal after the local data spine, semantic pipeline, and desktop shell are stable,
-and gives screen/OCR/vision/audio a dedicated Alpha goal instead of leaving it as indefinite future
-research.
+gives screen/OCR/vision/audio a dedicated Alpha goal instead of leaving it as indefinite future
+research, and makes the follow-up model-backed daily context loop explicit instead of hiding it
+inside perception hardening.
