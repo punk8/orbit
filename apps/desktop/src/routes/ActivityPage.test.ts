@@ -15,4 +15,15 @@ describe("ActivityPage evidence workbench", () => {
     expect(source).toContain("activity.derivedObjects");
     expect(source).toContain("activity.providerBoundary");
   });
+
+  it("renders a Yansu-like playback shell with timeline, recording viewer, scrubber, and honest raw-frame state", () => {
+    const source = readFileSync(new URL("./ActivityPage.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("activity-playback-workbench");
+    expect(source).toContain("activity-timeline-rail");
+    expect(source).toContain("activity-recording-viewer");
+    expect(source).toContain("activity-frame-scrubber");
+    expect(source).toContain("activity.noRawFramesYet");
+    expect(source).toContain("buildPlaybackFrames");
+  });
 });

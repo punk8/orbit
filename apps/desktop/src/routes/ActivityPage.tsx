@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import type { ActivitySession, Event } from "@orbit/core";
+import { ChevronLeft, ChevronRight, Maximize2, Play, Search, ShieldCheck } from "lucide-react";
 import type { DesktopActivitySessionDetail } from "../orbitApi";
 import { EvidenceList } from "../components/EvidenceList";
 import { Section } from "../components/Section";
@@ -18,6 +19,15 @@ interface ActivityFilters {
   query: string;
 }
 
+interface PlaybackFrame {
+  id: string;
+  time: string;
+  label: string;
+  summary: string;
+  position: number;
+  rawRef?: string;
+}
+
 const defaultFilters: ActivityFilters = {
   date: "all",
   customDate: "",
@@ -29,7 +39,7 @@ const defaultFilters: ActivityFilters = {
 };
 
 export function ActivityPage({ sessions }: { sessions: ActivitySession[] }): ReactElement {
-  const { t, sourceKind, sensitivity, formatDateTimeRange, formatTimeRange } = useI18n();
+  const { t, sourceKind, formatTimeRange } = useI18n();
   const [filters, setFilters] = useState<ActivityFilters>(defaultFilters);
   const [selectedId, setSelectedId] = useState<string | undefined>(sessions[0]?.id);
   const [detail, setDetail] = useState<DesktopActivitySessionDetail | undefined>();
@@ -83,167 +93,109 @@ export function ActivityPage({ sessions }: { sessions: ActivitySession[] }): Rea
   }, [selectedId, t]);
 
   return (
-    <div className="page-grid">
+    <div className="page-grid activity-playback-page">
       <Section title={t("section.activityTimeline")}>
-        <div className="filter-bar">
-          <label>
-            <span>{t("filter.date")}</span>
-            <select
-              className="select-input compact-input"
-              value={filters.date}
-              onChange={(event) =>
-                setFilters((current) => ({
-                  ...current,
-                  date: event.target.value as DateFilter
-                }))
-              }
-            >
-              <option value="all">{t("filter.allDates")}</option>
-              <option value="today">{t("filter.today")}</option>
-              <option value="yesterday">{t("filter.yesterday")}</option>
-              <option value="custom">{t("filter.customDate")}</option>
-            </select>
-          </label>
-          {filters.date === "custom" ? (
-            <label>
-              <span>{t("filter.customDate")}</span>
+        <div className="activity-playback-workbench">
+          <aside className="activity-timeline-rail" aria-label={t("activity.sessionList")}>
+            <div className="activity-rail-tabs" aria-label={t("activity.timelineViews")}>
+              <button className="active" type="button">
+                {t("activity.timeline")}
+              </button>
+              <button type="button">{t("activity.overview")}</button>
+            </div>
+
+            <label className="activity-rail-search">
+              <Search aria-hidden="true" size={14} />
               <input
-                className="text-input compact-input"
-                type="date"
-                value={filters.customDate}
+                aria-label={t("filter.search")}
+                value={filters.query}
                 onChange={(event) =>
-                  setFilters((current) => ({ ...current, customDate: event.target.value }))
+                  setFilters((current) => ({ ...current, query: event.target.value }))
                 }
+                placeholder={t("activity.searchPlaceholder")}
+                type="search"
               />
             </label>
-          ) : null}
-          <label>
-            <span>{t("filter.source")}</span>
-            <select
-              className="select-input compact-input"
-              value={filters.sourceKind}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, sourceKind: event.target.value }))
-              }
-            >
-              <option value="">{t("filter.allSources")}</option>
-              {filterOptions.sourceKinds.map((kind) => (
-                <option key={kind} value={kind}>
-                  {sourceKind(kind)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>{t("filter.app")}</span>
-            <select
-              className="select-input compact-input"
-              value={filters.app}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, app: event.target.value }))
-              }
-            >
-              <option value="">{t("filter.allApps")}</option>
-              {filterOptions.apps.map((app) => (
-                <option key={app} value={app}>
-                  {app}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>{t("filter.project")}</span>
-            <select
-              className="select-input compact-input"
-              value={filters.project}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, project: event.target.value }))
-              }
-            >
-              <option value="">{t("filter.allProjects")}</option>
-              {filterOptions.projects.map((project) => (
-                <option key={project} value={project}>
-                  {project}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>{t("filter.sensitivity")}</span>
-            <select
-              className="select-input compact-input"
-              value={filters.sensitivity}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, sensitivity: event.target.value }))
-              }
-            >
-              <option value="">{t("filter.allSensitivity")}</option>
-              {filterOptions.sensitivities.map((value) => (
-                <option key={value} value={value}>
-                  {sensitivity(value)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="filter-search">
-            <span>{t("filter.search")}</span>
-            <input
-              className="text-input"
-              value={filters.query}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, query: event.target.value }))
-              }
-              placeholder={t("activity.searchPlaceholder")}
-              type="search"
-            />
-          </label>
-        </div>
 
-        <div className="activity-workbench">
-          <div className="activity-list" aria-label={t("activity.sessionList")}>
-            {filteredSessions.map((session) => (
-              <button
-                className={`activity-list-item ${selectedId === session.id ? "active" : ""}`}
-                key={session.id}
-                onClick={() => setSelectedId(session.id)}
-                type="button"
+            <div className="activity-rail-filters">
+              <select
+                aria-label={t("filter.date")}
+                value={filters.date}
+                onChange={(event) =>
+                  setFilters((current) => ({
+                    ...current,
+                    date: event.target.value as DateFilter
+                  }))
+                }
               >
-                <div className="item-heading">
-                  <h3>{session.title}</h3>
-                  <span>
+                <option value="all">{t("filter.allDates")}</option>
+                <option value="today">{t("filter.today")}</option>
+                <option value="yesterday">{t("filter.yesterday")}</option>
+                <option value="custom">{t("filter.customDate")}</option>
+              </select>
+              {filters.date === "custom" ? (
+                <input
+                  aria-label={t("filter.customDate")}
+                  type="date"
+                  value={filters.customDate}
+                  onChange={(event) =>
+                    setFilters((current) => ({ ...current, customDate: event.target.value }))
+                  }
+                />
+              ) : null}
+              <select
+                aria-label={t("filter.source")}
+                value={filters.sourceKind}
+                onChange={(event) =>
+                  setFilters((current) => ({ ...current, sourceKind: event.target.value }))
+                }
+              >
+                <option value="">{t("filter.allSources")}</option>
+                {filterOptions.sourceKinds.map((kind) => (
+                  <option key={kind} value={kind}>
+                    {sourceKind(kind)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="activity-rail-list">
+              <div className="activity-day-label">{t("filter.today")}</div>
+              {filteredSessions.map((session) => (
+                <button
+                  className={`activity-timeline-item ${selectedId === session.id ? "active" : ""}`}
+                  key={session.id}
+                  onClick={() => setSelectedId(session.id)}
+                  type="button"
+                >
+                  <span className="activity-timeline-accent" aria-hidden="true" />
+                  <span className="activity-timeline-main">
+                    <span className="activity-timeline-time">
+                      {formatTimeRange(session.startAt, session.endAt)}
+                    </span>
+                    <span className="activity-timeline-context">
+                      {formatSessionContext(
+                        session.sourceKinds.map(sourceKind),
+                        session.apps,
+                        t("fallback.unknownApp")
+                      )}
+                    </span>
+                  </span>
+                  <span className="activity-timeline-count">
                     {session.eventCount} {t("unit.events")}
                   </span>
-                </div>
-                <p>{session.summary ?? t("fallback.noSummary")}</p>
-                <div className="meta-line">
-                  {formatDateTimeRange(session.startAt, session.endAt)}
-                  <span>
-                    {formatSessionContext(
-                      session.sourceKinds.map(sourceKind),
-                      session.apps,
-                      t("fallback.unknownApp")
-                    )}
-                  </span>
-                </div>
-                <div className="meta-line">
-                  <span className={`sensitivity ${session.privacy.sensitivity}`}>
-                    {sensitivity(session.privacy.sensitivity)}
-                  </span>
-                  <span>
-                    {session.localState.indexed ? t("activity.indexed") : t("activity.notIndexed")}
-                  </span>
-                  <span>
-                    {session.localState.rawAvailable
-                      ? t("activity.rawAvailable")
-                      : t("activity.rawUnavailable")}
-                  </span>
-                </div>
-              </button>
-            ))}
-            {filteredSessions.length === 0 ? (
-              <div className="empty-state">{t("empty.noActivitySessions")}</div>
-            ) : null}
-          </div>
+                </button>
+              ))}
+              {filteredSessions.length === 0 ? (
+                <div className="empty-state compact">{t("empty.noActivitySessions")}</div>
+              ) : null}
+            </div>
+
+            <div className="activity-local-note">
+              <ShieldCheck aria-hidden="true" size={15} />
+              <span>{t("activity.localCleanupNotice")}</span>
+            </div>
+          </aside>
 
           <div className="activity-detail-pane">
             {selectedSession ? (
@@ -252,7 +204,6 @@ export function ActivityPage({ sessions }: { sessions: ActivitySession[] }): Rea
                 fallbackSession={selectedSession}
                 isLoading={isDetailLoading}
                 error={detailError}
-                formatDateTimeRange={formatDateTimeRange}
                 formatTimeRange={formatTimeRange}
               />
             ) : (
@@ -270,112 +221,135 @@ function ActivityDetail({
   fallbackSession,
   isLoading,
   error,
-  formatDateTimeRange,
   formatTimeRange
 }: {
   detail: DesktopActivitySessionDetail | undefined;
   fallbackSession: ActivitySession;
   isLoading: boolean;
   error: string | undefined;
-  formatDateTimeRange(startAt: string, endAt: string): string;
   formatTimeRange(startAt: string, endAt: string): string;
 }): ReactElement {
-  const { t, sourceKind, sensitivity, status } = useI18n();
+  const { t, sourceKind, status } = useI18n();
   const session = detail?.session ?? fallbackSession;
+  const events = detail?.events ?? [];
+  const frames = buildPlaybackFrames(session, events);
+  const currentFrame = frames[0];
 
   if (error) {
     return <div className="error-banner inline">{error}</div>;
   }
 
   return (
-    <div className="detail-stack">
-      <div className="detail-header">
+    <div className="detail-stack activity-playback-detail">
+      <header className="activity-playback-header">
         <div>
-          <p className="eyebrow">{t("activity.evidenceLayer")}</p>
-          <h2>{session.title}</h2>
-          <p>{formatDateTimeRange(session.startAt, session.endAt)}</p>
+          <h2>{formatTimeRange(session.startAt, session.endAt)}</h2>
+          <div className="activity-session-meta">
+            <span>{formatDuration(session.durationSeconds)}</span>
+            <span>
+              {session.eventCount} {t("unit.events")}
+            </span>
+            <span>
+              {frames.length} {t("activity.frames")}
+            </span>
+            <span>{session.sourceKinds.map(sourceKind).join(", ") || t("fallback.none")}</span>
+            <span>
+              {session.localState.rawAvailable ? t("activity.rawAvailable") : t("activity.localOnly")}
+            </span>
+          </div>
         </div>
-        <div className="badge-row">
-          <span className={`sensitivity ${session.privacy.sensitivity}`}>
-            {sensitivity(session.privacy.sensitivity)}
-          </span>
-          <span className="runtime-pill">
-            {session.localState.indexed ? t("activity.indexed") : t("activity.notIndexed")}
-          </span>
-        </div>
-      </div>
+        <button
+          aria-label={t("activity.closeDetail")}
+          className="activity-detail-close"
+          type="button"
+        >
+          ×
+        </button>
+      </header>
 
       {isLoading ? <div className="empty-state compact">{t("activity.loadingDetail")}</div> : null}
 
-      <dl className="detail-grid">
-        <DetailField
-          label={t("activity.timeWindow")}
-          value={formatTimeRange(session.startAt, session.endAt)}
-        />
-        <DetailField
-          label={t("activity.duration")}
-          value={formatDuration(session.durationSeconds)}
-        />
-        <DetailField label={t("activity.eventCount")} value={`${session.eventCount}`} />
-        <DetailField
-          label={t("activity.sources")}
-          value={session.sourceKinds.map(sourceKind).join(", ") || t("fallback.none")}
-        />
-        <DetailField
-          label={t("activity.apps")}
-          value={session.apps.join(", ") || t("fallback.unknownApp")}
-        />
-        <DetailField
-          label={t("activity.project")}
-          value={session.project ?? t("fallback.global")}
-        />
-        <DetailField label={t("activity.topic")} value={session.topic ?? t("fallback.none")} />
-        <DetailField label={t("activity.retention")} value={session.privacy.retentionPolicyId} />
-      </dl>
+      <section className="activity-recording-section">
+        <h3>{t("activity.recording")}</h3>
+        <div className="activity-recording-viewer">
+          <button
+            aria-label={t("activity.previousFrame")}
+            className="activity-frame-nav left"
+            type="button"
+          >
+            <ChevronLeft aria-hidden="true" size={18} />
+          </button>
+
+          <div className="activity-frame-stage">
+            {session.localState.rawAvailable && currentFrame?.rawRef ? (
+              <div className="activity-frame-available">
+                <p>{currentFrame.summary}</p>
+                <code>{currentFrame.rawRef}</code>
+              </div>
+            ) : (
+              <div className="activity-frame-empty">
+                <div className="activity-frame-empty-mark">
+                  <Play aria-hidden="true" size={34} />
+                </div>
+                <h4>{t("activity.noRawFramesYet")}</h4>
+                <p>{currentFrame?.summary ?? session.summary ?? t("fallback.noSummary")}</p>
+                <span>{t("activity.noRawFramesReason")}</span>
+              </div>
+            )}
+          </div>
+
+          <button
+            aria-label={t("activity.nextFrame")}
+            className="activity-frame-nav right"
+            type="button"
+          >
+            <ChevronRight aria-hidden="true" size={18} />
+          </button>
+          <button
+            aria-label={t("activity.fullscreen")}
+            className="activity-frame-fullscreen"
+            type="button"
+          >
+            <Maximize2 aria-hidden="true" size={16} />
+          </button>
+        </div>
+
+        <div className="activity-frame-scrubber" aria-label={t("activity.frameScrubber")}>
+          {frames.map((frame, index) => (
+            <span
+              className={`activity-frame-marker ${index === 0 ? "active" : ""}`}
+              key={frame.id}
+              style={{ left: `${frame.position}%` }}
+              title={`${frame.label} ${frame.time}`}
+            />
+          ))}
+        </div>
+
+        <div className="activity-playback-controls">
+          <button aria-label={t("activity.play")} type="button">
+            <Play aria-hidden="true" size={14} />
+          </button>
+          <button aria-label={t("activity.previousFrame")} type="button">
+            <ChevronLeft aria-hidden="true" size={14} />
+          </button>
+          <span>
+            {frames.length ? `1 / ${frames.length}` : `0 / 0`}
+          </span>
+          <button aria-label={t("activity.nextFrame")} type="button">
+            <ChevronRight aria-hidden="true" size={14} />
+          </button>
+          <span>{currentFrame?.time ?? formatEventTime(session.startAt)}</span>
+        </div>
+      </section>
 
       <DetailBlock title={t("activity.summary")}>
         <p>{session.summary ?? t("fallback.noSummary")}</p>
       </DetailBlock>
 
-      <DetailBlock title={t("activity.evidence")}>
-        <EvidenceList evidence={session.evidence} limit={12} />
-      </DetailBlock>
-
-      <DetailBlock title={t("activity.sourcePolicy")}>
-        {session.localState.sourcePolicies?.length ? (
-          <div className="source-policy-list">
-            {session.localState.sourcePolicies.map((policy) => (
-              <article key={`${policy.sourceAdapterId}-${policy.sourceKind}`}>
-                <div className="item-heading">
-                  <h3>{sourceKind(policy.sourceKind)}</h3>
-                  <span>{policy.sourceAdapterId}</span>
-                </div>
-                <div className="meta-line">
-                  <span>
-                    {policy.canStoreRaw ? t("activity.policyRawOn") : t("activity.policyRawOff")}
-                  </span>
-                  <span>
-                    {policy.canUseForAI ? t("activity.policyAiOn") : t("activity.policyAiOff")}
-                  </span>
-                  <span>
-                    {policy.canExportToAgent
-                      ? t("activity.policyExportOn")
-                      : t("activity.policyExportOff")}
-                  </span>
-                  <span>{policy.retentionPolicyId}</span>
-                </div>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <p className="muted">{t("fallback.none")}</p>
-        )}
-      </DetailBlock>
-
       <DetailBlock title={t("activity.eventStream")}>
-        {detail?.events.length ? (
+        {events.length ? (
           <div className="event-stream">
-            {detail.events.map((event) => (
+            {events.map((event) => (
               <article className="event-row" key={event.id}>
                 <div className="event-row-time">{formatEventTime(event.occurredAt)}</div>
                 <div>
@@ -400,6 +374,43 @@ function ActivityDetail({
           </div>
         )}
       </DetailBlock>
+
+      <div className="activity-evidence-grid">
+        <DetailBlock title={t("activity.evidence")}>
+          <EvidenceList evidence={session.evidence} limit={12} />
+        </DetailBlock>
+
+        <DetailBlock title={t("activity.sourcePolicy")}>
+          {session.localState.sourcePolicies?.length ? (
+            <div className="source-policy-list">
+              {session.localState.sourcePolicies.map((policy) => (
+                <article key={`${policy.sourceAdapterId}-${policy.sourceKind}`}>
+                  <div className="item-heading">
+                    <h3>{sourceKind(policy.sourceKind)}</h3>
+                    <span>{policy.sourceAdapterId}</span>
+                  </div>
+                  <div className="meta-line">
+                    <span>
+                      {policy.canStoreRaw ? t("activity.policyRawOn") : t("activity.policyRawOff")}
+                    </span>
+                    <span>
+                      {policy.canUseForAI ? t("activity.policyAiOn") : t("activity.policyAiOff")}
+                    </span>
+                    <span>
+                      {policy.canExportToAgent
+                        ? t("activity.policyExportOn")
+                        : t("activity.policyExportOff")}
+                    </span>
+                    <span>{policy.retentionPolicyId}</span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="muted">{t("fallback.none")}</p>
+          )}
+        </DetailBlock>
+      </div>
 
       <div className="detail-columns">
         <DetailBlock title={t("activity.processing")}>
@@ -517,6 +528,74 @@ function DerivedList({ title, items }: { title: string; items: string[] }): Reac
       )}
     </div>
   );
+}
+
+function buildPlaybackFrames(session: ActivitySession, events: Event[]): PlaybackFrame[] {
+  const sessionStart = new Date(session.startAt).getTime();
+  const sessionEnd = new Date(session.endAt).getTime();
+  const duration = Math.max(1, sessionEnd - sessionStart);
+
+  const sourceEvents = events.filter((event) => isFrameLikeEvent(event));
+  const eventFrames: PlaybackFrame[] = sourceEvents.map((event, index) => {
+    const frame: PlaybackFrame = {
+      id: event.id,
+      time: formatEventTime(event.occurredAt),
+      label: humanizeValue(event.source.kind),
+      summary: formatFrameSummary(event),
+      position: framePosition(event.occurredAt, sessionStart, duration, index, sourceEvents.length)
+    };
+    if (event.content.rawRef) frame.rawRef = event.content.rawRef;
+    return frame;
+  });
+
+  const mediaRefs = [
+    ...(session.media?.screenshotRefs ?? []),
+    ...(session.media?.recordingRefs ?? [])
+  ];
+  const mediaFrames = mediaRefs.map((rawRef, index) => ({
+    id: `${session.id}:media:${index}`,
+    time: index === 0 ? formatEventTime(session.startAt) : formatEventTime(session.endAt),
+    label: "media",
+    summary: rawRef,
+    position: mediaRefs.length <= 1 ? 0 : (index / (mediaRefs.length - 1)) * 100,
+    rawRef
+  }));
+
+  const frames = [...mediaFrames, ...eventFrames];
+  if (frames.length) return frames.slice(0, 24);
+
+  return [
+    {
+      id: `${session.id}:summary`,
+      time: formatEventTime(session.startAt),
+      label: "summary",
+      summary: session.summary ?? session.title,
+      position: 0
+    }
+  ];
+}
+
+function isFrameLikeEvent(event: Event): boolean {
+  return event.type === "screen_observation" || event.type === "ocr_text";
+}
+
+function formatFrameSummary(event: Event): string {
+  return event.content.summary ?? event.content.text ?? event.content.title ?? event.source.pointer;
+}
+
+function framePosition(
+  occurredAt: string,
+  sessionStart: number,
+  duration: number,
+  fallbackIndex: number,
+  fallbackTotal: number
+): number {
+  const occurred = new Date(occurredAt).getTime();
+  if (!Number.isNaN(occurred)) {
+    return Math.min(100, Math.max(0, ((occurred - sessionStart) / duration) * 100));
+  }
+  if (fallbackTotal <= 1) return 0;
+  return (fallbackIndex / (fallbackTotal - 1)) * 100;
 }
 
 function buildFilterOptions(sessions: ActivitySession[]): {

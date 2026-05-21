@@ -33,4 +33,11 @@ describe("desktop main process runtime guards", () => {
     expect(smoke).toContain("ORBIT_SKIP_LOGIN_ITEM_SETTINGS");
     expect(smoke).toContain("ORBIT_E2E_RENDERER_SMOKE");
   });
+
+  it("keeps manual perception sources out of generic background source ingestion", () => {
+    const data = readFileSync(new URL("./data.ts", import.meta.url), "utf8");
+
+    expect(data).toContain("isGenericBackgroundSource");
+    expect(data).toContain('if (!isGenericBackgroundSource(source.kind)) continue;');
+  });
 });

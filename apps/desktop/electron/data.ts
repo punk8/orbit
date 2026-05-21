@@ -926,6 +926,7 @@ export async function runBackgroundIngestionForDesktop(): Promise<BackgroundInge
 
     for (const source of sources) {
       if (source.kind === "desktop") continue;
+      if (!isGenericBackgroundSource(source.kind)) continue;
       if (!source.enabled || source.paused) continue;
       attempted += 1;
       try {
@@ -1351,6 +1352,10 @@ function buildDesktopAIProviderConfig(
   config.tokenLimitParameter = tokenLimitParameter;
   if (apiKey) config.apiKey = apiKey;
   return config;
+}
+
+function isGenericBackgroundSource(sourceKind: SourceKind): boolean {
+  return sourceKind === "codex" || sourceKind === "local_agent" || sourceKind === "seatalk";
 }
 
 function buildBackgroundAdapter(
