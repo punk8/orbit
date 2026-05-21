@@ -31,6 +31,7 @@ Read in this order:
 25. [Release Readiness Spec](./release-readiness-spec.md)
 26. [Alpha Perception And Context Completion](./alpha-perception-and-context-completion.md)
 27. [LLM Perception And Context Automation](./llm-perception-and-context-automation-plan.md)
+28. [Goal 9D Live Perception Runtime Blocker](./goal-9d-live-perception-runtime-blocker.md)
 
 The design follows the project-level guidance in [AGENTS.md](../AGENTS.md):
 

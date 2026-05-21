@@ -170,6 +170,10 @@ Acceptance:
 
 Connect the desktop runtime to real opt-in perception sources.
 
+Status: blocked as of 2026-05-21. See
+[Goal 9D Live Perception Runtime Blocker](./goal-9d-live-perception-runtime-blocker.md). Do not
+continue to Goal 9E or Goal 9F until the blocker is resolved and 9D acceptance passes.
+
 Required scope:
 
 - Connect explicit ScreenCaptureKit or native-helper screen/window capture to the observation queue.
