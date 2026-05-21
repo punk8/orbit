@@ -91,6 +91,24 @@ export interface ObservationInput {
     textHash?: string;
     containsSecureField?: boolean;
   };
+  screen?: {
+    scopeKind: "display" | "app" | "window" | "region";
+    scopeLabel?: string;
+    frameHash: string;
+    width?: number;
+    height?: number;
+    redactedSummary?: string;
+    rawLocalRef?: string;
+    sizeBytes?: number;
+  };
+  ocr?: {
+    text?: string;
+    textHash: string;
+    languages: string[];
+    engine: string;
+    confidence?: number;
+    sourceFrameHash?: string;
+  };
   permission?: ObservationPermissionStatus;
   raw?: {
     text?: string;

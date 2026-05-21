@@ -6,6 +6,7 @@ import { buildProgram } from "./index";
 import { ingestCodex } from "./commands/ingestCodex";
 import { ingestFixtures } from "./commands/ingestFixtures";
 import { ingestLocalAgent } from "./commands/ingestLocalAgent";
+import { ingestPerceptionFixtures } from "./commands/ingestPerceptionFixtures";
 import { runKnowledgeReviewAction, runMemoryReviewAction } from "./commands/governanceActions";
 import { getTodayHandoff, getTodayHandoffMarkdown } from "./commands/handoff";
 import {
@@ -14,7 +15,7 @@ import {
   getObserveStatus,
   ingestMockDesktopObservations
 } from "./commands/observe";
-import { getPerceptionStatus } from "./commands/perception";
+import { getPerceptionStatus, runScreenOcrSmoke } from "./commands/perception";
 import { openOrbitDatabase, SettingsRepository } from "@orbit/db";
 import {
   getProjectContext,
@@ -242,5 +243,54 @@ describe("cli commands", () => {
       .find((command) => command.name() === "perception")
       ?.helpInformation();
     expect(perceptionHelp).toContain("status");
+  });
+
+  it("ingests explicit screen/OCR perception fixtures into Activity", async () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-perception-fixture-test-"));
+    tempDirs.push(orbitHome);
+    process.env.ORBIT_HOME = orbitHome;
+
+    const first = await ingestPerceptionFixtures();
+    expect(first.totals.inserted).toBe(4);
+    expect(first.sources.flatMap((source) => source.warnings)).toEqual(
+      expect.arrayContaining([
+        "Suppressed protected screen frame frame_protected_vault.",
+        "Suppressed OCR for protected screen frame frame_protected_vault."
+      ])
+    );
+    expect(first.pipeline.activitySessions.total).toBe(1);
+
+    const sessions = listActivitySessions();
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]?.sourceKinds).toEqual(expect.arrayContaining(["screen", "ocr"]));
+    expect(JSON.stringify(sessions)).not.toContain("hunter2");
+    expect(JSON.stringify(sessions)).not.toContain("sk-test");
+
+    const second = await ingestPerceptionFixtures();
+    expect(second.totals.inserted).toBe(0);
+  });
+
+  it("runs a mock screen/OCR start pause resume stop smoke", async () => {
+    const smoke = await runScreenOcrSmoke("window");
+    expect(smoke.scope.kind).toBe("window");
+    expect(smoke.transitions.map((transition) => transition.action)).toEqual([
+      "start",
+      "capture",
+      "pause",
+      "resume",
+      "stop"
+    ]);
+    expect(smoke.transitions[0]?.status).toBe("collecting");
+    expect(smoke.transitions.at(-1)?.status).toBe("stopped");
+
+    const program = buildProgram();
+    const perceptionHelp = program.commands
+      .find((command) => command.name() === "perception")
+      ?.helpInformation();
+    const ingestHelp = program.commands
+      .find((command) => command.name() === "ingest")
+      ?.helpInformation();
+    expect(perceptionHelp).toContain("screen-ocr-smoke");
+    expect(ingestHelp).toContain("perception-fixtures");
   });
 });

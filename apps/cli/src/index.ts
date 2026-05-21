@@ -11,6 +11,7 @@ import {
 import { ingestCodex } from "./commands/ingestCodex";
 import { ingestFixtures } from "./commands/ingestFixtures";
 import { ingestLocalAgent } from "./commands/ingestLocalAgent";
+import { ingestPerceptionFixtures } from "./commands/ingestPerceptionFixtures";
 import {
   getActivitySession,
   getKnowledgeArtifact,
@@ -37,7 +38,7 @@ import {
   getObserveStatus,
   ingestMockDesktopObservations
 } from "./commands/observe";
-import { getPerceptionStatus } from "./commands/perception";
+import { getPerceptionStatus, runScreenOcrSmoke } from "./commands/perception";
 import { runSemanticPipeline } from "./commands/semanticPipeline";
 import { getStatus } from "./commands/status";
 import { buildAIProvider, isAIProviderConfigured, readAIProviderConfigFromEnv } from "@orbit/ai";
@@ -94,6 +95,14 @@ export function buildProgram(): Command {
     .option("--json", "output JSON")
     .action(async (options: { path: string; json?: boolean }) => {
       const result = await ingestLocalAgent(options.path);
+      writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
+    });
+  ingest
+    .command("perception-fixtures")
+    .description("Ingest explicit screen/OCR perception fixtures")
+    .option("--json", "output JSON")
+    .action(async (options: { json?: boolean }) => {
+      const result = await ingestPerceptionFixtures();
       writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
     });
 
@@ -419,6 +428,15 @@ export function buildProgram(): Command {
         json: options.json ?? program.opts<{ json?: boolean }>().json
       });
     });
+  perception
+    .command("screen-ocr-smoke")
+    .description("Run a mock start/pause/resume/stop smoke for explicit screen/OCR observation")
+    .option("--scope <scope>", "display, app, window, or region", "display")
+    .option("--json", "output JSON")
+    .action(async (options: { scope?: string; json?: boolean }) => {
+      const result = await runScreenOcrSmoke(requireScreenScopeKind(options.scope));
+      writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
+    });
 
   return program;
 }
@@ -432,6 +450,15 @@ function requireRecord<T>(record: T | undefined, label: string, id: string): T {
     throw new Error(`${label} not found: ${id}`);
   }
   return record;
+}
+
+function requireScreenScopeKind(
+  value: string | undefined
+): "display" | "app" | "window" | "region" {
+  if (value === "display" || value === "app" || value === "window" || value === "region") {
+    return value;
+  }
+  throw new Error(`Unsupported screen/OCR scope: ${value ?? ""}`);
 }
 
 function parseListOption(value: string | undefined): string[] | undefined {

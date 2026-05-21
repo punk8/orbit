@@ -81,6 +81,61 @@ describe("observation normalization", () => {
     ).toBe("clipboard://change/obs-test#3");
   });
 
+  it("normalizes bounded screen and OCR perception Events", () => {
+    const screen = normalizeObservationInput({
+      type: "screen_observation",
+      tier: "tier3",
+      sourceKind: "screen",
+      occurredAt: "2026-05-21T01:10:00.000Z",
+      runtimeSessionId: "screen-runtime",
+      sequence: 1,
+      app: {
+        name: "Safari",
+        bundleId: "com.apple.Safari"
+      },
+      window: {
+        title: "Orbit Goal 8"
+      },
+      screen: {
+        scopeKind: "window",
+        scopeLabel: "Orbit Goal 8",
+        frameHash: "frame_hash_1",
+        width: 1280,
+        height: 720,
+        redactedSummary: "Goal 8 implementation notes are visible."
+      }
+    });
+    const ocr = normalizeObservationInput({
+      type: "ocr_text",
+      tier: "tier3",
+      sourceKind: "ocr",
+      occurredAt: "2026-05-21T01:10:01.000Z",
+      runtimeSessionId: "screen-runtime",
+      sequence: 2,
+      app: {
+        name: "Safari",
+        bundleId: "com.apple.Safari"
+      },
+      ocr: {
+        text: "Goal 8 screen OCR 支持中文 and English.",
+        textHash: "ocr_hash_1",
+        sourceFrameHash: "frame_hash_1",
+        languages: ["en", "zh-Hans"],
+        engine: "mock-local"
+      }
+    });
+
+    expect(screen.source.pointer).toBe("screen://capture/screen-runtime/window/frame_hash_1#1");
+    expect(screen.source.kind).toBe("screen");
+    expect(screen.context.threadId).toBe("screen-runtime");
+    expect(screen.content.summary).toContain("1280x720");
+    expect(screen.classification?.topics).toEqual(["perception", "screen_ocr"]);
+    expect(ocr.source.pointer).toBe("ocr://capture/screen-runtime/frame_hash_1#2");
+    expect(ocr.source.kind).toBe("ocr");
+    expect(ocr.context.threadId).toBe("screen-runtime");
+    expect(ocr.content.summary).toContain("支持中文");
+  });
+
   it("rejects invalid observation runtime transitions", () => {
     expect(() => assertObservationStatusTransition("ready", "paused")).toThrow(
       /Invalid observation status transition/

@@ -2,15 +2,8 @@ import type { Event } from "../types/event";
 import type { Sensitivity } from "../types/common";
 import { createStableId } from "../id";
 import { hashObject } from "../hash";
-import {
-  DESKTOP_OBSERVATION_ADAPTER_ID,
-  isProtectedObservation
-} from "./observationPolicy";
-import type {
-  ObservationInput,
-  ObservationInputType,
-  ProtectedAppRule
-} from "./observationTypes";
+import { DESKTOP_OBSERVATION_ADAPTER_ID, isProtectedObservation } from "./observationPolicy";
+import type { ObservationInput, ObservationInputType, ProtectedAppRule } from "./observationTypes";
 import { observationSourceKindToCoreSourceKind } from "./observationTypes";
 
 export interface NormalizeObservationOptions {
@@ -27,10 +20,11 @@ export function normalizeObservationInput(
   const eventType = normalizeObservationEventType(input.type, protectedApp);
   const pointer = observationSourcePointer(input, eventType);
   const appName = input.app?.name ?? "Unknown app";
-  const context = buildContext(input, protectedApp);
+  const context = buildContext(input, eventType, protectedApp);
   const content = buildContent(input, eventType, appName, protectedApp);
   const sensitivity = inferSensitivity(input, eventType, protectedApp);
-  const redactionState = protectedApp || input.accessibility?.containsSecureField ? "redacted" : "none";
+  const redactionState =
+    protectedApp || input.accessibility?.containsSecureField ? "redacted" : "none";
   const hashInput = {
     sourcePointer: pointer,
     type: eventType,
@@ -63,7 +57,7 @@ export function normalizeObservationInput(
     type: eventType,
     content,
     classification: {
-      topics: ["background_observation"],
+      topics: classificationTopics(eventType),
       entities: [appName].filter((value) => value !== "Unknown app"),
       intent: "observation",
       confidence: protectedApp ? 0.9 : 0.8
@@ -104,7 +98,9 @@ export function observationSourcePointer(
     case "accessibility_snapshot":
       return `accessibility://snapshot/${input.runtimeSessionId}#${input.sequence}`;
     case "browser_navigation": {
-      const profile = encodePointerPart(input.browser?.profileId ?? input.app?.bundleId ?? "browser");
+      const profile = encodePointerPart(
+        input.browser?.profileId ?? input.app?.bundleId ?? "browser"
+      );
       return `browser://navigation/${profile}/${encodePointerPart(input.occurredAt)}`;
     }
     case "terminal_command":
@@ -122,9 +118,13 @@ export function observationSourcePointer(
       return `filesystem://watch/${rootId}/${path}#${eventId}`;
     }
     case "screen_observation":
-      return `screen://capture/${input.runtimeSessionId}#${input.sequence}`;
+      return `screen://capture/${input.runtimeSessionId}/${encodePointerPart(
+        input.screen?.scopeKind ?? "unknown-scope"
+      )}/${encodePointerPart(input.screen?.frameHash ?? String(input.sequence))}#${input.sequence}`;
     case "ocr_text":
-      return `ocr://capture/${input.runtimeSessionId}#${input.sequence}`;
+      return `ocr://capture/${input.runtimeSessionId}/${encodePointerPart(
+        input.ocr?.sourceFrameHash ?? input.ocr?.textHash ?? String(input.sequence)
+      )}#${input.sequence}`;
     case "audio_segment":
       return `audio://capture/${input.runtimeSessionId}#${input.sequence}`;
     case "transcript_segment":
@@ -167,6 +167,14 @@ export function observationDedupKey(
       return `file_activity:${input.file?.rootId ?? ""}:${input.file?.relativePath ?? ""}:${
         input.file?.operation ?? ""
       }:${input.file?.contentHash ?? ""}`;
+    case "screen_observation":
+      return `screen_observation:${input.runtimeSessionId}:${input.screen?.scopeKind ?? ""}:${
+        input.screen?.frameHash ?? input.sequence
+      }`;
+    case "ocr_text":
+      return `ocr_text:${input.runtimeSessionId}:${input.ocr?.sourceFrameHash ?? ""}:${
+        input.ocr?.textHash ?? input.sequence
+      }`;
     default:
       return `${type}:${input.runtimeSessionId}:${input.sequence}`;
   }
@@ -192,7 +200,11 @@ function normalizeObservationEventType(
   return type;
 }
 
-function buildContext(input: ObservationInput, protectedApp: boolean): Event["context"] {
+function buildContext(
+  input: ObservationInput,
+  type: ObservationInputType,
+  protectedApp: boolean
+): Event["context"] {
   const context: Event["context"] = {};
   if (input.app?.name) context.app = input.app.name;
   if (!protectedApp && input.window?.title) context.windowTitle = truncate(input.window.title, 180);
@@ -200,6 +212,14 @@ function buildContext(input: ObservationInput, protectedApp: boolean): Event["co
   if (url) context.url = url;
   if (input.terminal?.cwd && !protectedApp) context.project = basename(input.terminal.cwd);
   if (input.file?.rootId) context.project = input.file.rootId;
+  if (
+    type === "screen_observation" ||
+    type === "ocr_text" ||
+    type === "audio_segment" ||
+    type === "transcript_segment"
+  ) {
+    context.threadId = input.runtimeSessionId;
+  }
   return context;
 }
 
@@ -278,6 +298,45 @@ function buildContent(
           ? `File ${input.file.operation}: ${input.file.relativePath}`
           : "File activity observed."
       };
+    case "screen_observation": {
+      const dimensions =
+        input.screen?.width && input.screen?.height
+          ? ` (${input.screen.width}x${input.screen.height})`
+          : "";
+      const scope = [input.screen?.scopeKind, input.screen?.scopeLabel].filter(Boolean).join(" ");
+      const summary = input.screen?.redactedSummary
+        ? ` ${truncate(input.screen.redactedSummary, 220)}`
+        : "";
+      const attachment =
+        input.screen?.rawLocalRef && input.screen.frameHash
+          ? {
+              id: input.screen.frameHash,
+              kind: "image" as const,
+              name: "screen-frame",
+              localRef: input.screen.rawLocalRef,
+              sourcePointer: observationSourcePointer(input, type),
+              ...(input.screen.sizeBytes ? { sizeBytes: input.screen.sizeBytes } : {}),
+              hash: input.screen.frameHash
+            }
+          : undefined;
+      return {
+        title: `Screen observation in ${appName}`,
+        summary: `Screen observation captured${scope ? ` for ${scope}` : ""}${dimensions}.${summary}`,
+        ...(input.screen?.rawLocalRef && attachment
+          ? {
+              rawRef: input.screen.rawLocalRef,
+              attachments: [attachment]
+            }
+          : {})
+      };
+    }
+    case "ocr_text":
+      return {
+        title: `OCR text in ${appName}`,
+        summary: input.ocr?.text
+          ? truncate(input.ocr.text, 260)
+          : `OCR text observed with ${input.ocr?.engine ?? "local"} engine.`
+      };
     case "permission_state":
       return {
         title: "Observation permission state",
@@ -319,6 +378,16 @@ function inferSensitivity(
     return "confidential";
   }
   return "internal";
+}
+
+function classificationTopics(type: ObservationInputType): string[] {
+  if (type === "screen_observation" || type === "ocr_text") {
+    return ["perception", "screen_ocr"];
+  }
+  if (type === "audio_segment" || type === "transcript_segment") {
+    return ["perception", "audio"];
+  }
+  return ["background_observation"];
 }
 
 function normalizeUrl(value: string | undefined): string | undefined {

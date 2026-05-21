@@ -43,7 +43,7 @@ export class AuditRepository {
 
   listAuditLogs(): AuditLog[] {
     return this.db
-      .prepare("SELECT * FROM audit_logs ORDER BY created_at, id")
+      .prepare("SELECT * FROM audit_logs ORDER BY created_at, rowid")
       .all()
       .map((row) => mapAuditLog(row as AuditRow));
   }
