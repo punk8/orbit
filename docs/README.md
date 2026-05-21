@@ -23,7 +23,14 @@ Read in this order:
 17. [Alpha Release Checklist](./alpha-release-checklist.md)
 18. [Handoff: Next AI Provider Work](./handoff-next-ai-provider.md)
 19. [Alpha UI Implementation Spec](./alpha-ui-implementation-spec.md)
+20. [Complete Product Spec](./complete-product-spec.md)
+21. [Source Adapter Complete Contract](./source-adapter-complete-contract.md)
+22. [Semantic Quality And Evaluation](./semantic-quality-evaluation.md)
+23. [Release Readiness Spec](./release-readiness-spec.md)
 
 The design follows the project-level guidance in [AGENTS.md](../AGENTS.md):
 
 `Source Adapter -> Event -> Activity Session -> Knowledge Artifact -> Memory -> Recommendation`
+
+Use the Alpha documents to understand the current implementation boundary. Use the complete-product
+documents to plan work that must hold up for a full user-installable product.

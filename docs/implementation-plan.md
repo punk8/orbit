@@ -6,6 +6,11 @@ This document turns the current Orbit product, architecture, data model, privacy
 
 The first implementation should prove Orbit as a local-first work context continuity system. It should not become a temporary MVP script, a screenshot search tool, or a Codex/SeaTalk-specific side project. The code should start with stable domain boundaries and leave clear room for screen, calendar, mail, Jira, GitLab, local files, MCP, and future automation.
 
+For work beyond Alpha, use [Complete Product Spec](./complete-product-spec.md),
+[Source Adapter Complete Contract](./source-adapter-complete-contract.md),
+[Semantic Quality And Evaluation](./semantic-quality-evaluation.md), and
+[Release Readiness Spec](./release-readiness-spec.md) as the fuller product baseline.
+
 ## Development North Star
 
 Build the first usable path end to end:

@@ -156,6 +156,13 @@ Acceptance criteria:
 
 ## Later Milestones
 
+- Complete product scenario coverage from [Complete Product Spec](./complete-product-spec.md).
+- Production source adapters that pass
+  [Source Adapter Complete Contract](./source-adapter-complete-contract.md).
+- Semantic evals and golden fixtures from
+  [Semantic Quality And Evaluation](./semantic-quality-evaluation.md).
+- Release, packaging, privacy, and operations gates from
+  [Release Readiness Spec](./release-readiness-spec.md).
 - Screen adapter with explicit permission.
 - Accessibility-first capture.
 - Apple Vision OCR native helper.
