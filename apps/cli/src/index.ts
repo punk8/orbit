@@ -31,7 +31,12 @@ import {
   getTodayHandoff,
   getTodayHandoffMarkdown
 } from "./commands/handoff";
-import { getObserveStatus, ingestMockDesktopObservations } from "./commands/observe";
+import {
+  getObservePermissions,
+  getObserveProtectedApps,
+  getObserveStatus,
+  ingestMockDesktopObservations
+} from "./commands/observe";
 import { runSemanticPipeline } from "./commands/semanticPipeline";
 import { getStatus } from "./commands/status";
 import { buildAIProvider, isAIProviderConfigured, readAIProviderConfigFromEnv } from "@orbit/ai";
@@ -374,6 +379,24 @@ export function buildProgram(): Command {
     .option("--json", "output JSON")
     .action((options: { json?: boolean }) => {
       writeOutput(getObserveStatus(), {
+        json: options.json ?? program.opts<{ json?: boolean }>().json
+      });
+    });
+  observe
+    .command("permissions")
+    .description("Show background observation permission gates")
+    .option("--json", "output JSON")
+    .action((options: { json?: boolean }) => {
+      writeOutput(getObservePermissions(), {
+        json: options.json ?? program.opts<{ json?: boolean }>().json
+      });
+    });
+  observe
+    .command("protected-apps")
+    .description("Show protected app observation rules")
+    .option("--json", "output JSON")
+    .action((options: { json?: boolean }) => {
+      writeOutput(getObserveProtectedApps(), {
         json: options.json ?? program.opts<{ json?: boolean }>().json
       });
     });

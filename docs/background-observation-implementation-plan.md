@@ -1313,6 +1313,31 @@ The complete Background Observation Core is done only when all of these are true
 - Observation Events can produce Activity Sessions without manual import.
 - Closed, sufficiently meaningful sessions can produce Knowledge drafts.
 - Memory candidates still require confirmed Knowledge or explicit user save.
+
+## Goal 4 Implementation Decisions
+
+These decisions were recorded while implementing the 4A/4B/4C/4D checkpoints:
+
+- **Tier 1 implementation**: the Swift helper is the standard macOS Tier 1 path for frontmost app
+  metadata. Electron owns lifecycle, protected-app policy, ingestion, and persistence.
+- **Helper packaging/signing**: the helper currently runs as a checked-in Swift source through the
+  Electron service. Production packaging, signing, and update hardening remain a release-readiness
+  task before Beta distribution.
+- **Queue persistence**: the observation queue remains in-process for Goal 4. Restart-surviving queue
+  persistence is deferred until there is evidence that event loss during app restart is material.
+- **Window title and Accessibility**: Tier 1 window titles are best-effort only when available without
+  extra permissions. Reliable Accessibility text/window traversal is Tier 2 and remains gated by
+  explicit permission status.
+- **Protected apps**: the default protected bundle list is the source of truth until user-editable
+  protected app management is added in the product UI.
+- **Tier 2 source ownership**: terminal, browser, clipboard, filesystem, and Accessibility sources
+  live in `packages/adapters` as gated adapters. Live terminal shell integration, browser extension/API
+  capture, and filesystem watching are not enabled by default.
+- **Tier 2 enablement**: Goal 4D represents Tier 2 sources behind permission/allowlist/approved-path
+  gates and mockable inputs. Real continuous filesystem watch, browser metadata capture, terminal
+  hooks, and clipboard summaries require explicit setup in later product work.
+- **Tier 3**: screen frames, OCR, audio, transcript capture, and keystroke capture remain disabled and
+  unimplemented in Goal 4.
 - Recommendations remain evidence-backed and side-effect-free.
 - Today and Handoff reflect observed context while excluding unsafe raw payloads.
 - No raw screen recording, OCR, audio, keystrokes, password fields, silent browser scraping, or

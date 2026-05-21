@@ -11,3 +11,8 @@ export * from "./seatalk/seatalkNormalizer";
 export * from "./desktop/desktopObservationAdapter";
 export * from "./desktop/mockDesktopObservationSource";
 export * from "./desktop/observationQueue";
+export * from "./accessibility/accessibilityObservationAdapter";
+export * from "./filesystem/fileActivityAdapter";
+export * from "./clipboard/clipboardObservationAdapter";
+export * from "./browser/browserMetadataAdapter";
+export * from "./terminal/terminalObservationAdapter";

@@ -6,9 +6,11 @@ import {
   formatHandoffMarkdown,
   getLocalDateKey,
   ingestEventsFromAdapter,
+  type AllowedFolderRule,
   type EvidenceRef,
   type KnowledgeArtifact,
   type Memory,
+  type ObservationPermissionStatus,
   type ObservationRuntimeStatus,
   type ObservationStatus,
   type SourceAdapter,
@@ -58,6 +60,7 @@ import {
   writeOrbitRuntimeConfig
 } from "@orbit/db";
 import { safeStorage } from "electron";
+import { detectAccessibilityPermissionStatus } from "./observation/permissionStatus";
 import type {
   KnowledgeEditInput,
   KnowledgeReviewAction,
@@ -1054,34 +1057,36 @@ function readObservationStatus(
     defaultProtectedAppRules();
   const allowedFolders =
     settings.get<ObservationStatus["allowedFolders"]>(SETTING_KEYS.observationAllowedFolders) ?? [];
+  const tier2 = readTier2Status(settings, allowedFolders);
   const lastStartedAt = settings.get<string>(SETTING_KEYS.observationLastStartedAt);
   const lastStoppedAt = settings.get<string>(SETTING_KEYS.observationLastStoppedAt);
   const lastEventAt = settings.get<string>(SETTING_KEYS.observationLastEventAt);
   const lastError = settings.get<string>(SETTING_KEYS.observationLastError);
   const overrides: Partial<ObservationStatus> = {
-    status: runtimeStatus,
+    status: enabled ? runtimeStatus : tier2.enabled ? tier2.status : runtimeStatus,
     enabled,
     paused,
     protectedApps,
     allowedFolders,
+    permissions: tier2.permissions,
     queueDepth
   };
   if (lastStartedAt) overrides.lastStartedAt = lastStartedAt;
   if (lastStoppedAt) overrides.lastStoppedAt = lastStoppedAt;
   if (lastEventAt) overrides.lastEventAt = lastEventAt;
   if (lastError) overrides.lastError = lastError;
-  if (enabled) {
+  if (enabled || tier2.enabled) {
     overrides.tiers = {
       tier1: {
-        enabled: true,
-        status: paused ? "paused" : runtimeStatus,
+        enabled,
+        status: enabled ? (paused ? "paused" : runtimeStatus) : "not_configured",
         sourceKinds: ["desktop"],
         ...(lastEventAt ? { lastEventAt } : {}),
         ...(lastError ? { lastError } : {})
       },
       tier2: {
-        enabled: false,
-        status: "disabled",
+        enabled: tier2.enabled,
+        status: tier2.status,
         sourceKinds: ["accessibility", "browser", "terminal", "clipboard", "filesystem"]
       },
       tier3: {
@@ -1092,6 +1097,96 @@ function readObservationStatus(
     };
   }
   return createDefaultObservationStatus(overrides);
+}
+
+function readTier2Status(
+  settings: SettingsRepository,
+  allowedFolders: AllowedFolderRule[]
+): {
+  enabled: boolean;
+  status: ObservationRuntimeStatus;
+  permissions: ObservationPermissionStatus[];
+} {
+  const accessibilityEnabled = settings.get<boolean>("observation.accessibility.enabled") ?? false;
+  const browserEnabled = settings.get<boolean>("observation.browser.enabled") ?? false;
+  const filesystemEnabled = settings.get<boolean>("observation.filesystem.enabled") ?? false;
+  const clipboardEnabled = settings.get<boolean>("observation.clipboard.enabled") ?? false;
+  const terminalEnabled = settings.get<boolean>("observation.terminal.enabled") ?? false;
+  const enabled =
+    accessibilityEnabled ||
+    browserEnabled ||
+    filesystemEnabled ||
+    clipboardEnabled ||
+    terminalEnabled;
+  const accessibilityStatus =
+    accessibilityEnabled || browserEnabled
+      ? (settings.get<ObservationPermissionStatus["status"]>(
+          "observation.permission.accessibility"
+        ) ?? detectAccessibilityPermissionStatus().status)
+      : "not_required";
+  const filesystemStatus: ObservationPermissionStatus["status"] =
+    filesystemEnabled && allowedFolders.some((folder) => folder.enabled)
+      ? "granted"
+      : readPermissionStatus(settings, "observation.permission.filesystem", filesystemEnabled);
+  const automationStatus = readPermissionStatus(
+    settings,
+    "observation.permission.automation",
+    terminalEnabled
+  );
+  const permissions: ObservationPermissionStatus[] = [
+    {
+      kind: "accessibility",
+      requiredFor: ["accessibility", "browser"],
+      status: accessibilityStatus,
+      canRequestFromApp: false
+    },
+    {
+      kind: "filesystem",
+      requiredFor: ["filesystem"],
+      status: filesystemStatus,
+      canRequestFromApp: true
+    },
+    {
+      kind: "screen",
+      requiredFor: ["screen", "ocr"],
+      status: "not_required",
+      canRequestFromApp: true
+    },
+    {
+      kind: "microphone",
+      requiredFor: ["audio", "transcript"],
+      status: "not_required",
+      canRequestFromApp: true
+    },
+    {
+      kind: "automation",
+      requiredFor: ["terminal"],
+      status: automationStatus,
+      canRequestFromApp: false
+    }
+  ];
+  const needsPermission = permissions.some(
+    (permission) =>
+      permission.status === "not_determined" ||
+      permission.status === "denied" ||
+      permission.status === "restricted" ||
+      permission.status === "unknown"
+  );
+  return {
+    enabled,
+    status: !enabled ? "disabled" : needsPermission ? "needs_permission" : "ready",
+    permissions
+  };
+}
+
+function readPermissionStatus(
+  settings: SettingsRepository,
+  key: string,
+  required: boolean
+): ObservationPermissionStatus["status"] {
+  if (!required) return "not_required";
+  const value = settings.get<ObservationPermissionStatus["status"]>(key);
+  return value ?? "not_determined";
 }
 
 function readRuntimeStatus(value: string | undefined): DesktopRuntimeStatus {

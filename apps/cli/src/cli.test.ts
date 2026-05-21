@@ -8,7 +8,13 @@ import { ingestFixtures } from "./commands/ingestFixtures";
 import { ingestLocalAgent } from "./commands/ingestLocalAgent";
 import { runKnowledgeReviewAction, runMemoryReviewAction } from "./commands/governanceActions";
 import { getTodayHandoff, getTodayHandoffMarkdown } from "./commands/handoff";
-import { getObserveStatus, ingestMockDesktopObservations } from "./commands/observe";
+import {
+  getObservePermissions,
+  getObserveProtectedApps,
+  getObserveStatus,
+  ingestMockDesktopObservations
+} from "./commands/observe";
+import { openOrbitDatabase, SettingsRepository } from "@orbit/db";
 import {
   getProjectContext,
   getTodayContext,
@@ -164,6 +170,23 @@ describe("cli commands", () => {
     expect(initialStatus.observation.status).toBe("not_configured");
     expect(initialStatus.observation.queueDepth).toBe(0);
 
+    const database = openOrbitDatabase({ orbitHome });
+    try {
+      const settings = new SettingsRepository(database.db);
+      settings.set("observation.accessibility.enabled", true);
+      settings.set("observation.permission.accessibility", "denied");
+    } finally {
+      database.close();
+    }
+
+    const permissionNeeded = getObserveStatus();
+    expect(permissionNeeded.observation.tiers.tier2.status).toBe("needs_permission");
+    expect(getObservePermissions().permissions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "accessibility", status: "denied" })
+      ])
+    );
+
     const first = await ingestMockDesktopObservations();
     expect(first.source.inserted).toBe(7);
     expect(first.pipeline.activitySessions.total).toBe(2);
@@ -180,6 +203,7 @@ describe("cli commands", () => {
     expect(status.observation.tiers.tier1.status).toBe("ready");
     expect(status.observation.tiers.tier1.sourceKinds).toContain("desktop");
     expect(status.observation.protectedApps.length).toBeGreaterThan(0);
+    expect(getObserveProtectedApps().protectedApps.length).toBeGreaterThan(0);
     expect(listActivitySessions()).toHaveLength(2);
 
     const program = buildProgram();
@@ -187,6 +211,8 @@ describe("cli commands", () => {
       .find((command) => command.name() === "observe")
       ?.helpInformation();
     expect(observeHelp).toContain("status");
+    expect(observeHelp).toContain("permissions");
+    expect(observeHelp).toContain("protected-apps");
     expect(observeHelp).toContain("ingest-mock");
   });
 });

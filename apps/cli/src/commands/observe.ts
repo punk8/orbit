@@ -3,6 +3,8 @@ import {
   DESKTOP_OBSERVATION_ADAPTER_ID,
   createDefaultObservationStatus,
   defaultProtectedAppRules,
+  type AllowedFolderRule,
+  type ObservationPermissionStatus,
   type ObservationRuntimeStatus,
   type ObservationStatus
 } from "@orbit/core";
@@ -25,6 +27,18 @@ export interface ObserveStatusResult {
   orbitHome: string;
   dbPath: string;
   observation: ObservationStatus;
+}
+
+export interface ObservePermissionsResult {
+  orbitHome: string;
+  dbPath: string;
+  permissions: ObservationPermissionStatus[];
+}
+
+export interface ObserveProtectedAppsResult {
+  orbitHome: string;
+  dbPath: string;
+  protectedApps: ObservationStatus["protectedApps"];
 }
 
 export interface IngestMockObservationResult {
@@ -56,6 +70,24 @@ export function getObserveStatus(): ObserveStatusResult {
   } finally {
     database.close();
   }
+}
+
+export function getObservePermissions(): ObservePermissionsResult {
+  const status = getObserveStatus();
+  return {
+    orbitHome: status.orbitHome,
+    dbPath: status.dbPath,
+    permissions: status.observation.permissions
+  };
+}
+
+export function getObserveProtectedApps(): ObserveProtectedAppsResult {
+  const status = getObserveStatus();
+  return {
+    orbitHome: status.orbitHome,
+    dbPath: status.dbPath,
+    protectedApps: status.observation.protectedApps
+  };
 }
 
 export async function ingestMockDesktopObservations(): Promise<IngestMockObservationResult> {
@@ -141,16 +173,20 @@ function readObservationStatus(
     settingsRepository.get<ObservationRuntimeStatus>("observation.status") ?? "not_configured";
   const enabled = settingsRepository.get<boolean>("observation.enabled") ?? false;
   const paused = settingsRepository.get<boolean>("observation.paused") ?? false;
+  const allowedFolders =
+    settingsRepository.get<ObservationStatus["allowedFolders"]>("observation.allowedFolders") ??
+    [];
+  const tier2 = readTier2Status(settingsRepository, allowedFolders);
+  const status = enabled ? runtimeStatus : tier2.enabled ? tier2.status : runtimeStatus;
   const overrides: Partial<ObservationStatus> = {
-    status: runtimeStatus,
+    status,
     enabled,
     paused,
     protectedApps:
       settingsRepository.get<ObservationStatus["protectedApps"]>("observation.protectedApps") ??
       defaultProtectedAppRules(),
-    allowedFolders:
-      settingsRepository.get<ObservationStatus["allowedFolders"]>("observation.allowedFolders") ??
-      [],
+    allowedFolders,
+    permissions: tier2.permissions,
     queueDepth
   };
   const lastStartedAt = settingsRepository.get<string>("observation.lastStartedAt");
@@ -161,17 +197,17 @@ function readObservationStatus(
   if (lastStoppedAt) overrides.lastStoppedAt = lastStoppedAt;
   if (lastEventAt) overrides.lastEventAt = lastEventAt;
   if (lastError) overrides.lastError = lastError;
-  if (enabled) {
+  if (enabled || tier2.enabled) {
     overrides.tiers = {
       tier1: {
-        enabled: true,
-        status: paused ? "paused" : runtimeStatus,
+        enabled,
+        status: enabled ? (paused ? "paused" : runtimeStatus) : "not_configured",
         sourceKinds: ["desktop"],
         ...(lastEventAt ? { lastEventAt } : {})
       },
       tier2: {
-        enabled: false,
-        status: "disabled",
+        enabled: tier2.enabled,
+        status: tier2.status,
         sourceKinds: ["accessibility", "browser", "terminal", "clipboard", "filesystem"]
       },
       tier3: {
@@ -182,6 +218,102 @@ function readObservationStatus(
     };
   }
   return createDefaultObservationStatus(overrides);
+}
+
+function readTier2Status(
+  settingsRepository: SettingsRepository,
+  allowedFolders: AllowedFolderRule[]
+): {
+  enabled: boolean;
+  status: ObservationRuntimeStatus;
+  permissions: ObservationPermissionStatus[];
+} {
+  const accessibilityEnabled =
+    settingsRepository.get<boolean>("observation.accessibility.enabled") ?? false;
+  const browserEnabled = settingsRepository.get<boolean>("observation.browser.enabled") ?? false;
+  const filesystemEnabled =
+    settingsRepository.get<boolean>("observation.filesystem.enabled") ?? false;
+  const clipboardEnabled =
+    settingsRepository.get<boolean>("observation.clipboard.enabled") ?? false;
+  const terminalEnabled = settingsRepository.get<boolean>("observation.terminal.enabled") ?? false;
+  const enabled =
+    accessibilityEnabled ||
+    browserEnabled ||
+    filesystemEnabled ||
+    clipboardEnabled ||
+    terminalEnabled;
+  const accessibilityStatus = readPermissionStatus(
+    settingsRepository,
+    "observation.permission.accessibility",
+    accessibilityEnabled || browserEnabled
+  );
+  const filesystemStatus: ObservationPermissionStatus["status"] =
+    filesystemEnabled && allowedFolders.some((folder) => folder.enabled)
+      ? "granted"
+      : readPermissionStatus(
+          settingsRepository,
+          "observation.permission.filesystem",
+          filesystemEnabled
+        );
+  const automationStatus = readPermissionStatus(
+    settingsRepository,
+    "observation.permission.automation",
+    terminalEnabled
+  );
+  const permissions: ObservationPermissionStatus[] = [
+    {
+      kind: "accessibility",
+      requiredFor: ["accessibility", "browser"],
+      status: accessibilityStatus,
+      canRequestFromApp: false
+    },
+    {
+      kind: "filesystem",
+      requiredFor: ["filesystem"],
+      status: filesystemStatus,
+      canRequestFromApp: true
+    },
+    {
+      kind: "screen",
+      requiredFor: ["screen", "ocr"],
+      status: "not_required",
+      canRequestFromApp: true
+    },
+    {
+      kind: "microphone",
+      requiredFor: ["audio", "transcript"],
+      status: "not_required",
+      canRequestFromApp: true
+    },
+    {
+      kind: "automation",
+      requiredFor: ["terminal"],
+      status: automationStatus,
+      canRequestFromApp: false
+    }
+  ];
+  const needsPermission = permissions.some(
+    (permission) =>
+      permission.status === "not_determined" ||
+      permission.status === "denied" ||
+      permission.status === "restricted" ||
+      permission.status === "unknown"
+  );
+  return {
+    enabled,
+    status: !enabled ? "disabled" : needsPermission ? "needs_permission" : "ready",
+    permissions
+  };
+}
+
+function readPermissionStatus(
+  settingsRepository: SettingsRepository,
+  key: string,
+  required: boolean
+): ObservationPermissionStatus["status"] {
+  if (!required) return "not_required";
+  const value = settingsRepository.get<ObservationPermissionStatus["status"]>(key);
+  return value ?? "not_determined";
 }
 
 function writeObservationStatus(
