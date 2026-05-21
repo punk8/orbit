@@ -13,6 +13,11 @@ import {
   type ObservationPermissionStatus,
   type ObservationRuntimeStatus,
   type ObservationStatus,
+  type PerceptionProviderKind,
+  type PerceptionProviderTask,
+  type PerceptionSourceKind,
+  type PerceptionSourcePolicyPatch,
+  type PerceptionSourceRuntimeAction,
   type SourceAdapter,
   type SourceKind
 } from "@orbit/core";
@@ -48,6 +53,8 @@ import {
   KnowledgeRepository,
   MemoryRepository,
   openOrbitDatabase,
+  readPerceptionStatus,
+  readPerceptionStatusFromSettings,
   reindexLocalDataWithProvider,
   RecommendationRepository,
   SettingsRepository,
@@ -57,6 +64,9 @@ import {
   reviewKnowledgeArtifact,
   reviewMemory,
   reviewRecommendation,
+  updatePerceptionProviderRoute,
+  updatePerceptionSourcePolicy,
+  updatePerceptionSourceRuntime,
   writeOrbitRuntimeConfig
 } from "@orbit/db";
 import { safeStorage } from "electron";
@@ -173,6 +183,7 @@ export function readDesktopSnapshot(date = getLocalDateKey()): DesktopSnapshot {
       today,
       runtime: readRuntime(settingsRepository),
       observation: readObservationStatus(settingsRepository),
+      perception: readPerceptionStatus(database.db),
       settings: readSettings(settingsRepository)
     };
   } finally {
@@ -805,6 +816,45 @@ export function updateSourceRuntimeForDesktop(
   return readDesktopSnapshot();
 }
 
+export function updatePerceptionSourceRuntimeForDesktop(
+  sourceKind: PerceptionSourceKind,
+  action: PerceptionSourceRuntimeAction
+): DesktopSnapshot {
+  const database = openOrbitDatabase();
+  try {
+    updatePerceptionSourceRuntime(database.db, sourceKind, action);
+  } finally {
+    database.close();
+  }
+  return readDesktopSnapshot();
+}
+
+export function updatePerceptionSourcePolicyForDesktop(
+  sourceKind: PerceptionSourceKind,
+  patch: PerceptionSourcePolicyPatch
+): DesktopSnapshot {
+  const database = openOrbitDatabase();
+  try {
+    updatePerceptionSourcePolicy(database.db, sourceKind, patch);
+  } finally {
+    database.close();
+  }
+  return readDesktopSnapshot();
+}
+
+export function updatePerceptionProviderRouteForDesktop(
+  task: PerceptionProviderTask,
+  provider: PerceptionProviderKind
+): DesktopSnapshot {
+  const database = openOrbitDatabase();
+  try {
+    updatePerceptionProviderRoute(database.db, task, provider);
+  } finally {
+    database.close();
+  }
+  return readDesktopSnapshot();
+}
+
 export interface BackgroundIngestionResult {
   status: DesktopRuntimeStatus;
   sourceCount: number;
@@ -1011,7 +1061,7 @@ function readSettings(settings: SettingsRepository): DesktopSnapshot["settings"]
     ),
     aiApiKeyConfigured: Boolean(aiApiKeyCiphertext),
     externalActionsEnabled: false,
-    visualContextEnabled: false,
+    visualContextEnabled: readPerceptionStatusFromSettings(settings).enabled,
     menuBarEnabled: settings.get<boolean>(SETTING_KEYS.menuBarEnabled) ?? true,
     launchAtLoginEnabled: settings.get<boolean>(SETTING_KEYS.launchAtLoginEnabled) ?? false,
     language: readLanguageSetting(settings.get<string>(SETTING_KEYS.language)),
@@ -1044,10 +1094,7 @@ function readRuntime(settings: SettingsRepository): DesktopSnapshot["runtime"] {
   return runtime;
 }
 
-function readObservationStatus(
-  settings: SettingsRepository,
-  queueDepth = 0
-): ObservationStatus {
+function readObservationStatus(settings: SettingsRepository, queueDepth = 0): ObservationStatus {
   const runtimeStatus =
     settings.get<ObservationRuntimeStatus>(SETTING_KEYS.observationStatus) ?? "not_configured";
   const enabled = settings.get<boolean>(SETTING_KEYS.observationEnabled) ?? false;

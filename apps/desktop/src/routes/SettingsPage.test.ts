@@ -7,8 +7,12 @@ describe("SettingsPage privacy and provider hardening", () => {
 
     expect(source).toContain("settings.providerTaskBoundary");
     expect(source).toContain("settings.providerTaskSyntheticTest");
+    expect(source).toContain("settings.perceptionProviderRouting");
     expect(source).toContain("settingsNav.privacy");
     expect(source).toContain("section.sourcePolicyMatrix");
+    expect(source).toContain("section.perceptionPolicyMatrix");
+    expect(source).toContain("onUpdatePerceptionSourcePolicy");
+    expect(source).toContain("onUpdatePerceptionProviderRoute");
     expect(source).toContain("settings.aiAllowedSources");
     expect(source).toContain("settingsNav.indexing");
     expect(source).toContain("settings.vectorIndexDisabled");

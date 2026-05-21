@@ -14,6 +14,7 @@ import {
   getObserveStatus,
   ingestMockDesktopObservations
 } from "./commands/observe";
+import { getPerceptionStatus } from "./commands/perception";
 import { openOrbitDatabase, SettingsRepository } from "@orbit/db";
 import {
   getProjectContext,
@@ -182,9 +183,7 @@ describe("cli commands", () => {
     const permissionNeeded = getObserveStatus();
     expect(permissionNeeded.observation.tiers.tier2.status).toBe("needs_permission");
     expect(getObservePermissions().permissions).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ kind: "accessibility", status: "denied" })
-      ])
+      expect.arrayContaining([expect.objectContaining({ kind: "accessibility", status: "denied" })])
     );
 
     const first = await ingestMockDesktopObservations();
@@ -214,5 +213,34 @@ describe("cli commands", () => {
     expect(observeHelp).toContain("permissions");
     expect(observeHelp).toContain("protected-apps");
     expect(observeHelp).toContain("ingest-mock");
+  });
+
+  it("reports Goal 8A perception control-plane status without capture", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-perception-test-"));
+    tempDirs.push(orbitHome);
+    process.env.ORBIT_HOME = orbitHome;
+
+    const status = getPerceptionStatus();
+    expect(status.perception.status).toBe("disabled");
+    expect(status.perception.sources.map((source) => source.sourceKind)).toEqual([
+      "screen",
+      "ocr",
+      "vision",
+      "microphone_audio",
+      "system_audio",
+      "transcript"
+    ]);
+    expect(status.perception.sources.every((source) => source.enabled === false)).toBe(true);
+    expect(status.perception.providerRoutes.map((route) => route.task)).toEqual([
+      "ocr",
+      "vision",
+      "transcription"
+    ]);
+
+    const program = buildProgram();
+    const perceptionHelp = program.commands
+      .find((command) => command.name() === "perception")
+      ?.helpInformation();
+    expect(perceptionHelp).toContain("status");
   });
 });

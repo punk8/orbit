@@ -6,6 +6,12 @@ import type {
   KnowledgeArtifactType,
   Memory,
   MemoryKind,
+  PerceptionControlPlaneStatus,
+  PerceptionProviderKind,
+  PerceptionProviderTask,
+  PerceptionSourceKind,
+  PerceptionSourcePolicyPatch,
+  PerceptionSourceRuntimeAction,
   ObservationStatus,
   Recommendation,
   SourceRecord,
@@ -47,6 +53,7 @@ export interface DesktopSnapshot {
     lastError?: string;
   };
   observation: ObservationStatus;
+  perception: PerceptionControlPlaneStatus;
   settings: {
     localOnly: boolean;
     aiProvider: string;
@@ -200,6 +207,18 @@ export interface OrbitDesktopApi {
   updateSourceRuntime(
     sourceId: string,
     action: DesktopSourceRuntimeAction
+  ): Promise<DesktopSnapshot>;
+  updatePerceptionSourceRuntime(
+    sourceKind: PerceptionSourceKind,
+    action: PerceptionSourceRuntimeAction
+  ): Promise<DesktopSnapshot>;
+  updatePerceptionSourcePolicy(
+    sourceKind: PerceptionSourceKind,
+    patch: PerceptionSourcePolicyPatch
+  ): Promise<DesktopSnapshot>;
+  updatePerceptionProviderRoute(
+    task: PerceptionProviderTask,
+    provider: PerceptionProviderKind
   ): Promise<DesktopSnapshot>;
   setupSource(kind: SourceSetupKind, path?: string): Promise<DesktopActionResult>;
   reconfigureSource(

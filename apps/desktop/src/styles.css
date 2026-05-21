@@ -1090,7 +1090,7 @@ button {
   gap: 6px;
 }
 
-.source-policy-badges span {
+.source-policy-badges > span {
   border: 1px solid #d9e4df;
   border-radius: 999px;
   background: #f7faf8;
@@ -1099,6 +1099,24 @@ button {
   font-weight: 650;
   padding: 4px 8px;
   white-space: nowrap;
+}
+
+.policy-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #d9e4df;
+  border-radius: 999px;
+  background: #f7faf8;
+  color: #315f56;
+  font-size: 11px;
+  font-weight: 650;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
+.policy-toggle input {
+  margin: 0;
 }
 
 .danger-operation {

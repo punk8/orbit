@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
 import type { DesktopSnapshot, DesktopSourceRuntimeAction, SourceSetupKind } from "../orbitApi";
+import type { PerceptionSourceRuntimeAction } from "@orbit/core";
 import { MetricCard } from "../components/MetricCard";
 import { Section } from "../components/Section";
 import { useI18n } from "../i18n";
@@ -12,7 +13,8 @@ export function SourcesPage({
   onDeleteSource,
   onResetSourceCursor,
   onCleanupLegacyEventPrivacy,
-  onUpdateSourceRuntime
+  onUpdateSourceRuntime,
+  onUpdatePerceptionSourceRuntime
 }: {
   snapshot: DesktopSnapshot;
   onSetupSource(kind: SourceSetupKind, path?: string): Promise<void>;
@@ -21,6 +23,10 @@ export function SourcesPage({
   onResetSourceCursor(sourceId: string): Promise<void>;
   onCleanupLegacyEventPrivacy(): Promise<void>;
   onUpdateSourceRuntime(sourceId: string, action: DesktopSourceRuntimeAction): Promise<void>;
+  onUpdatePerceptionSourceRuntime(
+    sourceKind: DesktopSnapshot["perception"]["sources"][number]["sourceKind"],
+    action: PerceptionSourceRuntimeAction
+  ): Promise<void>;
 }): ReactElement {
   const { t, sensitivity, sourceKind } = useI18n();
   const [codexPath, setCodexPath] = useState("fixtures/realistic/codex");
@@ -162,6 +168,78 @@ export function SourcesPage({
           ) : null}
         </div>
       </Section>
+      <Section title={t("section.perceptionSources")}>
+        <div className="item-list perception-source-list">
+          {snapshot.perception.sources.map((source) => (
+            <article className="list-item" key={source.sourceKind}>
+              <div>
+                <h3>{source.displayName}</h3>
+                <div className="meta-line">
+                  <span>{tPerceptionStatus(t, source.status)}</span>
+                  <span>{`${t("source.retention")} ${source.policy.retentionPolicyId}`}</span>
+                  <span>
+                    {source.policy.canUseForAI ? t("source.aiAllowed") : t("source.aiBlocked")}
+                  </span>
+                  <span>
+                    {source.policy.canStoreRaw ? t("source.rawStored") : t("source.rawNotStored")}
+                  </span>
+                  <span>
+                    {source.policy.canExportToAgent
+                      ? t("source.agentExportAllowed")
+                      : t("source.agentExportBlocked")}
+                  </span>
+                </div>
+                <div className="meta-line permission-line">
+                  <span>{source.description}</span>
+                </div>
+                <div className="meta-line permission-line">
+                  <span>{`${t("perception.permissions")} ${source.permissionGates
+                    .map((permission) => `${permission.kind}:${permission.status}`)
+                    .join(", ")}`}</span>
+                </div>
+              </div>
+              <div className="source-actions">
+                <button
+                  className="secondary-button"
+                  disabled={source.enabled}
+                  onClick={() => void onUpdatePerceptionSourceRuntime(source.sourceKind, "enable")}
+                  type="button"
+                >
+                  {t("action.enable")}
+                </button>
+                <button
+                  className="secondary-button"
+                  disabled={!source.enabled}
+                  onClick={() =>
+                    void onUpdatePerceptionSourceRuntime(
+                      source.sourceKind,
+                      source.paused ? "resume" : "pause"
+                    )
+                  }
+                  type="button"
+                >
+                  {source.paused ? t("action.resume") : t("action.pause")}
+                </button>
+                <button
+                  className="secondary-button"
+                  disabled={!source.enabled}
+                  onClick={() => void onUpdatePerceptionSourceRuntime(source.sourceKind, "disable")}
+                  type="button"
+                >
+                  {t("action.disable")}
+                </button>
+                <button
+                  className="secondary-button danger-button"
+                  onClick={() => void onUpdatePerceptionSourceRuntime(source.sourceKind, "delete")}
+                  type="button"
+                >
+                  {t("action.deleteSource")}
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </Section>
       <Section
         title={
           snapshot.settings.sourceSetupCompleted
@@ -255,6 +333,20 @@ export function SourcesPage({
       </Section>
     </div>
   );
+}
+
+function tPerceptionStatus(
+  t: ReturnType<typeof useI18n>["t"],
+  status: DesktopSnapshot["perception"]["status"]
+): string {
+  if (status === "not_configured") return t("observation.not_configured");
+  if (status === "needs_permission") return t("observation.needs_permission");
+  if (status === "ready") return t("observation.ready");
+  if (status === "collecting") return t("observation.collecting");
+  if (status === "paused") return t("observation.paused");
+  if (status === "warning") return t("observation.warning");
+  if (status === "error") return t("observation.error");
+  return t("observation.disabled");
 }
 
 function readReconfigurableSetupKind(

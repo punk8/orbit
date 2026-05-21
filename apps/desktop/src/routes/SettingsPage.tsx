@@ -9,6 +9,12 @@ import type {
   DesktopSettingKey,
   DesktopSnapshot
 } from "../orbitApi";
+import type {
+  PerceptionProviderKind,
+  PerceptionProviderTask,
+  PerceptionSourceKind,
+  PerceptionSourcePolicyPatch
+} from "@orbit/core";
 import { Section } from "../components/Section";
 import { useI18n } from "../i18n";
 
@@ -25,7 +31,9 @@ export function SettingsPage({
   onStartObservation,
   onPauseObservation,
   onResumeObservation,
-  onStopObservation
+  onStopObservation,
+  onUpdatePerceptionSourcePolicy,
+  onUpdatePerceptionProviderRoute
 }: {
   snapshot: DesktopSnapshot;
   onUpdateSetting(key: DesktopSettingKey, value: unknown): Promise<void>;
@@ -38,6 +46,14 @@ export function SettingsPage({
   onPauseObservation(): Promise<void>;
   onResumeObservation(): Promise<void>;
   onStopObservation(): Promise<void>;
+  onUpdatePerceptionSourcePolicy(
+    sourceKind: PerceptionSourceKind,
+    patch: PerceptionSourcePolicyPatch
+  ): Promise<void>;
+  onUpdatePerceptionProviderRoute(
+    task: PerceptionProviderTask,
+    provider: PerceptionProviderKind
+  ): Promise<void>;
 }): ReactElement {
   const { t, sensitivity, sourceKind } = useI18n();
   const [activeSection, setActiveSection] = useState<SettingsSectionId>("provider");
@@ -363,6 +379,36 @@ export function SettingsPage({
                   />
                 </dl>
               </div>
+              <div className="settings-policy-block perception-provider-routing">
+                <h3>{t("settings.perceptionProviderRouting")}</h3>
+                <dl className="mini-grid">
+                  {snapshot.perception.providerRoutes.map((route) => (
+                    <div key={route.task}>
+                      <dt>{perceptionProviderTaskLabel(t, route.task)}</dt>
+                      <dd>
+                        <select
+                          className="select-input compact-select"
+                          onChange={(event) =>
+                            void onUpdatePerceptionProviderRoute(
+                              route.task,
+                              event.currentTarget.value as PerceptionProviderKind
+                            )
+                          }
+                          value={route.provider}
+                        >
+                          <option value="disabled">{t("provider.disabled")}</option>
+                          <option value="mock">{t("provider.mock")}</option>
+                          <option value="local">{t("provider.local")}</option>
+                          <option value="openai-compatible">
+                            {t("provider.openaiCompatible")}
+                          </option>
+                        </select>
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+                <p className="muted">{t("settings.perceptionProviderRoutingNote")}</p>
+              </div>
             </div>
           </Section>
         ) : null}
@@ -373,9 +419,7 @@ export function SettingsPage({
               <dl className="settings-grid">
                 <DetailRow
                   label={t("settings.localOnlyMode")}
-                  value={
-                    snapshot.settings.localOnly ? t("state.enabled") : t("app.remoteEnabled")
-                  }
+                  value={snapshot.settings.localOnly ? t("state.enabled") : t("app.remoteEnabled")}
                 />
                 <DetailRow
                   label={t("settings.externalActions")}
@@ -415,7 +459,9 @@ export function SettingsPage({
                 />
                 <DetailRow
                   label={t("settings.retentionPolicies")}
-                  value={retentionPolicies.length > 0 ? retentionPolicies.join(", ") : t("fallback.none")}
+                  value={
+                    retentionPolicies.length > 0 ? retentionPolicies.join(", ") : t("fallback.none")
+                  }
                 />
               </dl>
             </Section>
@@ -451,6 +497,64 @@ export function SettingsPage({
                 {snapshot.sources.length === 0 ? (
                   <div className="empty-state compact">{t("empty.noSources")}</div>
                 ) : null}
+              </div>
+            </Section>
+            <Section title={t("section.perceptionPolicyMatrix")}>
+              <div className="source-policy-list perception-policy-list">
+                {snapshot.perception.sources.map((source) => (
+                  <article
+                    className="source-policy-row perception-policy-row"
+                    key={source.sourceKind}
+                  >
+                    <div>
+                      <h3>{source.displayName}</h3>
+                      <p>{`${tPerceptionStatus(t, source.status)} · ${
+                        source.policy.retentionPolicyId
+                      } · ${source.permissionGates
+                        .map((permission) => `${permission.kind}:${permission.status}`)
+                        .join(", ")}`}</p>
+                    </div>
+                    <div className="source-policy-badges">
+                      <PolicyToggle
+                        checked={source.policy.canStoreSummary}
+                        label={t("perception.summaryStorage")}
+                        onChange={(checked) =>
+                          void onUpdatePerceptionSourcePolicy(source.sourceKind, {
+                            canStoreSummary: checked
+                          })
+                        }
+                      />
+                      <PolicyToggle
+                        checked={source.policy.canUseForAI}
+                        label={t("perception.aiUse")}
+                        onChange={(checked) =>
+                          void onUpdatePerceptionSourcePolicy(source.sourceKind, {
+                            canUseForAI: checked
+                          })
+                        }
+                      />
+                      <PolicyToggle
+                        checked={source.policy.canExportToAgent}
+                        label={t("perception.agentExport")}
+                        onChange={(checked) =>
+                          void onUpdatePerceptionSourcePolicy(source.sourceKind, {
+                            canExportToAgent: checked
+                          })
+                        }
+                      />
+                      <PolicyToggle
+                        checked={source.policy.canStoreRaw}
+                        label={t("perception.rawSidecar")}
+                        onChange={(checked) =>
+                          void onUpdatePerceptionSourcePolicy(source.sourceKind, {
+                            canStoreRaw: checked,
+                            rawRetentionTtlMinutes: checked ? 60 : null
+                          })
+                        }
+                      />
+                    </div>
+                  </article>
+                ))}
               </div>
             </Section>
           </div>
@@ -600,9 +704,7 @@ export function SettingsPage({
               <div className="provider-actions">
                 <button
                   className="secondary-button"
-                  data-observation-action={
-                    snapshot.observation.enabled ? "resume" : "start"
-                  }
+                  data-observation-action={snapshot.observation.enabled ? "resume" : "start"}
                   disabled={snapshot.observation.enabled && !snapshot.observation.paused}
                   onClick={() =>
                     void (snapshot.observation.enabled
@@ -749,7 +851,11 @@ export function SettingsPage({
                   <h3>{t("action.clearLocalData")}</h3>
                   <p>{t("settings.clearDataDescription")}</p>
                 </div>
-                <button className="danger-button" onClick={() => void clearLocalData()} type="button">
+                <button
+                  className="danger-button"
+                  onClick={() => void clearLocalData()}
+                  type="button"
+                >
                   {t("action.clearLocalData")}
                 </button>
               </article>
@@ -770,6 +876,27 @@ function DetailRow({ label, value }: { label: string; value: string }): ReactEle
   );
 }
 
+function PolicyToggle({
+  checked,
+  label,
+  onChange
+}: {
+  checked: boolean;
+  label: string;
+  onChange(checked: boolean): void;
+}): ReactElement {
+  return (
+    <label className="policy-toggle">
+      <input
+        checked={checked}
+        onChange={(event) => onChange(event.currentTarget.checked)}
+        type="checkbox"
+      />
+      <span>{label}</span>
+    </label>
+  );
+}
+
 function countSummary(count: number, total: number): string {
   return `${count}/${total}`;
 }
@@ -781,6 +908,29 @@ function providerBoundaryValue(
   if (providerKind === "disabled") return t("settings.providerTaskDisabled");
   if (providerKind === "mock") return t("settings.providerTaskMockDrafting");
   return t("settings.providerTaskExternalDrafting");
+}
+
+function perceptionProviderTaskLabel(
+  t: ReturnType<typeof useI18n>["t"],
+  task: PerceptionProviderTask
+): string {
+  if (task === "vision") return t("perception.providerTaskVision");
+  if (task === "transcription") return t("perception.providerTaskTranscription");
+  return t("perception.providerTaskOcr");
+}
+
+function tPerceptionStatus(
+  t: ReturnType<typeof useI18n>["t"],
+  status: DesktopSnapshot["perception"]["status"]
+): string {
+  if (status === "not_configured") return t("observation.not_configured");
+  if (status === "needs_permission") return t("observation.needs_permission");
+  if (status === "ready") return t("observation.ready");
+  if (status === "collecting") return t("observation.collecting");
+  if (status === "paused") return t("observation.paused");
+  if (status === "warning") return t("observation.warning");
+  if (status === "error") return t("observation.error");
+  return t("observation.disabled");
 }
 
 function tObservationStatus(

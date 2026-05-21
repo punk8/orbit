@@ -15,3 +15,4 @@ export * from "./semanticPipeline";
 export * from "./localDataOperations";
 export * from "./privacyCleanup";
 export * from "./handoffPack";
+export * from "./perceptionSettings";

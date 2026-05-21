@@ -19,6 +19,12 @@ const orbitApi: OrbitDesktopApi = {
   setCollectionPaused: (paused) => ipcRenderer.invoke("orbit:setCollectionPaused", paused),
   updateSourceRuntime: (sourceId, action) =>
     ipcRenderer.invoke("orbit:updateSourceRuntime", sourceId, action),
+  updatePerceptionSourceRuntime: (sourceKind, action) =>
+    ipcRenderer.invoke("orbit:updatePerceptionSourceRuntime", sourceKind, action),
+  updatePerceptionSourcePolicy: (sourceKind, patch) =>
+    ipcRenderer.invoke("orbit:updatePerceptionSourcePolicy", sourceKind, patch),
+  updatePerceptionProviderRoute: (task, provider) =>
+    ipcRenderer.invoke("orbit:updatePerceptionProviderRoute", task, provider),
   setupSource: (kind, path) => ipcRenderer.invoke("orbit:setupSource", kind, path),
   reconfigureSource: (sourceId, kind, path) =>
     ipcRenderer.invoke("orbit:reconfigureSource", sourceId, kind, path),

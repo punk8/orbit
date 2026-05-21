@@ -22,6 +22,13 @@ import type {
   SourceSetupKind
 } from "./orbitApi";
 import type {
+  PerceptionProviderKind,
+  PerceptionProviderTask,
+  PerceptionSourceKind,
+  PerceptionSourcePolicyPatch,
+  PerceptionSourceRuntimeAction
+} from "@orbit/core";
+import type {
   KnowledgeEditInput,
   KnowledgeReviewAction,
   MemoryEditInput,
@@ -128,6 +135,36 @@ export function App(): ReactElement {
     await runReviewAction(
       () => window.orbit.updateSourceRuntime(sourceId, action),
       t("error.sourceRuntime")
+    );
+  }
+
+  async function updatePerceptionSourceRuntime(
+    sourceKind: PerceptionSourceKind,
+    action: PerceptionSourceRuntimeAction
+  ): Promise<void> {
+    await runReviewAction(
+      () => window.orbit.updatePerceptionSourceRuntime(sourceKind, action),
+      t("error.perception")
+    );
+  }
+
+  async function updatePerceptionSourcePolicy(
+    sourceKind: PerceptionSourceKind,
+    patch: PerceptionSourcePolicyPatch
+  ): Promise<void> {
+    await runReviewAction(
+      () => window.orbit.updatePerceptionSourcePolicy(sourceKind, patch),
+      t("error.perception")
+    );
+  }
+
+  async function updatePerceptionProviderRoute(
+    task: PerceptionProviderTask,
+    provider: PerceptionProviderKind
+  ): Promise<void> {
+    await runReviewAction(
+      () => window.orbit.updatePerceptionProviderRoute(task, provider),
+      t("error.perception")
     );
   }
 
@@ -327,6 +364,9 @@ export function App(): ReactElement {
                 resumeObservation,
                 stopObservation,
                 updateSourceRuntime,
+                updatePerceptionSourceRuntime,
+                updatePerceptionSourcePolicy,
+                updatePerceptionProviderRoute,
                 setupSource,
                 reconfigureSource,
                 deleteSource,
@@ -372,6 +412,18 @@ interface PageActions {
   resumeObservation(): Promise<void>;
   stopObservation(): Promise<void>;
   updateSourceRuntime(sourceId: string, action: DesktopSourceRuntimeAction): Promise<void>;
+  updatePerceptionSourceRuntime(
+    sourceKind: PerceptionSourceKind,
+    action: PerceptionSourceRuntimeAction
+  ): Promise<void>;
+  updatePerceptionSourcePolicy(
+    sourceKind: PerceptionSourceKind,
+    patch: PerceptionSourcePolicyPatch
+  ): Promise<void>;
+  updatePerceptionProviderRoute(
+    task: PerceptionProviderTask,
+    provider: PerceptionProviderKind
+  ): Promise<void>;
   setupSource(kind: SourceSetupKind, path?: string): Promise<void>;
   reconfigureSource(sourceId: string, kind: SourceSetupKind, path?: string): Promise<void>;
   deleteSource(sourceId: string): Promise<void>;
@@ -435,6 +487,7 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
           onResetSourceCursor={actions.resetSourceCursor}
           onCleanupLegacyEventPrivacy={actions.cleanupLegacyEventPrivacy}
           onUpdateSourceRuntime={actions.updateSourceRuntime}
+          onUpdatePerceptionSourceRuntime={actions.updatePerceptionSourceRuntime}
         />
       );
     case "settings":
@@ -451,6 +504,8 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
           onResumeObservation={actions.resumeObservation}
           onStopObservation={actions.stopObservation}
           onUpdateSetting={actions.updateSetting}
+          onUpdatePerceptionSourcePolicy={actions.updatePerceptionSourcePolicy}
+          onUpdatePerceptionProviderRoute={actions.updatePerceptionProviderRoute}
         />
       );
   }

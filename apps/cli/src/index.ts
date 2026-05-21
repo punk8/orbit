@@ -37,6 +37,7 @@ import {
   getObserveStatus,
   ingestMockDesktopObservations
 } from "./commands/observe";
+import { getPerceptionStatus } from "./commands/perception";
 import { runSemanticPipeline } from "./commands/semanticPipeline";
 import { getStatus } from "./commands/status";
 import { buildAIProvider, isAIProviderConfigured, readAIProviderConfigFromEnv } from "@orbit/ai";
@@ -356,10 +357,7 @@ export function buildProgram(): Command {
     .action((options: { date?: string; format?: string; json?: boolean }) => {
       const json = options.json ?? program.opts<{ json?: boolean }>().json;
       const input = omitUndefined({ date: options.date });
-      writeOutput(
-        json ? getTodayHandoff(input) : getTodayHandoffMarkdown(input),
-        { json }
-      );
+      writeOutput(json ? getTodayHandoff(input) : getTodayHandoffMarkdown(input), { json });
     });
   handoff
     .command("project")
@@ -407,6 +405,19 @@ export function buildProgram(): Command {
     .action(async (options: { json?: boolean }) => {
       const result = await ingestMockDesktopObservations();
       writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
+    });
+
+  const perception = program
+    .command("perception")
+    .description("Inspect high-risk perception control-plane state");
+  perception
+    .command("status")
+    .description("Show screen/OCR/vision/audio source policies without starting capture")
+    .option("--json", "output JSON")
+    .action((options: { json?: boolean }) => {
+      writeOutput(getPerceptionStatus(), {
+        json: options.json ?? program.opts<{ json?: boolean }>().json
+      });
     });
 
   return program;

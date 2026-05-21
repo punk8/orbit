@@ -20,6 +20,9 @@ import {
   reviewKnowledgeForDesktop,
   reviewMemoryForDesktop,
   reviewRecommendationForDesktop,
+  updatePerceptionProviderRouteForDesktop,
+  updatePerceptionSourcePolicyForDesktop,
+  updatePerceptionSourceRuntimeForDesktop,
   runBackgroundIngestionForDesktop,
   setCollectionPausedForDesktop,
   searchKnowledgeForDesktop,
@@ -29,6 +32,11 @@ import {
   updateSourceRuntimeForDesktop,
   updateSettingForDesktop
 } from "./data";
+import {
+  readPerceptionProviderKind,
+  readPerceptionProviderTask,
+  readPerceptionSourceKind
+} from "@orbit/db";
 import { DesktopObservationService } from "./observation/observationService";
 
 const currentDir = __dirname;
@@ -130,6 +138,23 @@ ipcMain.handle("orbit:updateSourceRuntime", async (_event, sourceId: string, act
   }
   return snapshot;
 });
+ipcMain.handle(
+  "orbit:updatePerceptionSourceRuntime",
+  (_event, sourceKind: string, action: string) =>
+    updatePerceptionSourceRuntimeForDesktop(
+      readPerceptionSourceKind(sourceKind),
+      requirePerceptionRuntimeAction(action)
+    )
+);
+ipcMain.handle("orbit:updatePerceptionSourcePolicy", (_event, sourceKind: string, patch) =>
+  updatePerceptionSourcePolicyForDesktop(readPerceptionSourceKind(sourceKind), patch)
+);
+ipcMain.handle("orbit:updatePerceptionProviderRoute", (_event, task: string, provider: string) =>
+  updatePerceptionProviderRouteForDesktop(
+    readPerceptionProviderTask(task),
+    readPerceptionProviderKind(provider)
+  )
+);
 ipcMain.handle("orbit:setupSource", (_event, kind: string, path?: string) =>
   setupSourceForDesktop(requireSourceSetupKind(kind), path)
 );
@@ -467,4 +492,19 @@ function requireSourceRuntimeAction(action: string): "pause" | "resume" | "enabl
     return action;
   }
   throw new Error(`Unsupported source runtime action: ${action}`);
+}
+
+function requirePerceptionRuntimeAction(
+  action: string
+): "enable" | "disable" | "pause" | "resume" | "delete" {
+  if (
+    action === "enable" ||
+    action === "disable" ||
+    action === "pause" ||
+    action === "resume" ||
+    action === "delete"
+  ) {
+    return action;
+  }
+  throw new Error(`Unsupported perception runtime action: ${action}`);
 }
