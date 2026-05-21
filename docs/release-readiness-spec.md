@@ -221,6 +221,9 @@ Required automated tests:
 Required manual or semi-automated tests:
 
 - First-run setup.
+- Background observation setup.
+- Permission-needed, collecting, paused, warning, and error runtime states.
+- Protected-app exclusion behavior.
 - Source setup with explicit path.
 - Pause/resume from menu bar.
 - Re-index.
@@ -241,6 +244,7 @@ Before marking a release complete:
 - Packaging smoke passes on a clean machine.
 - Migration tests pass from previous release.
 - No known source silently reads private data.
+- Background observation never captures raw screen/OCR/audio without explicit gates.
 - No enabled workflow performs external side effects without explicit design.
 - No default context export includes raw private payloads.
 - Documentation is updated for user-visible behavior.
@@ -260,4 +264,3 @@ Rollback requirements:
 - Preserve user data on downgrade when schema allows.
 - If downgrade is unsafe, detect and explain the block.
 - Export context/debug bundle before destructive recovery guidance.
-

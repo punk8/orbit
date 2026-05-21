@@ -8,9 +8,53 @@ Alpha is not feature-complete, but it must be coherent: users should understand 
 
 ## Alpha User Promise
 
-Orbit runs locally, ingests explicitly configured work-context sources, turns them into traceable Activity, Knowledge, Memory, and Recommendation objects, and lets users review or reject the derived results before they become durable context.
+Orbit runs locally, observes explicitly authorized desktop activity, ingests explicitly configured work-context sources, turns them into traceable Activity, Knowledge, Memory, and Recommendation objects, and lets users review or reject the derived results before they become durable context.
 
 ## Required Product Loops
+
+### 0. Background Observation Runtime Loop
+
+Users can decide whether Orbit observes desktop activity in the background.
+
+Required first source:
+
+- Tier 1 desktop observation for app/window/runtime metadata.
+
+Required gated sources:
+
+- Accessibility snapshots.
+- Explicit filesystem watch.
+- Terminal/browser metadata integration.
+- Clipboard policy.
+- Screen/OCR/audio only after stronger permission and retention gates.
+
+Required states:
+
+- `not_configured`
+- `needs_permission`
+- `ready`
+- `collecting`
+- `paused`
+- `warning`
+- `error`
+- `disabled`
+
+Required actions:
+
+- Start observation.
+- Pause observation.
+- Resume observation.
+- Stop or disable observation.
+- Configure protected apps.
+- View what desktop signals are stored.
+- Clear observation data.
+
+Rules:
+
+- Do not capture keystrokes or password fields.
+- Do not capture raw screen/OCR/audio by default.
+- Protected apps suppress semantic capture.
+- Observation Events must pass through the same Event, Activity, Knowledge, Memory, and Recommendation pipeline.
 
 ### 1. Source Setup Loop
 
@@ -18,6 +62,7 @@ Users can configure local sources explicitly.
 
 Required source types:
 
+- Desktop observation.
 - Codex local sessions.
 - Claude/Claude Code or generic local agent sessions.
 - Approved SeaTalk import files.

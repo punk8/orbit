@@ -6,6 +6,7 @@ Orbit should be built around stable domain boundaries, not around a single data 
 
 ```text
 Source Adapter
+  -> Background Observation Runtime
   -> Event Ingestion
   -> Local Event Store
   -> Activity Session Builder
@@ -28,7 +29,7 @@ The core should be usable without the desktop UI. The Electron app is the shell 
 - **Vector search**: provider interface first; implementation can start with disabled or optional SQLite vector extension.
 - **Local API**: loopback HTTP or IPC service owned by the Electron main process.
 - **Agent interface**: CLI first, MCP second, Skill wrapper after CLI stabilizes.
-- **Native helpers**: small macOS helpers only when Electron cannot safely handle screen capture, Apple Vision OCR, Accessibility, or permission checks.
+- **Native helpers**: small macOS helpers only when Electron cannot safely handle active-window metadata, Accessibility, screen capture, Apple Vision OCR, audio capture, or permission checks.
 
 ## Module Boundaries
 
@@ -40,7 +41,7 @@ apps/
   cli/                  orbit command line interface
 packages/
   core/                 domain types and use cases
-  adapters/             Codex, SeaTalk, Screen, future source adapters
+  adapters/             Desktop observation, Codex, SeaTalk, Screen, future source adapters
   store/                SQLite, artifact files, indexes, migrations
   ai/                   provider interfaces and prompt orchestration
   agent-interface/      MCP server, skill helpers, local API clients
@@ -60,6 +61,28 @@ Orbit should run as a local background service with a desktop shell:
 - CLI talks to the same local service when running, or uses the local store directly for read-only commands.
 - MCP server should be a thin adapter over the core read APIs.
 
+## Background Observation Runtime
+
+Background observation is a first-class runtime owned by the desktop shell. It continuously captures
+authorized computer activity and normalizes it through the same Source Adapter and Event model as
+explicit imports.
+
+The first implementation should prioritize:
+
+- active app/window changes,
+- runtime permission state,
+- Accessibility text snapshots after explicit permission,
+- browser title/URL only through approved APIs, Accessibility, or extension paths,
+- terminal command observation through approved shell integration or explicit logs,
+- file activity under user-selected directories,
+- clipboard capture only after explicit enablement.
+
+Screen frames, OCR, audio, and transcripts are high-risk adapters. They must remain separately
+gated until visible running state, pause/stop controls, protected-app exclusions, short retention,
+redaction, audit logging, and CPU/storage budgets are complete.
+
+See [Background Observation Core Spec](./background-observation-core-spec.md).
+
 ## Source Adapter Layer
 
 Each adapter should implement the same responsibilities:
@@ -72,14 +95,20 @@ Each adapter should implement the same responsibilities:
 
 Initial adapters:
 
+- **Desktop observation adapter**: app/window focus, permission state, Accessibility snapshots, explicit folder activity, and other authorized local computer activity.
 - **Codex adapter**: engineering sessions, commands, code changes, tests, conclusions.
 - **SeaTalk adapter**: messages, unread mentions, private chats, group discussions, on-call events.
 
 Future adapters:
 
-- Screen, calendar, email, docs, Jira, GitLab, local filesystem.
+- Screen/OCR, audio/transcript, calendar, email, docs, Jira, GitLab, repository, browser extension, local filesystem.
 
-Screen and audio should be treated as first-class future Source Adapters and high-risk perception inputs. Their first production shape should prefer active app/window metadata and Accessibility text before ScreenCaptureKit frames, OCR, microphone capture, or transcription. Raw perception data must stay disabled until permission UX, visible running state, pause/stop controls, retention defaults, exclusions, audit logging, redaction, and CPU/storage budgets are complete. See [Perception Research Spike](./perception-research-spike.md).
+Screen and audio are first-class Source Adapters, but not first-step raw recording defaults. Their
+production shape should prefer active app/window metadata and Accessibility text before
+ScreenCaptureKit frames, OCR, microphone capture, or transcription. Raw perception data must stay
+disabled until permission UX, visible running state, pause/stop controls, retention defaults,
+exclusions, audit logging, redaction, and CPU/storage budgets are complete. See
+[Perception Research Spike](./perception-research-spike.md).
 
 ## Event And Activity Flow
 

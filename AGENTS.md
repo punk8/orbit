@@ -92,23 +92,26 @@ Orbit 的长期架构应围绕以下稳定层推进：
 
 ## MVP 方向
 
-第一阶段先做一个本地优先的最小产品：
+第一阶段先做一个本地优先的最小产品，但产品核心目标应明确为“后台持续监听用户在电脑上的授权操作上下文，并沉淀为 Event / Activity Session / Knowledge Artifact / Memory / Recommendation”。导入样本和显式本地来源用于先验证数据链路，不应替代后台观察能力。
 
 MVP 只用于明确阶段性交付优先级，不应成为代码设计的上限。实现时需要预留完整产品能力，包括数据源扩展、权限边界、记忆治理、可追溯摘要、推荐解释和后续上线部署所需的稳定性。
 
-1. 从用户明确授权的本地来源或导入样本读取只读上下文。
-2. 将事件标准化为统一 schema。
-3. 生成当天工作摘要，包括完成事项、关键讨论、代码变化、阻塞和待跟进。
-4. 建立本地 memory store，保存用户确认有价值的长期记忆。
-5. 提供“今天有什么需要我注意”的主动建议列表。
+1. 先用用户明确授权的本地来源或导入样本验证只读上下文链路。
+2. 将事件标准化为统一 Event schema。
+3. 建立后台观察运行时，优先采集低风险的 app/window/runtime 事件，再逐步接入 Accessibility、显式目录、终端/浏览器元数据、剪贴板策略。
+4. 生成当天工作摘要，包括完成事项、关键讨论、代码变化、阻塞和待跟进。
+5. 建立本地 memory store，保存用户确认有价值的长期记忆。
+6. 提供“今天有什么需要我注意”的主动建议列表。
+7. 屏幕帧、OCR、音频和会议转写必须在权限、可见运行状态、暂停/停止、受保护应用、短 TTL、redaction、审计和资源预算完整后再启用。
 
 ## 开发执行顺序
 
-进入代码开发时，默认使用 `docs/development-tasks.md` 中定义的三个大 goal 顺序推进，不要把全部任务混在一个无检查点的大 goal 里：
+进入代码开发时，默认使用 `docs/development-tasks.md` 中定义的大 goal 顺序推进，不要把全部任务混在一个无检查点的大 goal 里：
 
 1. **Goal 1: Local Data Spine**: 完成 Task 1-5，建立 pnpm monorepo、核心类型、SQLite、本地 fixtures、fixture ingestion 和基础 CLI。该阶段不得实现完整 Electron UI、真实个人数据 source adapter、外部 AI 或读取私人本地数据。
 2. **Goal 2: Semantic Pipeline**: 完成 Task 6-10，建立 Activity Session、Knowledge draft、Memory candidate、Recommendation 和 `orbit context today`。该阶段继续使用 mock AI provider，不执行任何副作用动作。
 3. **Goal 3: Product Shell And Real Sources**: 完成 Task 11-13，建立 Electron shell、真实来源的只读 adapter 能力，以及安全接入决策。任何来源如果没有明确安全 read path，只保留 fixture-backed 或 approved-import adapter 并记录 blocker。
+4. **Goal 4: Background Observation Core**: 完成 Task 14-18，建立后台观察运行时、权限 UX、Tier 1 app/window/runtime 事件、Tier 2 permissioned semantic observation、受保护应用、redaction/retention/audit，以及 live observation 到 Activity/Knowledge/Memory/Recommendation/Handoff 的链路。该阶段不得默认开启 raw screen recording、OCR、音频或外部副作用。
 
 每个 goal 必须执行 `docs/development-tasks.md` 中对应的 acceptance commands，并在结果中说明哪些验收通过、哪些因环境或依赖无法执行。只有前一个 goal 的核心验收通过后，才应进入下一个 goal。
 

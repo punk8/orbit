@@ -7,6 +7,7 @@ This document turns the current Orbit product, architecture, data model, privacy
 The first implementation should prove Orbit as a local-first work context continuity system. It should not become a temporary MVP script, a screenshot search tool, or a Codex/SeaTalk-specific side project. The code should start with stable domain boundaries and leave clear room for screen, calendar, mail, Jira, GitLab, local files, MCP, and future automation.
 
 For work beyond Alpha, use [Complete Product Spec](./complete-product-spec.md),
+[Background Observation Core Spec](./background-observation-core-spec.md),
 [Source Adapter Complete Contract](./source-adapter-complete-contract.md),
 [Semantic Quality And Evaluation](./semantic-quality-evaluation.md), and
 [Release Readiness Spec](./release-readiness-spec.md) as the fuller product baseline.
@@ -16,7 +17,7 @@ For work beyond Alpha, use [Complete Product Spec](./complete-product-spec.md),
 Build the first usable path end to end:
 
 ```text
-Codex / SeaTalk fixture or source input
+Background desktop observation / Codex / SeaTalk fixture or source input
   -> Source Adapter
   -> Event
   -> Activity Session
@@ -37,6 +38,8 @@ The product is useful only when every generated summary, memory, and recommendat
 - Local SQLite database with migrations.
 - Core domain types matching `docs/data-model.md`.
 - Local fixture ingestion for Codex and SeaTalk.
+- Background observation runtime for authorized desktop activity.
+- Desktop observation adapter for app/window/runtime events first.
 - Codex adapter for read-only local session data.
 - SeaTalk adapter interface and fixture-backed implementation.
 - Deterministic Activity Session builder.
@@ -47,12 +50,13 @@ The product is useful only when every generated summary, memory, and recommendat
 - Review states for Knowledge, Memory, and Recommendations.
 - CLI read commands for status, activity, knowledge, memory, and today's context.
 - Electron UI with Today, Activity, Knowledge, Memory, Recommendations, Review Queue, Sources, and Settings.
+- Permission and runtime controls for background observation.
 
 ### Out Of Scope
 
-- Full screen recording.
-- OCR pipeline.
-- Audio or meeting transcription.
+- Full raw screen recording as a default feature.
+- OCR pipeline before screen permission, retention, redaction, and protected-app controls exist.
+- Audio or meeting transcription before explicit permission, visible state, and short-retention policy exist.
 - External side-effect automation.
 - Sending SeaTalk messages.
 - Modifying code through Orbit.

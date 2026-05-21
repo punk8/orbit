@@ -17,10 +17,10 @@ multi-source, privacy-governed, searchable, explainable, and useful to external 
 
 ## Product Promise
 
-Orbit is a local-first work context continuity system. It observes explicitly authorized work
-signals, turns fragmented activity into traceable knowledge, lets the user govern durable memory,
-and produces concise context for daily review, project recall, proactive attention, and agent
-handoff.
+Orbit is a local-first work context continuity system. It runs in the background, observes
+explicitly authorized computer activity and work-system signals, turns fragmented activity into
+traceable knowledge, lets the user govern durable memory, and produces concise context for daily
+review, project recall, proactive attention, and agent handoff.
 
 Complete Orbit must let a user answer these questions without reconstructing context manually:
 
@@ -32,6 +32,25 @@ Complete Orbit must let a user answer these questions without reconstructing con
 - What did Orbit read, save, summarize, redact, export, or exclude?
 
 ## Product Surfaces
+
+### Background Observation
+
+Background Observation is the live input surface. It is not a page-only feature: it is the runtime
+that turns authorized desktop activity into Events.
+
+Required capabilities:
+
+- Run from the Electron desktop shell and menu bar.
+- Capture low-risk app/window/runtime events after setup.
+- Capture Accessibility, browser, terminal, file, and clipboard context only through explicit
+  permission or integration paths.
+- Keep screen/OCR/audio disabled until their stronger gates are complete.
+- Show running, paused, warning, error, disabled, and permission-needed states.
+- Feed observed Events into Activity, Knowledge, Memory candidates, Recommendations, Today, and
+  Handoff.
+
+Detailed requirements are defined in
+[Background Observation Core Spec](./background-observation-core-spec.md).
 
 ### Today
 
@@ -332,6 +351,7 @@ The complete product should support these source families through the same adapt
 | Source | Production state required | Default sensitivity | Raw storage default | AI default | Agent export default |
 | --- | --- | --- | --- | --- | --- |
 | Fixtures | Demo/test only | internal/confidential | off | allowed for synthetic only | allowed |
+| Desktop observation | Background runtime | internal/confidential | off | policy-based | policy-based |
 | Codex/local agent | Explicit local path | internal | off | allowed if not confidential/secret | allowed |
 | Approved chat import | Explicit import file/folder | confidential | off | blocked unless user allows | blocked unless user allows |
 | Calendar | OAuth or local export | internal | off | allowed for metadata/summaries | allowed for non-private calendars |
@@ -531,4 +551,3 @@ The product documentation is complete enough for implementation when these docum
 - [Release Readiness Spec](./release-readiness-spec.md): packaging, security, operations, and release
   gates.
 - [Development Tasks](./development-tasks.md): current implementation checkpoints.
-

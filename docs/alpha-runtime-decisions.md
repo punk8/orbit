@@ -83,6 +83,7 @@ Required behavior:
 
 - First launch shows source setup if no enabled source exists.
 - Source options are generic:
+  - desktop background observation
   - Codex local sessions
   - Claude/Claude Code local sessions
   - generic agent session import
@@ -93,6 +94,7 @@ Required behavior:
 Implication:
 
 - The data model should add or support a generic local agent source rather than forcing Claude data through `codex`.
+- Desktop background observation should be shown as a first-class setup path, with Tier 1 app/window/runtime metadata separated from gated Accessibility, filesystem, clipboard, screen/OCR, and audio options.
 
 ### Data Operations
 
@@ -109,7 +111,8 @@ Do not add destructive delete UI until the backend use cases and audit logs are 
 
 - Cloud sync.
 - Hosted backend.
-- Screen recording/OCR.
+- Raw screen recording/OCR by default.
+- Audio capture/transcription by default.
 - Automatic message sending.
 - Automatic code changes or external task creation.
 - Silent ingestion from unapproved paths.

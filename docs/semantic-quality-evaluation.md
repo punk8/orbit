@@ -24,6 +24,8 @@ Maintain a versioned fixture corpus under `fixtures/` or a future `evals/` direc
 Required scenario sets:
 
 - Single-day engineering work.
+- Background desktop observation with app/window focus changes.
+- Accessibility or filesystem observation with protected-app exclusions.
 - Cross-day project continuation.
 - Debugging or incident recap.
 - Meeting/discussion summary.
@@ -90,6 +92,8 @@ Quality requirements:
 - Group related events by time, project, repository, thread, conversation, app overlap, and source
   continuity.
 - Avoid merging unrelated projects only because they happened close together.
+- Use app/window/source continuity from background observation, but avoid treating passive focus
+  changes as durable work by themselves.
 - Avoid over-splitting one continuous task into many tiny sessions.
 - Keep grouping reproducible.
 - Preserve review state when sessions are rebuilt.
@@ -347,4 +351,3 @@ Any change to grouping, generation, provider prompts, redaction, ranking, or Han
 - Explain intentional output changes.
 - Preserve backward-compatible object schemas or add migrations.
 - Preserve user review state where possible.
-

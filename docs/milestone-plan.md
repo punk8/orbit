@@ -2,7 +2,7 @@
 
 ## Development Strategy
 
-Orbit should start with the semantic pipeline, not with full screen capture. Codex and SeaTalk have higher semantic density and lower technical risk than screen recording, so they are better first sources for proving the Event -> Activity -> Knowledge -> Memory chain.
+Orbit should start with the semantic pipeline and then make background observation the core live input path. Codex and SeaTalk fixtures remain useful for proving the Event -> Activity -> Knowledge -> Memory chain, but the usable product target is continuous authorized desktop observation, not only explicit imports. Full raw screen capture is still gated behind stronger privacy controls.
 
 ## Milestone 0: Design Baseline
 
@@ -94,6 +94,8 @@ Scope:
 - Memory list, groups, and search.
 - Settings for sources, storage, retention, and AI provider.
 - Local service lifecycle.
+- Background observation setup entry point.
+- Runtime pause/resume state.
 
 Acceptance criteria:
 
@@ -123,6 +125,7 @@ Scope:
 - Desktop Handoff review/copy surface.
 - Read-only resource descriptors for later MCP/local API exposure.
 - Hardened explicit-path Codex/local-agent ingestion so handoffs can rely on real local source fixtures.
+- Handoff safety policy for desktop-observation Events.
 
 Acceptance criteria:
 
@@ -154,9 +157,38 @@ Acceptance criteria:
 - User can act on or dismiss recommendations.
 - No side-effect actions are executed automatically.
 
+## Milestone 7: Background Observation Core
+
+Goal: make Orbit useful without manual imports by observing authorized desktop activity in the
+background and feeding the same Event -> Activity -> Knowledge -> Memory -> Recommendation chain.
+
+Scope:
+
+- Runtime state model for observation.
+- Permission onboarding for app/window metadata and Accessibility.
+- Tier 1 desktop observation adapter for active app/window/runtime events.
+- Tier 2 gates for Accessibility text and explicit filesystem watch.
+- Protected app exclusions.
+- Observation privacy policy, redaction, retention, and audit logs.
+- Incremental Activity Session updates from live Events.
+- Today and Activity UI surfaces showing observed context.
+
+Acceptance criteria:
+
+- User can start, pause, resume, and stop background observation.
+- Observation state is visible in the menu bar and Settings/Sources.
+- Tier 1 events become Events without raw private payloads.
+- Tier 2 events require explicit permission/setup.
+- Protected apps suppress sensitive capture.
+- Observed Events become Activity Sessions and Knowledge drafts.
+- Memory candidates still require confirmed Knowledge.
+- Handoff excludes unsafe raw observation payloads by default.
+
 ## Later Milestones
 
 - Complete product scenario coverage from [Complete Product Spec](./complete-product-spec.md).
+- Background observation hardening from
+  [Background Observation Core Spec](./background-observation-core-spec.md).
 - Production source adapters that pass
   [Source Adapter Complete Contract](./source-adapter-complete-contract.md).
 - Semantic evals and golden fixtures from

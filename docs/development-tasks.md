@@ -12,7 +12,8 @@ Each task is written so a goal-mode agent can execute it without re-deciding pro
 - Keep the stable flow visible: `Source Adapter -> Event -> Activity Session -> Knowledge Artifact -> Memory -> Recommendation`.
 - Keep `packages/core` independent from Electron.
 - Keep adapters thin and read-only unless a later task explicitly adds writes.
-- Do not build screen recording, OCR, audio transcription, cloud sync, hosted backend, or side-effect automation in these tasks.
+- Do not build raw screen recording, OCR, audio transcription, cloud sync, hosted backend, or side-effect automation until a task explicitly adds the required permission, retention, redaction, protected-app, and audit gates.
+- Treat background observation as the core live input path after the local data spine and semantic pipeline are stable.
 - Do not read or depend on private local user data in tests.
 - Use synthetic fixtures for repeatable tests.
 - Do not send any raw data to external AI providers.
@@ -691,9 +692,251 @@ pnpm typecheck
 - The SeaTalk integration path is explicit.
 - No speculative or unsafe read behavior exists.
 
-## Three Development Goals
+## Task 14: Observation Domain And Fixtures
 
-Use these three goals to execute implementation. Do not combine all tasks into one long goal unless the user explicitly asks to trade away checkpoints.
+### Goal
+
+Extend the domain and fixture set so Orbit can represent background desktop observations as Events.
+
+### Files To Create Or Modify
+
+- `docs/background-observation-core-spec.md`
+- `packages/core/src/types/event.ts`
+- `packages/core/src/types/source.ts`
+- `packages/core/src/perception/perceptionCapabilities.ts`
+- `fixtures/desktop/day-1.jsonl`
+- `fixtures/desktop/protected-app.jsonl`
+- `fixtures/expected/desktop-events.json`
+- tests for desktop observation event construction
+
+### Implementation Notes
+
+- Add source kinds and event types for desktop, accessibility, browser, terminal, clipboard, file activity, OCR, audio, transcript, observation state, and permission state.
+- Model observation Events as metadata/summary-first records.
+- Keep raw payload references optional and policy-gated.
+- Include protected-app and redaction examples in fixtures.
+- Keep the existing Event -> Activity -> Knowledge -> Memory -> Recommendation chain unchanged.
+
+### Do Not Do
+
+- Do not request OS permissions yet.
+- Do not capture real desktop activity yet.
+- Do not store raw screenshots, audio, clipboard text, or Accessibility dumps.
+
+### Acceptance Commands
+
+```bash
+pnpm --filter @orbit/core test
+pnpm test
+pnpm typecheck
+```
+
+### Done When
+
+- Desktop observation fixtures ingest into Events.
+- Activity Session grouping can include desktop observation Events.
+- Protected-app fixture data is redacted or excluded by policy.
+
+## Task 15: Observation Runtime And Permission UX
+
+### Goal
+
+Add the runtime state, settings, audit logs, and UI controls required to safely run background observation.
+
+### Files To Create Or Modify
+
+- `apps/desktop/electron/main.ts`
+- `apps/desktop/electron/data.ts`
+- `apps/desktop/src/routes/SourcesPage.tsx`
+- `apps/desktop/src/routes/SettingsPage.tsx`
+- `apps/desktop/src/i18n.tsx`
+- `packages/db/src/repositories/settingsRepository.ts`
+- `packages/db/src/repositories/auditRepository.ts`
+- tests for runtime state and settings
+
+### Implementation Notes
+
+- Support states: `not_configured`, `needs_permission`, `ready`, `collecting`, `paused`, `warning`, `error`, `disabled`.
+- Add start, pause, resume, stop/disable controls.
+- Show observation status in menu bar, Sources, and Settings.
+- Add protected-app configuration.
+- Add explicit toggles for Accessibility, clipboard, filesystem watch, screen/OCR, and audio.
+- Keep screen/OCR/audio disabled by default.
+- Write audit logs for runtime and permission changes.
+
+### Do Not Do
+
+- Do not capture real screen, OCR, or audio.
+- Do not enable Accessibility capture before user permission is represented in UI.
+- Do not silently enable clipboard capture.
+
+### Acceptance Commands
+
+```bash
+pnpm --filter @orbit/desktop test
+pnpm test
+pnpm typecheck
+```
+
+### Done When
+
+- User can see whether background observation is configured, collecting, paused, warning, or error.
+- Pause/resume works from menu bar and UI.
+- Permission gates are visible before any higher-risk capture.
+
+## Task 16: Tier 1 Desktop Observation Adapter
+
+### Goal
+
+Implement the first live background observer for low-risk app/window/runtime metadata.
+
+### Files To Create Or Modify
+
+- `packages/adapters/src/desktop/desktopObservationAdapter.ts`
+- `packages/adapters/src/desktop/desktopObservationNormalizer.ts`
+- `apps/desktop/electron/observation/*`
+- `apps/cli/src/commands/observeStatus.ts`
+- adapter and desktop tests
+
+### Required Commands
+
+```text
+orbit observe status --json
+```
+
+### Implementation Notes
+
+- Capture app focus, window focus/title change, observation state, and permission state Events.
+- Prefer Electron/macOS workspace metadata that does not require raw screen capture.
+- Use deterministic source pointers such as `desktop://app-focus/<session>#<sequence>`.
+- Deduplicate repeated app/window Events.
+- Store no raw private payloads.
+- Run through the same ingestion path and cursor/idempotency logic.
+
+### Do Not Do
+
+- Do not capture keystrokes.
+- Do not capture password fields.
+- Do not capture screenshots.
+- Do not capture Accessibility text yet unless Task 17 has implemented the permissioned path.
+
+### Acceptance Commands
+
+```bash
+pnpm test
+pnpm typecheck
+pnpm --filter @orbit/cli orbit observe status --json
+pnpm --filter @orbit/cli orbit activity list --json
+```
+
+### Done When
+
+- Running Orbit in the background creates low-risk desktop Events.
+- Desktop Events become Activity Sessions.
+- Activity detail shows the observation source and evidence pointer.
+
+## Task 17: Tier 2 Permissioned Semantic Observation
+
+### Goal
+
+Add permissioned semantic desktop context through Accessibility, explicit filesystem watch, terminal/shell integration, browser metadata, and clipboard gates.
+
+### Files To Create Or Modify
+
+- `packages/adapters/src/accessibility/*`
+- `packages/adapters/src/filesystem/*`
+- `packages/adapters/src/terminal/*`
+- `packages/adapters/src/browser/*`
+- `packages/adapters/src/clipboard/*`
+- `packages/privacy/src/*`
+- desktop settings and source setup tests
+
+### Implementation Notes
+
+- Accessibility text requires explicit permission and protected-app exclusion.
+- Filesystem watch requires explicit allowlisted folders and dry-run preview.
+- Terminal command observation requires approved shell integration or explicit log source.
+- Browser URL/title requires approved API, extension path, or Accessibility metadata.
+- Clipboard capture requires explicit opt-in and should default to hash/summary only.
+- Apply redaction before persistence.
+- Failed-redaction Events must drop raw payloads and be excluded from Handoff/export.
+
+### Do Not Do
+
+- Do not scrape browser internals silently.
+- Do not read arbitrary filesystem paths.
+- Do not store full clipboard text by default.
+- Do not call external AI with Tier 2 raw content by default.
+
+### Acceptance Commands
+
+```bash
+pnpm test
+pnpm typecheck
+pnpm --filter @orbit/cli orbit context today --json
+```
+
+### Done When
+
+- Each Tier 2 source requires explicit setup.
+- Protected apps suppress semantic capture.
+- Redacted semantic Events feed Activity and Knowledge drafts.
+- Unsafe Events are excluded from default Handoff.
+
+## Task 18: Live Observation Pipeline And Review Integration
+
+### Goal
+
+Connect live observation Events to incremental Activity, Knowledge, Memory candidate, Recommendation, Today, and Handoff flows.
+
+### Files To Create Or Modify
+
+- `packages/core/src/activity/*`
+- `packages/db/src/semanticPipeline.ts`
+- `packages/db/src/localDataOperations.ts`
+- `apps/desktop/electron/data.ts`
+- `apps/desktop/src/routes/TodayPage.tsx`
+- `apps/desktop/src/routes/ActivityPage.tsx`
+- `apps/desktop/src/routes/ReviewQueuePage.tsx`
+- tests for live re-index/idempotency
+
+### Implementation Notes
+
+- Maintain active sessions while observation is running.
+- Close sessions on idle threshold, project switch, meeting/source boundary, or user pause.
+- Generate Knowledge drafts when sessions close or daily review is requested.
+- Generate Memory candidates only from confirmed Knowledge.
+- Generate Recommendations from observed follow-ups, blockers, repeated workflows, or missing verification.
+- Preserve user review state across session rebuilds.
+- Record audit logs for generated derived objects.
+
+### Do Not Do
+
+- Do not auto-confirm Memory.
+- Do not execute recommendation side effects.
+- Do not include raw observation payloads in Handoff.
+
+### Acceptance Commands
+
+```bash
+pnpm test
+pnpm typecheck
+pnpm --filter @orbit/desktop test
+pnpm --filter @orbit/cli orbit context today --json
+pnpm --filter @orbit/cli orbit handoff today --json
+```
+
+### Done When
+
+- Background observations produce Activity Sessions without manual import.
+- Session closure can produce Knowledge drafts.
+- Confirmed Knowledge can produce Memory candidates.
+- Observed follow-ups can produce Recommendations.
+- Today and Handoff reflect live observed context with evidence and exclusions.
+
+## Four Development Goals
+
+Use these four goals to execute implementation. Do not combine all tasks into one long goal unless the user explicitly asks to trade away checkpoints.
 
 ### Goal 1: Local Data Spine
 
@@ -897,6 +1140,76 @@ Constraints:
 - End with pnpm test, pnpm typecheck, desktop typecheck, available Electron smoke tests, and a short summary of files changed.
 ```
 
+### Goal 4: Background Observation Core
+
+Scope: Task 14-18.
+
+Expected deliverables:
+
+- domain support and fixtures for desktop observation Events.
+- observation runtime state and permission UI.
+- menu bar and Settings/Sources controls for start, pause, resume, stop, and protected apps.
+- Tier 1 desktop observation adapter for app/window/runtime metadata.
+- Tier 2 gated adapters for Accessibility, explicit filesystem watch, terminal/browser metadata, and clipboard policy.
+- live observation pipeline into Activity, Knowledge, Memory candidates, Recommendations, Today, and Handoff.
+- privacy, redaction, retention, and Handoff exclusion hardening for observation Events.
+
+Acceptance commands:
+
+```bash
+pnpm test
+pnpm typecheck
+pnpm --filter @orbit/desktop test
+pnpm --filter @orbit/cli orbit observe status --json
+pnpm --filter @orbit/cli orbit activity list --json
+pnpm --filter @orbit/cli orbit context today --json
+pnpm --filter @orbit/cli orbit handoff today --json
+```
+
+Add this if Electron smoke tests exist:
+
+```bash
+pnpm --filter @orbit/desktop test:e2e
+```
+
+Functional acceptance:
+
+- User can configure background observation from the desktop app.
+- Observation state is visible in the menu bar, Sources, and Settings.
+- User can start, pause, resume, stop, disable, and clear observation data.
+- Tier 1 app/window/runtime Events are captured without raw private payloads.
+- Tier 2 semantic capture requires explicit permission or explicit source setup.
+- Protected apps suppress sensitive capture.
+- Observation Events become Activity Sessions.
+- Closed sessions can produce Knowledge drafts.
+- Memory candidates still require confirmed Knowledge.
+- Recommendations remain evidence-backed and side-effect-free.
+- Handoff excludes unsafe raw observation payloads, failed-redaction Events, draft Knowledge, and unconfirmed Memory.
+
+Goal 4 prompt:
+
+```text
+Implement Orbit Task 14-18 from docs/development-tasks.md.
+
+Scope:
+- Add desktop observation Event/source types and fixtures.
+- Add observation runtime state, permission gates, protected-app settings, and audit logs.
+- Implement Tier 1 app/window/runtime metadata observer.
+- Add Tier 2 gated observers for Accessibility, explicit filesystem watch, terminal/browser metadata, and clipboard policy where safe.
+- Connect live observation Events into Activity, Knowledge, Memory candidate, Recommendation, Today, and Handoff flows.
+
+Constraints:
+- Follow AGENTS.md.
+- Follow docs/background-observation-core-spec.md.
+- Do not implement raw screen recording, OCR, or audio unless their explicit permission, protected-app, short-retention, redaction, and audit gates are complete.
+- Do not capture keystrokes or password fields.
+- Do not scan arbitrary private folders.
+- Do not send observed content to external AI by default.
+- Do not auto-confirm Memory.
+- Do not execute side effects.
+- End with pnpm test, pnpm typecheck, desktop tests, available Electron smoke tests, Goal 4 acceptance commands, and a short summary of files changed.
+```
+
 ## Goal Sequencing
 
 Recommended order:
@@ -904,5 +1217,6 @@ Recommended order:
 1. Goal 1: Local Data Spine, Task 1-5.
 2. Goal 2: Semantic Pipeline, Task 6-10.
 3. Goal 3: Product Shell And Real Sources, Task 11-13.
+4. Goal 4: Background Observation Core, Task 14-18.
 
-This order keeps every goal independently verifiable and prevents UI or real data-source complexity from hiding core model issues.
+This order keeps every goal independently verifiable and makes background observation the first live-input product goal after the local data spine, semantic pipeline, and desktop shell are stable.

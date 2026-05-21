@@ -30,6 +30,7 @@ Initial default:
 
 - Codex: read-only, summary storage allowed, raw storage configurable.
 - SeaTalk: read-only, summary storage allowed, raw storage conservative by default.
+- Desktop observation: app/window metadata allowed after setup; Accessibility, clipboard, filesystem, screen, OCR, and audio require narrower explicit enablement.
 - Screen: disabled until explicitly enabled.
 - Calendar, mail, docs, Jira, GitLab: future disabled adapters.
 
@@ -51,6 +52,9 @@ Recommended defaults:
 | Event metadata     | Store locally until user deletes or policy expires |
 | Raw message text   | Store only when adapter policy allows              |
 | Raw command output | Store only if not secret and within retention      |
+| App/window metadata | Store locally until user deletes or policy expires |
+| Accessibility text | Summary only by default after explicit permission  |
+| Clipboard content  | Disabled initially; hash/summary only if enabled   |
 | Screen screenshots | Disabled initially; later short TTL by default     |
 | Recordings         | Disabled initially; explicit permission required   |
 | Knowledge Artifact | Store until deleted or archived                    |
@@ -132,9 +136,27 @@ Blocked until explicit future design:
 - Push changes.
 - Delete source data outside Orbit.
 
+## Background Observation Special Rules
+
+Background observation is powerful because it runs continuously. It must start with low-risk
+metadata and expand only through explicit permission gates.
+
+When implemented:
+
+- Require visible running state.
+- Provide pause, resume, stop, and source disable controls.
+- Support protected apps and app/window exclusions.
+- Prefer app/window metadata before Accessibility text.
+- Prefer Accessibility text before OCR.
+- Keep raw observation payloads off by default.
+- Generate Activity Sessions and Knowledge Artifacts before considering Memory extraction.
+- Exclude raw observation payloads from default Handoff and external AI.
+
+See [Background Observation Core Spec](./background-observation-core-spec.md).
+
 ## Screen Capture Special Rules
 
-Screen capture is powerful but high-risk. It should not be part of the first implementation unless explicitly prioritized later.
+Screen capture is high-risk and must be gated separately from the basic background observation core.
 
 When implemented:
 

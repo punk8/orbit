@@ -126,6 +126,12 @@ Adapters should preserve the smallest useful source pointer:
 
 - `codex://session/<id>#<turn-or-command>`
 - `local-agent://session/<id>#<turn>`
+- `desktop://app-focus/<session-id>#<sequence>`
+- `desktop://window/<session-id>#<sequence>`
+- `accessibility://snapshot/<session-id>#<sequence>`
+- `browser://navigation/<profile-or-app>/<timestamp>`
+- `terminal://session/<id>#<command-index>`
+- `clipboard://change/<session-id>#<sequence>`
 - `seatalk-import://<file>#<line>`
 - `calendar://event/<id>`
 - `mail://message/<id>`
@@ -178,6 +184,38 @@ Default policy:
 - Raw storage: off.
 - AI: allowed if source permission and event sensitivity allow.
 - Agent export: allowed unless event is secret or redaction failed.
+
+### Desktop Observation
+
+Purpose:
+
+- Observe authorized computer activity in the background and convert it into Events.
+
+Setup:
+
+- User enables background observation in the desktop app.
+- Tier 1 app/window/runtime metadata can run after setup.
+- Tier 2 Accessibility, filesystem, terminal/browser metadata, and clipboard capture require
+  separate explicit gates.
+- Tier 3 screen/OCR/audio require stronger gates described in
+  [Background Observation Core Spec](./background-observation-core-spec.md).
+
+Requirements:
+
+- Capture app focus, window focus/title changes, observation state, and permission state first.
+- Preserve visible runtime state and pause/resume behavior.
+- Use protected-app exclusions before semantic capture.
+- Store metadata/summary Events by default, not raw payloads.
+- Deduplicate repeated app/window snapshots.
+- Feed Events into Activity Session building without requiring screenshots.
+- Do not capture keystrokes, password fields, raw screenshots, OCR, or audio in the basic adapter.
+
+Default policy:
+
+- Sensitivity: internal for app/window metadata; confidential for semantic text.
+- Raw storage: off.
+- AI: policy-based; blocked for protected apps and failed redaction.
+- Agent export: policy-based; raw observation payloads blocked by default.
 
 ### Generic Local Agent Sessions
 
@@ -470,4 +508,3 @@ Before a source adapter is production-enabled:
 - Idempotent ingestion is tested.
 - Privacy cleanup works for legacy records.
 - Adapter does not perform side effects.
-

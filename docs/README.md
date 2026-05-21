@@ -24,9 +24,10 @@ Read in this order:
 18. [Handoff: Next AI Provider Work](./handoff-next-ai-provider.md)
 19. [Alpha UI Implementation Spec](./alpha-ui-implementation-spec.md)
 20. [Complete Product Spec](./complete-product-spec.md)
-21. [Source Adapter Complete Contract](./source-adapter-complete-contract.md)
-22. [Semantic Quality And Evaluation](./semantic-quality-evaluation.md)
-23. [Release Readiness Spec](./release-readiness-spec.md)
+21. [Background Observation Core Spec](./background-observation-core-spec.md)
+22. [Source Adapter Complete Contract](./source-adapter-complete-contract.md)
+23. [Semantic Quality And Evaluation](./semantic-quality-evaluation.md)
+24. [Release Readiness Spec](./release-readiness-spec.md)
 
 The design follows the project-level guidance in [AGENTS.md](../AGENTS.md):
 
