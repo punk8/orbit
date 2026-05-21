@@ -1,5 +1,5 @@
 {
-  "count": 1,
+  "count": 2,
   "sourceKinds": ["desktop"],
   "apps": ["Terminal", "Cursor", "Orbit", "1Password"],
   "eventCount": 7

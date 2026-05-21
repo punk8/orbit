@@ -42,10 +42,18 @@ export class ActivityRepository {
         )
         ON CONFLICT(id) DO UPDATE SET
           title = excluded.title,
+          duration_seconds = excluded.duration_seconds,
+          source_kinds_json = excluded.source_kinds_json,
+          apps_json = excluded.apps_json,
           end_at = excluded.end_at,
           event_count = excluded.event_count,
+          topic = excluded.topic,
+          project = excluded.project,
           summary = excluded.summary,
           evidence_json = excluded.evidence_json,
+          media_json = excluded.media_json,
+          local_state_json = excluded.local_state_json,
+          privacy_json = excluded.privacy_json,
           updated_at = excluded.updated_at
       `
       )
@@ -97,6 +105,17 @@ export class ActivityRepository {
     return (
       this.db.prepare("SELECT count(*) as count FROM activity_sessions").get() as { count: number }
     ).count;
+  }
+
+  deleteActivitySessionsNotIn(ids: string[], options: { preserveIds?: string[] } = {}): number {
+    const keepIds = [...new Set([...ids, ...(options.preserveIds ?? [])])];
+    if (keepIds.length === 0) {
+      return this.db.prepare("DELETE FROM activity_sessions").run().changes;
+    }
+    const placeholders = keepIds.map(() => "?").join(", ");
+    return this.db
+      .prepare(`DELETE FROM activity_sessions WHERE id NOT IN (${placeholders})`)
+      .run(...keepIds).changes;
   }
 
   private mapActivity(row: ActivityRow): ActivitySession {

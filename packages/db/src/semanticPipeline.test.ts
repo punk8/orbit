@@ -5,13 +5,19 @@ import type Database from "better-sqlite3";
 import { afterEach, describe, expect, it } from "vitest";
 import type { AIProvider } from "@orbit/ai";
 import type { Event } from "@orbit/core";
-import { createStableId, defaultPermissionScopeForSource, hashObject } from "@orbit/core";
+import {
+  createStableId,
+  defaultPermissionScopeForSource,
+  hashObject,
+  makeObservationPermissionScope
+} from "@orbit/core";
 import { openOrbitDatabase } from "./connection";
+import { ActivityRepository } from "./repositories/activityRepository";
 import { EventRepository } from "./repositories/eventRepository";
 import { AuditRepository } from "./repositories/auditRepository";
 import { KnowledgeRepository } from "./repositories/knowledgeRepository";
 import { SourceRepository } from "./repositories/sourceRepository";
-import { runSemanticPipelineWithProvider } from "./semanticPipeline";
+import { runSemanticPipeline, runSemanticPipelineWithProvider } from "./semanticPipeline";
 
 const tempDirs: string[] = [];
 
@@ -22,6 +28,67 @@ afterEach(() => {
 });
 
 describe("semantic pipeline AI provider integration", () => {
+  it("updates live observation Activity in place as more events arrive", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-live-observation-test-"));
+    tempDirs.push(orbitHome);
+    const database = openOrbitDatabase({ orbitHome });
+    try {
+      upsertDesktopObservationSource(database.db);
+      const eventRepository = new EventRepository(database.db);
+      const start = new Date(Date.now() - 40 * 60 * 1000);
+      const second = new Date(start.getTime() + 5 * 60 * 1000);
+      eventRepository.upsertEvent(makeDesktopObservationEvent("1", start.toISOString()));
+
+      runSemanticPipeline(database);
+      const activityRepository = new ActivityRepository(database.db);
+      const firstSession = activityRepository.listActivitySessions()[0]!;
+
+      eventRepository.upsertEvent(makeDesktopObservationEvent("2", second.toISOString()));
+      runSemanticPipeline(database);
+      const sessions = activityRepository.listActivitySessions();
+
+      expect(sessions).toHaveLength(1);
+      expect(sessions[0]?.id).toBe(firstSession.id);
+      expect(sessions[0]?.eventCount).toBe(2);
+      expect(sessions[0]?.durationSeconds).toBe(300);
+      expect(new KnowledgeRepository(database.db).listKnowledgeArtifacts()).toHaveLength(0);
+    } finally {
+      database.close();
+    }
+  });
+
+  it("waits for observation sessions to close before drafting Knowledge", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-observation-close-test-"));
+    tempDirs.push(orbitHome);
+    const database = openOrbitDatabase({ orbitHome });
+    try {
+      upsertDesktopObservationSource(database.db);
+      const eventRepository = new EventRepository(database.db);
+      eventRepository.upsertEvent(makeDesktopObservationEvent("active", new Date().toISOString()));
+
+      runSemanticPipeline(database);
+      let sessions = new ActivityRepository(database.db).listActivitySessions();
+      expect(sessions[0]?.localState.closed).toBe(false);
+      expect(new KnowledgeRepository(database.db).listKnowledgeArtifacts()).toHaveLength(0);
+
+      const closedStart = new Date(Date.now() - 40 * 60 * 1000);
+      const closedEnd = new Date(closedStart.getTime() + 11 * 60 * 1000);
+      eventRepository.upsertEvent(
+        makeDesktopObservationEvent("closed_1", closedStart.toISOString(), "Closed work")
+      );
+      eventRepository.upsertEvent(
+        makeDesktopObservationEvent("closed_2", closedEnd.toISOString(), "Closed work follow-up")
+      );
+
+      runSemanticPipeline(database);
+      sessions = new ActivityRepository(database.db).listActivitySessions();
+      expect(sessions.some((session) => session.localState.closed === true)).toBe(true);
+      expect(new KnowledgeRepository(database.db).listKnowledgeArtifacts()).toHaveLength(1);
+    } finally {
+      database.close();
+    }
+  });
+
   it("uses provider drafts and filters unknown evidence IDs", async () => {
     const orbitHome = mkdtempSync(join(tmpdir(), "orbit-provider-pipeline-test-"));
     tempDirs.push(orbitHome);
@@ -209,6 +276,20 @@ function upsertFixtureSource(db: Database.Database): void {
   });
 }
 
+function upsertDesktopObservationSource(db: Database.Database): void {
+  new SourceRepository(db).upsertSource({
+    id: "desktop_observation",
+    kind: "desktop",
+    displayName: "Desktop Observation",
+    enabled: true,
+    paused: false,
+    defaultSensitivity: "internal",
+    permissionScope: makeObservationPermissionScope("desktop"),
+    createdAt: "2026-05-21T09:00:00.000Z",
+    updatedAt: "2026-05-21T09:00:00.000Z"
+  });
+}
+
 function makeProvider(
   output: Partial<Awaited<ReturnType<AIProvider["draftKnowledge"]>>>
 ): AIProvider {
@@ -263,6 +344,53 @@ function makeEvent(id: string, type: Event["type"]): Event {
     privacy: {
       sensitivity: "internal",
       retentionPolicyId: "default",
+      redactionState: "none"
+    },
+    hash: hashObject(input)
+  };
+}
+
+function makeDesktopObservationEvent(
+  id: string,
+  occurredAt: string,
+  windowTitle = "Orbit background observation"
+): Event {
+  const source = {
+    kind: "desktop" as const,
+    adapterId: "desktop_observation",
+    externalId: id,
+    pointer: `desktop://window/test#${id}`
+  };
+  const input = {
+    source,
+    occurredAt,
+    type: "window_focus" as const,
+    windowTitle
+  };
+  return {
+    id: createStableId("event", input),
+    schemaVersion: 1,
+    source,
+    occurredAt,
+    observedAt: occurredAt,
+    context: {
+      app: "Cursor",
+      windowTitle
+    },
+    type: "window_focus",
+    content: {
+      title: "Focused window in Cursor",
+      summary: `Window focus observed in Cursor: ${windowTitle}`
+    },
+    classification: {
+      topics: ["background_observation"],
+      entities: ["Cursor"],
+      intent: "observation",
+      confidence: 0.8
+    },
+    privacy: {
+      sensitivity: "confidential",
+      retentionPolicyId: "observation_default",
       redactionState: "none"
     },
     hash: hashObject(input)

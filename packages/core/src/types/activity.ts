@@ -24,6 +24,8 @@ export interface ActivitySession {
     rawAvailable: boolean;
     indexed: boolean;
     storageBytes?: number;
+    closed?: boolean;
+    closeReason?: "idle" | "explicit_boundary" | "historical";
   };
   privacy: {
     sensitivity: Sensitivity;

@@ -67,8 +67,22 @@ function runSemanticPipelineCore(
 
   const events = eventRepository.listEvents();
   const sessions = buildActivitySessions(events);
+  const existingArtifacts = knowledgeRepository.listKnowledgeArtifacts();
   for (const session of sessions) {
     activityRepository.upsertActivitySession(session);
+  }
+  const preservedSessionIds = existingArtifacts.flatMap(
+    (artifact) => artifact.metadata.sourceSessionIds
+  );
+  const prunedSessions = activityRepository.deleteActivitySessionsNotIn(
+    sessions.map((session) => session.id),
+    { preserveIds: preservedSessionIds }
+  );
+  if (prunedSessions > 0) {
+    auditRepository.log("activity.reindex_prune", "activity_session", undefined, {
+      deleted: prunedSessions,
+      preservedReferencedSessions: preservedSessionIds.length
+    });
   }
 
   const eventById = new Map(events.map((event) => [event.id, event]));
@@ -181,6 +195,7 @@ function shouldGenerateKnowledgeDraft(
   session: ReturnType<ActivityRepository["listActivitySessions"]>[number],
   events: Event[]
 ): boolean {
+  if (session.localState.closed === false) return false;
   const lowSignalObservationOnly =
     events.length > 0 &&
     events.every(

@@ -141,6 +141,7 @@ export class DesktopObservationService {
     if (this.draining) return;
     this.draining = true;
     const database = openOrbitDatabase();
+    let pendingAfterDrain = false;
     try {
       const settings = new SettingsRepository(database.db);
       const sourceRepository = new SourceRepository(database.db);
@@ -156,31 +157,58 @@ export class DesktopObservationService {
           protectedApps
         })
       );
-      const result = await this.queue.drain(eventRepository, 25);
-      sourceRepository.recordSyncSuccess(DESKTOP_OBSERVATION_ADAPTER_ID, {
-        lastEventAt: result.lastEventAt
-      });
-      if (result.inserted > 0) {
+      let read = 0;
+      let inserted = 0;
+      let skipped = 0;
+      let dropped = 0;
+      const warnings: string[] = [];
+      let lastEventAt: string | undefined;
+
+      while (this.queue.depth > 0) {
+        const result = await this.queue.drain(eventRepository, 25);
+        read += result.read;
+        inserted += result.inserted;
+        skipped += result.skipped;
+        dropped += result.dropped;
+        warnings.push(...result.warnings);
+        if (result.lastEventAt) lastEventAt = result.lastEventAt;
+        auditRepository.log("observation.drain", "source", DESKTOP_OBSERVATION_ADAPTER_ID, {
+          read: result.read,
+          inserted: result.inserted,
+          skipped: result.skipped,
+          dropped: result.dropped,
+          warnings: result.warnings,
+          queueDepth: this.queue.depth
+        });
+      }
+
+      sourceRepository.recordSyncSuccess(DESKTOP_OBSERVATION_ADAPTER_ID, { lastEventAt });
+      if (inserted > 0) {
         await reindexLocalDataWithProvider(database, {});
       }
       writeObservationStatusToSettings(settings, "collecting", {
         enabled: true,
         paused: false,
-        ...(result.lastEventAt ? { lastEventAt: result.lastEventAt } : {}),
+        ...(lastEventAt ? { lastEventAt } : {}),
         lastError: ""
       });
-      auditRepository.log("observation.drain", "source", DESKTOP_OBSERVATION_ADAPTER_ID, {
-        read: result.read,
-        inserted: result.inserted,
-        skipped: result.skipped,
-        dropped: result.dropped,
-        warnings: result.warnings
-      });
       settings.set("observation.queueDepth", this.queue.depth);
+      auditRepository.log("observation.drain_batch", "source", DESKTOP_OBSERVATION_ADAPTER_ID, {
+        read,
+        inserted,
+        skipped,
+        dropped,
+        warnings,
+        queueDepth: this.queue.depth
+      });
     } finally {
+      pendingAfterDrain = this.queue.depth > 0;
       database.close();
       this.draining = false;
       this.options.notifyChanged();
+      if (pendingAfterDrain) {
+        void this.drainQueue();
+      }
     }
   }
 

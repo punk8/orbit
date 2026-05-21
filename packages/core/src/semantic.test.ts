@@ -33,6 +33,33 @@ describe("semantic pipeline", () => {
     expect(recommendations.some((item) => item.type === "follow_up")).toBe(true);
     expect(recommendations.every((item) => item.evidence.length > 0)).toBe(true);
   });
+
+  it("keeps live observation sessions stable and splits them after idle gaps", () => {
+    const first = makeObservationEvent("1", "2026-05-21T09:00:00.000Z", "Terminal");
+    const second = makeObservationEvent("2", "2026-05-21T09:04:00.000Z", "Cursor");
+    const updated = buildActivitySessions([first, second], {
+      now: new Date("2026-05-21T09:05:00.000Z")
+    });
+    const extended = buildActivitySessions(
+      [first, second, makeObservationEvent("3", "2026-05-21T09:08:00.000Z", "Orbit")],
+      { now: new Date("2026-05-21T09:09:00.000Z") }
+    );
+
+    expect(updated).toHaveLength(1);
+    expect(extended).toHaveLength(1);
+    expect(extended[0]?.id).toBe(updated[0]?.id);
+    expect(extended[0]?.eventCount).toBe(3);
+    expect(extended[0]?.localState.closed).toBe(false);
+
+    const split = buildActivitySessions(
+      [first, second, makeObservationEvent("4", "2026-05-21T09:25:00.000Z", "Terminal")],
+      { now: new Date("2026-05-21T09:45:00.000Z") }
+    );
+
+    expect(split).toHaveLength(2);
+    expect(split[0]?.localState.closed).toBe(true);
+    expect(split[1]?.localState.closed).toBe(true);
+  });
 });
 
 function makeEvent(id: string, type: Event["type"]): Event {
@@ -62,5 +89,35 @@ function makeEvent(id: string, type: Event["type"]): Event {
       redactionState: "none"
     },
     hash: `hash_${id}`
+  };
+}
+
+function makeObservationEvent(id: string, occurredAt: string, app: string): Event {
+  return {
+    id: `obs_event_${id}`,
+    schemaVersion: 1,
+    source: {
+      kind: "desktop",
+      adapterId: "desktop_observation",
+      externalId: id,
+      pointer: `desktop://app-focus/test#${id}`
+    },
+    occurredAt,
+    observedAt: occurredAt,
+    context: {
+      app,
+      windowTitle: `${app} window`
+    },
+    type: "window_focus",
+    content: {
+      title: `Focused ${app}`,
+      summary: `Window focus observed in ${app}.`
+    },
+    privacy: {
+      sensitivity: "confidential",
+      retentionPolicyId: "observation_default",
+      redactionState: "none"
+    },
+    hash: `obs_hash_${id}`
   };
 }
