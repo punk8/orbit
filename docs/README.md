@@ -25,9 +25,10 @@ Read in this order:
 19. [Alpha UI Implementation Spec](./alpha-ui-implementation-spec.md)
 20. [Complete Product Spec](./complete-product-spec.md)
 21. [Background Observation Core Spec](./background-observation-core-spec.md)
-22. [Source Adapter Complete Contract](./source-adapter-complete-contract.md)
-23. [Semantic Quality And Evaluation](./semantic-quality-evaluation.md)
-24. [Release Readiness Spec](./release-readiness-spec.md)
+22. [Background Observation Implementation Plan](./background-observation-implementation-plan.md)
+23. [Source Adapter Complete Contract](./source-adapter-complete-contract.md)
+24. [Semantic Quality And Evaluation](./semantic-quality-evaluation.md)
+25. [Release Readiness Spec](./release-readiness-spec.md)
 
 The design follows the project-level guidance in [AGENTS.md](../AGENTS.md):
 

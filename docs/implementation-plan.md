@@ -8,6 +8,7 @@ The first implementation should prove Orbit as a local-first work context contin
 
 For work beyond Alpha, use [Complete Product Spec](./complete-product-spec.md),
 [Background Observation Core Spec](./background-observation-core-spec.md),
+[Background Observation Implementation Plan](./background-observation-implementation-plan.md),
 [Source Adapter Complete Contract](./source-adapter-complete-contract.md),
 [Semantic Quality And Evaluation](./semantic-quality-evaluation.md), and
 [Release Readiness Spec](./release-readiness-spec.md) as the fuller product baseline.

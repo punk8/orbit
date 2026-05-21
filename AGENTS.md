@@ -111,7 +111,7 @@ MVP 只用于明确阶段性交付优先级，不应成为代码设计的上限�
 1. **Goal 1: Local Data Spine**: 完成 Task 1-5，建立 pnpm monorepo、核心类型、SQLite、本地 fixtures、fixture ingestion 和基础 CLI。该阶段不得实现完整 Electron UI、真实个人数据 source adapter、外部 AI 或读取私人本地数据。
 2. **Goal 2: Semantic Pipeline**: 完成 Task 6-10，建立 Activity Session、Knowledge draft、Memory candidate、Recommendation 和 `orbit context today`。该阶段继续使用 mock AI provider，不执行任何副作用动作。
 3. **Goal 3: Product Shell And Real Sources**: 完成 Task 11-13，建立 Electron shell、真实来源的只读 adapter 能力，以及安全接入决策。任何来源如果没有明确安全 read path，只保留 fixture-backed 或 approved-import adapter 并记录 blocker。
-4. **Goal 4: Background Observation Core**: 完成 Task 14-18，建立后台观察运行时、权限 UX、Tier 1 app/window/runtime 事件、Tier 2 permissioned semantic observation、受保护应用、redaction/retention/audit，以及 live observation 到 Activity/Knowledge/Memory/Recommendation/Handoff 的链路。该阶段不得默认开启 raw screen recording、OCR、音频或外部副作用。
+4. **Goal 4: Background Observation Core**: 完成 Task 14-18，建立后台观察运行时、权限 UX、Tier 1 app/window/runtime 事件、Tier 2 permissioned semantic observation、受保护应用、redaction/retention/audit，以及 live observation 到 Activity/Knowledge/Memory/Recommendation/Handoff 的链路。具体实现应优先按 `docs/background-observation-implementation-plan.md` 拆成 Goal 4A/4B/4C/4D 小 checkpoint 推进，不要一次性吞掉完整后台观察范围。该阶段不得默认开启 raw screen recording、OCR、音频或外部副作用。
 
 每个 goal 必须执行 `docs/development-tasks.md` 中对应的 acceptance commands，并在结果中说明哪些验收通过、哪些因环境或依赖无法执行。只有前一个 goal 的核心验收通过后，才应进入下一个 goal。
 

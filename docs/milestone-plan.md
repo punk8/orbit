@@ -189,6 +189,8 @@ Acceptance criteria:
 - Complete product scenario coverage from [Complete Product Spec](./complete-product-spec.md).
 - Background observation hardening from
   [Background Observation Core Spec](./background-observation-core-spec.md).
+- Background observation implementation cuts from
+  [Background Observation Implementation Plan](./background-observation-implementation-plan.md).
 - Production source adapters that pass
   [Source Adapter Complete Contract](./source-adapter-complete-contract.md).
 - Semantic evals and golden fixtures from

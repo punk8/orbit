@@ -1144,6 +1144,11 @@ Constraints:
 
 Scope: Task 14-18.
 
+Implementation guide: follow
+[Background Observation Implementation Plan](./background-observation-implementation-plan.md).
+When starting code work, prefer the smaller Goal 4A/4B/4C/4D cuts defined there instead of trying
+to complete all of Goal 4 in one checkpoint.
+
 Expected deliverables:
 
 - domain support and fixtures for desktop observation Events.

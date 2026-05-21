@@ -8,6 +8,10 @@ This document defines Orbit's core product target after the initial local-data s
 Background Observation -> Event -> Activity Session -> Knowledge Artifact -> Memory -> Recommendation
 ```
 
+For concrete engineering slices, module boundaries, macOS capture choices, event mappings, and test
+strategy, see
+[Background Observation Implementation Plan](./background-observation-implementation-plan.md).
+
 Orbit's core value is not only importing explicit source files. The product must run quietly in the
 background, observe authorized computer activity, and turn that activity into traceable work context.
 
@@ -410,4 +414,3 @@ Recommended phases:
 5. Incremental session builder and scheduler.
 6. Protected apps, redaction, retention, and audit hardening.
 7. Tier 3 screen/OCR/audio gates only after the above is stable.
-

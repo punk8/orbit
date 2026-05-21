@@ -82,6 +82,8 @@ gated until visible running state, pause/stop controls, protected-app exclusions
 redaction, audit logging, and CPU/storage budgets are complete.
 
 See [Background Observation Core Spec](./background-observation-core-spec.md).
+For implementation module boundaries and macOS capture strategy, see
+[Background Observation Implementation Plan](./background-observation-implementation-plan.md).
 
 ## Source Adapter Layer
 
