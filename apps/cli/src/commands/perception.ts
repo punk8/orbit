@@ -1,5 +1,7 @@
 import {
   audioPermission,
+  CapturedTextOcrEngine,
+  MacScreenOcrCaptureHelper,
   MockScreenCaptureNativeHelper,
   MockOcrEngine,
   OCR_OBSERVATION_ADAPTER_ID,
@@ -9,6 +11,7 @@ import {
   SCREEN_OBSERVATION_ADAPTER_ID,
   ScreenObservationAdapter,
   ScreenObservationSession,
+  type ScreenOcrCaptureHelper,
   type ScreenCaptureScope,
   screenPermission,
   TRANSCRIPT_OBSERVATION_ADAPTER_ID,
@@ -28,6 +31,7 @@ import {
   type VisionProvider
 } from "@orbit/ai";
 import { ingestEventsFromAdapter } from "@orbit/core";
+import type { SourceAdapter } from "@orbit/core";
 import {
   AuditRepository,
   cleanupPerceptionSidecars,
@@ -72,6 +76,32 @@ export interface ScreenOcrSmokeResult {
     status: string;
     capturedFrames: number;
   }>;
+}
+
+export interface CaptureScreenOcrCommandResult {
+  orbitHome: string;
+  dbPath: string;
+  mode: "manual_live_screen_ocr";
+  sources: Array<{
+    adapterId: string;
+    read: number;
+    inserted: number;
+    skipped: number;
+    nextCursor?: string;
+    warnings: string[];
+  }>;
+  totals: {
+    read: number;
+    inserted: number;
+    skipped: number;
+  };
+  warnings: string[];
+  pipeline: SemanticPipelineResult;
+}
+
+export interface CaptureScreenOcrOptions {
+  helper?: ScreenOcrCaptureHelper;
+  helperPath?: string;
 }
 
 export interface PerceptionCleanupCommandResult {
@@ -254,6 +284,127 @@ export async function runScreenOcrSmoke(
     });
 
     return { orbitHome: database.orbitHome, dbPath: database.dbPath, scope, transitions };
+  } finally {
+    database.close();
+  }
+}
+
+export async function captureScreenOcrOnce(
+  options: CaptureScreenOcrOptions = {}
+): Promise<CaptureScreenOcrCommandResult> {
+  const config = getCliConfig();
+  const database = openOrbitDatabase({ orbitHome: config.orbitHome });
+  try {
+    const sourceRepository = new SourceRepository(database.db);
+    const eventRepository = new EventRepository(database.db);
+    const auditRepository = new AuditRepository(database.db);
+    const perception = readPerceptionStatus(database.db);
+    const helper =
+      options.helper ??
+      new MacScreenOcrCaptureHelper({
+        ...(options.helperPath ? { helperPath: options.helperPath } : {})
+      });
+    const capture = await helper.captureOnce();
+    const warnings = [...capture.warnings];
+    const permission = capture.permission ?? screenPermission(capture.frame ? "granted" : "unknown");
+    const results: CaptureScreenOcrCommandResult["sources"] = [];
+
+    if (!capture.frame) {
+      auditRepository.log("perception.capture_screen_ocr", "source", "perception_screen", {
+        mode: "manual_live_screen_ocr",
+        inserted: 0,
+        permission: permission.status,
+        warnings
+      });
+      const pipeline = runSemanticPipeline(database);
+      return {
+        orbitHome: database.orbitHome,
+        dbPath: database.dbPath,
+        mode: "manual_live_screen_ocr",
+        sources: [],
+        totals: { read: 0, inserted: 0, skipped: 0 },
+        warnings,
+        pipeline
+      };
+    }
+
+    const screenAdapter = new ScreenObservationAdapter({
+      id: SCREEN_OBSERVATION_ADAPTER_ID,
+      frames: [capture.frame],
+      scope: capture.frame.scope,
+      permission,
+      protectedApps: perception.protectedApps,
+      allowRawFrameStorage: false,
+      canUseForAI:
+        perception.sources.find((source) => source.sourceKind === "screen")?.policy.canUseForAI ===
+        true,
+      canExportToAgent:
+        perception.sources.find((source) => source.sourceKind === "screen")?.policy
+          .canExportToAgent === true
+    });
+
+    const adapters: SourceAdapter[] = [screenAdapter];
+    if (capture.ocr?.text.trim()) {
+      adapters.push(
+        new OcrObservationAdapter({
+          id: OCR_OBSERVATION_ADAPTER_ID,
+          frames: [capture.frame],
+          scope: capture.frame.scope,
+          engine: new CapturedTextOcrEngine(new Map([[capture.frame.frameHash, capture.ocr]])),
+          permission,
+          protectedApps: perception.protectedApps,
+          canUseForAI:
+            perception.sources.find((source) => source.sourceKind === "ocr")?.policy.canUseForAI ===
+            true,
+          canExportToAgent:
+            perception.sources.find((source) => source.sourceKind === "ocr")?.policy
+              .canExportToAgent === true
+        })
+      );
+    } else {
+      warnings.push("Screen capture succeeded, but OCR produced no text.");
+    }
+
+    for (const adapter of adapters) {
+      sourceRepository.upsertFromAdapter(adapter);
+      const cursor = sourceRepository.getCursor(adapter.id);
+      const result = await ingestEventsFromAdapter(adapter, eventRepository, cursor);
+      sourceRepository.setCursor(adapter.id, result.nextCursor);
+      sourceRepository.recordSyncSuccess(adapter.id, { lastEventAt: result.lastEventAt });
+      const sourceWarnings = [...warnings, ...result.warnings];
+      auditRepository.log("perception.capture_screen_ocr", "source", adapter.id, {
+        mode: "manual_live_screen_ocr",
+        kind: adapter.kind,
+        read: result.read,
+        inserted: result.inserted,
+        skipped: result.skipped,
+        rawStored: false,
+        warnings: sourceWarnings
+      });
+      results.push({
+        adapterId: result.adapterId,
+        read: result.read,
+        inserted: result.inserted,
+        skipped: result.skipped,
+        ...(result.nextCursor ? { nextCursor: result.nextCursor } : {}),
+        warnings: sourceWarnings
+      });
+    }
+
+    const pipeline = runSemanticPipeline(database);
+    return {
+      orbitHome: database.orbitHome,
+      dbPath: database.dbPath,
+      mode: "manual_live_screen_ocr",
+      sources: results,
+      totals: {
+        read: results.reduce((total, result) => total + result.read, 0),
+        inserted: results.reduce((total, result) => total + result.inserted, 0),
+        skipped: results.reduce((total, result) => total + result.skipped, 0)
+      },
+      warnings,
+      pipeline
+    };
   } finally {
     database.close();
   }

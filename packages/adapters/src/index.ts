@@ -19,6 +19,7 @@ export * from "./terminal/terminalObservationAdapter";
 export * from "./perception/perceptionAdapterPolicy";
 export * from "./screen/screenCaptureFixtures";
 export * from "./screen/screenCaptureTypes";
+export * from "./screen/macScreenOcrCaptureHelper";
 export * from "./screen/mockScreenCaptureNativeHelper";
 export * from "./screen/screenObservationAdapter";
 export * from "./screen/screenObservationSession";

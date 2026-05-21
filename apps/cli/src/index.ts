@@ -40,6 +40,7 @@ import {
 } from "./commands/observe";
 import {
   cleanupPerceptionRawSidecars,
+  captureScreenOcrOnce,
   getPerceptionReleaseGate,
   getPerceptionStatus,
   runScreenOcrSmoke,
@@ -469,6 +470,17 @@ export function buildProgram(): Command {
     .option("--json", "output JSON")
     .action(async (options: { scope?: string; json?: boolean }) => {
       const result = await runScreenOcrSmoke(requireScreenScopeKind(options.scope));
+      writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
+    });
+  perception
+    .command("capture-screen-ocr")
+    .description("Manually capture the current macOS display once and ingest local OCR summaries")
+    .option("--helper <path>", "Swift helper path override")
+    .option("--json", "output JSON")
+    .action(async (options: { helper?: string; json?: boolean }) => {
+      const result = await captureScreenOcrOnce(
+        options.helper ? { helperPath: options.helper } : {}
+      );
       writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
     });
   perception

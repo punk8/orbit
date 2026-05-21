@@ -17,6 +17,7 @@ import {
 } from "./commands/observe";
 import {
   cleanupPerceptionRawSidecars,
+  captureScreenOcrOnce,
   getPerceptionReleaseGate,
   getPerceptionStatus,
   runScreenOcrSmoke,
@@ -41,6 +42,7 @@ import {
 } from "./commands/readModels";
 import { getStatus } from "./commands/status";
 import { getAIStatus, testAITask } from "./commands/ai";
+import { screenPermission } from "@orbit/adapters";
 
 const tempDirs: string[] = [];
 
@@ -556,6 +558,66 @@ describe("cli commands", () => {
     expect(perceptionHelp).toContain("cleanup");
     expect(perceptionHelp).toContain("release-gate");
     expect(ingestHelp).toContain("perception-fixtures");
+  });
+
+  it("ingests a manual live screen/OCR capture without storing raw screenshots by default", async () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-live-screen-ocr-test-"));
+    tempDirs.push(orbitHome);
+    process.env.ORBIT_HOME = orbitHome;
+
+    const result = await captureScreenOcrOnce({
+      helper: {
+        async captureOnce() {
+          return {
+            frame: {
+              id: "manual_frame_1",
+              capturedAt: "2026-05-22T01:02:03.000Z",
+              runtimeSessionId: "manual-screen-ocr-test",
+              sequence: 1,
+              scope: {
+                kind: "display",
+                label: "Main Display",
+                displayId: "1"
+              },
+              app: {
+                name: "Cursor",
+                bundleId: "com.todesktop.230313mzl4w4u92"
+              },
+              window: {
+                title: "Orbit Screen OCR"
+              },
+              width: 1440,
+              height: 900,
+              frameHash: "manual_frame_hash_1",
+              rawLocalRef: "file:///tmp/raw-screen.png",
+              sizeBytes: 123_456
+          },
+          permission: screenPermission("granted"),
+          ocr: {
+              text: "Orbit real screen OCR 支持中文 password=hunter2",
+              confidence: 0.93,
+              languages: ["zh-Hans", "en-US"]
+            },
+            warnings: []
+          };
+        }
+      }
+    });
+
+    expect(result.sources.find((source) => source.adapterId === "perception_screen")?.inserted).toBe(
+      1
+    );
+    expect(result.sources.find((source) => source.adapterId === "perception_ocr")?.inserted).toBe(1);
+    expect(result.pipeline.activitySessions.total).toBe(1);
+    expect(JSON.stringify(listActivitySessions())).toContain("Orbit real screen OCR");
+    expect(JSON.stringify(listActivitySessions())).not.toContain("raw-screen.png");
+    expect(JSON.stringify(listActivitySessions())).not.toContain("hunter2");
+
+    const program = buildProgram();
+    const perceptionHelp = program.commands
+      .find((command) => command.name() === "perception")
+      ?.helpInformation();
+    expect(perceptionHelp).toContain("capture-screen-ocr");
   });
 
   it("evaluates Goal 8F perception cleanup and release gates without starting capture", () => {
