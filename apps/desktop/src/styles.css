@@ -137,6 +137,7 @@ button {
 
 .workspace {
   display: flex;
+  min-height: 0;
   min-width: 0;
   flex-direction: column;
   overflow: hidden;
@@ -194,6 +195,7 @@ button {
 .page-grid {
   display: grid;
   gap: 18px;
+  min-height: 0;
   overflow: auto;
   padding: 22px 28px 32px;
 }
@@ -943,6 +945,7 @@ button {
   flex: 1;
   grid-template-columns: 240px minmax(0, 1fr);
   gap: 16px;
+  height: 100%;
   min-height: 0;
   overflow: hidden;
   padding: 22px 28px 32px;

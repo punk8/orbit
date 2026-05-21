@@ -376,6 +376,19 @@ async function runRendererSmoke(window: BrowserWindow): Promise<void> {
             element.click();
             await sleep(150);
           };
+          const assertScrollable = async (selector) => {
+            const element = await waitFor(selector);
+            if (element.scrollHeight <= element.clientHeight) {
+              throw new Error(
+                "Expected scrollable selector: " +
+                  selector +
+                  " scrollHeight=" +
+                  element.scrollHeight +
+                  " clientHeight=" +
+                  element.clientHeight
+              );
+            }
+          };
           const pageIds = [
             "today",
             "activity",
@@ -392,6 +405,7 @@ async function runRendererSmoke(window: BrowserWindow): Promise<void> {
             await waitFor('[data-page-id="' + pageId + '"].active');
           }
           await waitFor(".provider-boundary");
+          await assertScrollable(".settings-content");
           await click('[data-settings-section-id="privacy"]');
           await waitFor(".privacy-settings-panel");
           await click('[data-settings-section-id="runtime"]');

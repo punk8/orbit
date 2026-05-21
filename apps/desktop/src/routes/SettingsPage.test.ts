@@ -28,7 +28,10 @@ describe("SettingsPage privacy and provider hardening", () => {
   it("keeps settings navigation and content independently scrollable", () => {
     const styles = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
 
+    expect(styles).toMatch(/\.workspace\s*{[^}]*min-height:\s*0;/s);
+    expect(styles).toMatch(/\.page-grid\s*{[^}]*min-height:\s*0;/s);
     expect(styles).toMatch(/\.settings-layout\s*{[^}]*flex:\s*1;/s);
+    expect(styles).toMatch(/\.settings-layout\s*{[^}]*height:\s*100%;/s);
     expect(styles).toMatch(/\.settings-layout\s*{[^}]*min-height:\s*0;/s);
     expect(styles).toMatch(/\.settings-layout\s*{[^}]*overflow:\s*hidden;/s);
     expect(styles).toMatch(/\.settings-subnav\s*{[^}]*overflow:\s*auto;/s);

@@ -12,6 +12,7 @@ describe("desktop main process runtime guards", () => {
     expect(main).toContain("runRendererSmoke");
     expect(main).toContain("runPackagedSmoke");
     expect(main).toContain('reviewKnowledgeForDesktop(firstArtifact.id, "confirm")');
+    expect(main).toContain('assertScrollable(".settings-content")');
     expect(main).toContain("orbit:getActivitySessionDetail");
     expect(main).toContain("orbit:searchKnowledge");
     expect(main).toContain("orbit:getKnowledgeArtifactDetail");
