@@ -14,5 +14,6 @@ export * from "./governance";
 export * from "./semanticPipeline";
 export * from "./localDataOperations";
 export * from "./privacyCleanup";
+export * from "./perceptionCleanup";
 export * from "./handoffPack";
 export * from "./perceptionSettings";

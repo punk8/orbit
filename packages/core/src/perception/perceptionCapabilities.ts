@@ -72,6 +72,34 @@ export interface PerceptionSourceControl {
   lastPermissionCheckedAt?: string;
 }
 
+export interface PerceptionResourcePolicy {
+  cpu: {
+    maxCaptureDutyCyclePercent: number;
+    minScreenCaptureIntervalMs: number;
+    maxOcrFramesPerMinute: number;
+  };
+  battery: {
+    pauseOnLowPowerMode: boolean;
+    pauseBelowPercent: number;
+  };
+  storage: {
+    maxRawSidecarBytes: number;
+    defaultRawTtlMinutes: number;
+    cleanupIntervalMinutes: number;
+  };
+  queue: {
+    maxItems: number;
+    drainBatchSize: number;
+    dropRawPayloadsFirst: boolean;
+  };
+  provider: {
+    maxRequestsPerHour: number;
+    maxInputCharsPerRequest: number;
+    maxTokensPerHour: number;
+    allowExternalByDefault: boolean;
+  };
+}
+
 export interface PerceptionProviderRoute {
   task: PerceptionProviderTask;
   provider: PerceptionProviderKind;
@@ -88,6 +116,7 @@ export interface PerceptionControlPlaneStatus {
   sources: PerceptionSourceControl[];
   providerRoutes: PerceptionProviderRoute[];
   protectedApps: ProtectedAppRule[];
+  resourcePolicy: PerceptionResourcePolicy;
 }
 
 export type PerceptionSourcePolicyPatch = Partial<PerceptionSourcePolicy>;
@@ -217,6 +246,36 @@ export function defaultPerceptionSourcePolicy(
   };
 }
 
+export function defaultPerceptionResourcePolicy(): PerceptionResourcePolicy {
+  return {
+    cpu: {
+      maxCaptureDutyCyclePercent: 10,
+      minScreenCaptureIntervalMs: 30_000,
+      maxOcrFramesPerMinute: 6
+    },
+    battery: {
+      pauseOnLowPowerMode: true,
+      pauseBelowPercent: 20
+    },
+    storage: {
+      maxRawSidecarBytes: 250 * 1024 * 1024,
+      defaultRawTtlMinutes: 60,
+      cleanupIntervalMinutes: 15
+    },
+    queue: {
+      maxItems: 1000,
+      drainBatchSize: 25,
+      dropRawPayloadsFirst: true
+    },
+    provider: {
+      maxRequestsPerHour: 60,
+      maxInputCharsPerRequest: 4000,
+      maxTokensPerHour: 100_000,
+      allowExternalByDefault: false
+    }
+  };
+}
+
 export function createDefaultPerceptionStatus(
   storedSources: StoredPerceptionSourceControl[] = [],
   storedProviderRoutes: PerceptionProviderRoute[] = [],
@@ -236,7 +295,8 @@ export function createDefaultPerceptionStatus(
     paused: sources.some((source) => source.enabled && source.paused),
     sources,
     providerRoutes,
-    protectedApps
+    protectedApps,
+    resourcePolicy: defaultPerceptionResourcePolicy()
   };
 }
 

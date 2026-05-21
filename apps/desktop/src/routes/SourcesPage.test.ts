@@ -9,6 +9,7 @@ describe("SourcesPage source governance controls", () => {
     expect(source).toContain("action.resetCursor");
     expect(source).toContain("action.deleteSource");
     expect(source).toContain("action.cleanupLegacyPrivacy");
+    expect(source).toContain("action.cleanupPerceptionSidecars");
     expect(source).toContain("source.cursorPresent");
     expect(source).toContain("source.cursorEmpty");
     expect(source).toContain("section.perceptionSources");

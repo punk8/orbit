@@ -122,6 +122,7 @@ export async function ingestPerceptionFixtures(
         skipped: result.skipped,
         warnings
       });
+      logPerceptionWarningAudit(auditRepository, adapter.id, warnings);
       results.push({
         adapterId: result.adapterId,
         read: result.read,
@@ -158,6 +159,7 @@ export async function ingestPerceptionFixtures(
         skipped: result.skipped,
         warnings: result.warnings
       });
+      logPerceptionWarningAudit(auditRepository, visionAdapter.id, result.warnings);
       results.push({
         adapterId: result.adapterId,
         read: result.read,
@@ -207,6 +209,16 @@ export async function ingestPerceptionFixtures(
           skipped: result.skipped,
           warnings
         });
+        if (adapter.id === TRANSCRIPT_OBSERVATION_ADAPTER_ID) {
+          auditRepository.log("perception.transcription", "source", adapter.id, {
+            mode: "explicit_fixture_import",
+            provider: "mock",
+            read: result.read,
+            inserted: result.inserted,
+            skipped: result.skipped
+          });
+        }
+        logPerceptionWarningAudit(auditRepository, adapter.id, warnings);
         results.push({
           adapterId: result.adapterId,
           read: result.read,
@@ -255,4 +267,20 @@ function perceptionSourcePolicy(
   const source = status.sources.find((item) => item.sourceKind === sourceKind);
   if (!source) throw new Error(`Unknown perception source: ${sourceKind}`);
   return source;
+}
+
+function logPerceptionWarningAudit(
+  auditRepository: AuditRepository,
+  adapterId: string,
+  warnings: string[]
+): void {
+  const redactionWarnings = warnings.filter((warning) =>
+    warning.toLowerCase().includes("failed-redaction")
+  );
+  if (redactionWarnings.length > 0) {
+    auditRepository.log("perception.redaction_failure", "source", adapterId, {
+      count: redactionWarnings.length,
+      warnings: redactionWarnings
+    });
+  }
 }

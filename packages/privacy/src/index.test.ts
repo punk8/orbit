@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { redactSecrets } from "./index";
+import { createDefaultPerceptionStatus } from "@orbit/core";
+import { evaluatePerceptionReleaseGate, redactSecrets } from "./index";
 
 describe("privacy redaction", () => {
   it("redacts common secrets and private identifiers", () => {
@@ -20,5 +21,60 @@ describe("privacy redaction", () => {
     expect(redacted).not.toContain("person@example.com");
     expect(redacted).not.toContain("example.com/private");
     expect(redacted).not.toContain("/Users/alice");
+  });
+});
+
+describe("perception release gate", () => {
+  it("passes disabled-by-default perception invariants and reports audit smoke data separately", () => {
+    const report = evaluatePerceptionReleaseGate({
+      perception: createDefaultPerceptionStatus(),
+      cleanup: {
+        scannedEvents: 0,
+        cleanedEvents: 0,
+        removedRawRefs: 0,
+        removedAttachments: 0,
+        deletedLocalSidecars: 0,
+        preservedSummaries: 0
+      },
+      auditOperations: [],
+      packaging: {
+        excludesTmp: true,
+        excludesFixtures: true,
+        nativeHelperMode: "mock",
+        signed: false,
+        notarized: false
+      }
+    });
+
+    expect(report.status).toBe("pass");
+    expect(report.checks.find((check) => check.id === "no_default_capture")?.status).toBe("pass");
+    expect(report.checks.find((check) => check.id === "audit_review")?.status).toBe("needs_data");
+  });
+
+  it("fails when raw sidecars or external providers are enabled by default", () => {
+    const perception = createDefaultPerceptionStatus(
+      [
+        {
+          sourceKind: "screen",
+          enabled: true,
+          policy: { canStoreRaw: true, rawRetentionTtlMinutes: 60 }
+        }
+      ],
+      [
+        {
+          task: "vision",
+          provider: "openai-compatible",
+          enabled: true,
+          allowExternal: true
+        }
+      ]
+    );
+    const report = evaluatePerceptionReleaseGate({ perception });
+
+    expect(report.status).toBe("fail");
+    expect(report.checks.find((check) => check.id === "no_default_capture")?.status).toBe("fail");
+    expect(report.checks.find((check) => check.id === "raw_storage_default_off")?.status).toBe(
+      "fail"
+    );
   });
 });

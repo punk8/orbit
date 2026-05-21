@@ -11,6 +11,7 @@ describe("SettingsPage privacy and provider hardening", () => {
     expect(source).toContain("settingsNav.privacy");
     expect(source).toContain("section.sourcePolicyMatrix");
     expect(source).toContain("section.perceptionPolicyMatrix");
+    expect(source).toContain("section.perceptionBudgets");
     expect(source).toContain("onUpdatePerceptionSourcePolicy");
     expect(source).toContain("onUpdatePerceptionProviderRoute");
     expect(source).toContain("settings.aiAllowedSources");

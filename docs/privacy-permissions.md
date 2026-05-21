@@ -75,6 +75,7 @@ The user needs direct controls for:
 - Delete an Event, Activity Session, Knowledge Artifact, or Memory.
 - Delete all data from a source.
 - Run legacy privacy cleanup for old Events that predate the current raw storage policy.
+- Run perception sidecar cleanup for expired or policy-blocked screen/audio raw references.
 - Export Knowledge and Memory.
 - Rebuild indexes.
 - Turn off external AI provider usage.
@@ -98,6 +99,22 @@ Initial redaction targets:
 Redaction failure should be visible in logs and object metadata. If redaction fails for a sensitive source, Orbit should prefer not to persist raw payloads.
 
 Legacy privacy cleanup should remove `content.text` from old Events when the source permission scope disallows raw storage. Cleanup should keep a bounded summary, preserve Event IDs and source pointers, leave Activity/Knowledge/Memory/Recommendation evidence intact, update redaction state conservatively, and write an audit log.
+
+Perception sidecar cleanup should remove only explicitly stored raw references from Events
+(`content.rawRef` and attachment `localRef`) when raw storage is disabled, TTL has expired,
+redaction failed, or the source was disabled/deleted with `deleteRawOnDisable`. It must not scan the
+filesystem. File deletion is limited to explicit sidecar paths under `ORBIT_HOME`; external absolute
+paths are skipped with an audit warning. Cleanup preserves summaries, source pointers, evidence
+hashes, and derived Activity/Knowledge/Recommendation/Handoff usability.
+
+Default perception resource budgets:
+
+- CPU: 10% capture duty cycle, 30s minimum screen interval, 6 OCR frames/minute.
+- Battery: pause on Low Power Mode and below 20%.
+- Storage: 250 MB raw sidecar cap, 60 minute default raw TTL, 15 minute cleanup cadence.
+- Queue: 1000 queued items, drain batches of 25, strip raw payloads before dropping Events.
+- Provider: 60 requests/hour, 4000 input chars/request, 100k tokens/hour, external providers off by
+  default.
 
 ## External AI Provider Rules
 

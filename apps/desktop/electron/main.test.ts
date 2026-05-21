@@ -17,6 +17,7 @@ describe("desktop main process runtime guards", () => {
     expect(main).toContain("orbit:getMemoryDetail");
     expect(main).toContain("orbit:editMemory");
     expect(main).toContain("orbit:getRecommendationDetail");
+    expect(main).toContain("orbit:cleanupPerceptionSidecars");
     expect(main).toContain("orbit:startObservation");
     expect(main).toContain("orbit:updatePerceptionSourceRuntime");
     expect(main).toContain("orbit:updatePerceptionSourcePolicy");

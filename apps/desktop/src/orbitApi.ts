@@ -229,6 +229,7 @@ export interface OrbitDesktopApi {
   deleteSource(sourceId: string): Promise<DesktopActionResult>;
   resetSourceCursor(sourceId: string): Promise<DesktopActionResult>;
   cleanupLegacyEventPrivacy(): Promise<DesktopActionResult>;
+  cleanupPerceptionSidecars(): Promise<DesktopActionResult>;
   generateHandoff(input: DesktopHandoffRequest): Promise<DesktopHandoffResult>;
   reindexLocalData(): Promise<DesktopActionResult>;
   clearLocalData(): Promise<DesktopActionResult>;

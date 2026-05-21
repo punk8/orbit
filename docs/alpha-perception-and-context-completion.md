@@ -266,6 +266,8 @@ pnpm --filter @orbit/desktop build
 pnpm --filter @orbit/desktop test:e2e
 pnpm --filter @orbit/cli orbit observe status --json
 pnpm --filter @orbit/cli orbit perception status --json
+pnpm --filter @orbit/cli orbit perception cleanup --dry-run --json
+pnpm --filter @orbit/cli orbit perception release-gate --json
 pnpm --filter @orbit/cli orbit context today --json
 pnpm --filter @orbit/cli orbit handoff today --json
 ```

@@ -5,6 +5,8 @@ import {
   screenPermission
 } from "@orbit/adapters";
 import {
+  AuditRepository,
+  cleanupPerceptionSidecars,
   openOrbitDatabase,
   readPerceptionProviderKind,
   readPerceptionProviderTask,
@@ -13,6 +15,7 @@ import {
   updatePerceptionProviderRoute,
   updatePerceptionSourcePolicy
 } from "@orbit/db";
+import { evaluatePerceptionReleaseGate } from "@orbit/privacy";
 import { getCliConfig } from "../config";
 import type { PerceptionControlPlaneStatus, PerceptionSourcePolicyPatch } from "@orbit/core";
 
@@ -33,12 +36,26 @@ export interface UpdatePerceptionProviderRouteInput {
 }
 
 export interface ScreenOcrSmokeResult {
+  orbitHome: string;
+  dbPath: string;
   scope: ScreenCaptureScope;
   transitions: Array<{
     action: "start" | "capture" | "pause" | "resume" | "stop";
     status: string;
     capturedFrames: number;
   }>;
+}
+
+export interface PerceptionCleanupCommandResult {
+  orbitHome: string;
+  dbPath: string;
+  cleanup: ReturnType<typeof cleanupPerceptionSidecars>;
+}
+
+export interface PerceptionReleaseGateCommandResult {
+  orbitHome: string;
+  dbPath: string;
+  releaseGate: ReturnType<typeof evaluatePerceptionReleaseGate>;
 }
 
 export function getPerceptionStatus(): PerceptionStatusResult {
@@ -61,14 +78,19 @@ export function setPerceptionSourcePolicy(
   const config = getCliConfig();
   const database = openOrbitDatabase({ orbitHome: config.orbitHome });
   try {
+    const sourceKind = readPerceptionSourceKind(input.sourceKind);
+    const perception = updatePerceptionSourcePolicy(
+      database.db,
+      sourceKind,
+      input.patch
+    );
+    if (input.patch.canStoreRaw === false || input.patch.rawRetentionTtlMinutes === null) {
+      cleanupPerceptionSidecars(database, { sourceKind });
+    }
     return {
       orbitHome: database.orbitHome,
       dbPath: database.dbPath,
-      perception: updatePerceptionSourcePolicy(
-        database.db,
-        readPerceptionSourceKind(input.sourceKind),
-        input.patch
-      )
+      perception
     };
   } finally {
     database.close();
@@ -98,6 +120,9 @@ export function setPerceptionProviderRoute(
 export async function runScreenOcrSmoke(
   scopeKind: ScreenCaptureScope["kind"]
 ): Promise<ScreenOcrSmokeResult> {
+  const config = getCliConfig();
+  const database = openOrbitDatabase({ orbitHome: config.orbitHome });
+  const audit = new AuditRepository(database.db);
   const scope = smokeScope(scopeKind);
   const helper = new MockScreenCaptureNativeHelper({
     permission: screenPermission("granted"),
@@ -132,38 +157,97 @@ export async function runScreenOcrSmoke(
   });
 
   const transitions: ScreenOcrSmokeResult["transitions"] = [];
-  const started = await session.start();
-  transitions.push({
-    action: "start",
-    status: started.status,
-    capturedFrames: started.capturedFrames
-  });
-  const captured = await session.captureOnce();
-  transitions.push({
-    action: "capture",
-    status: session.snapshot().status,
-    capturedFrames: captured.length
-  });
-  const paused = session.pause();
-  transitions.push({
-    action: "pause",
-    status: paused.status,
-    capturedFrames: paused.capturedFrames
-  });
-  const resumed = session.resume();
-  transitions.push({
-    action: "resume",
-    status: resumed.status,
-    capturedFrames: resumed.capturedFrames
-  });
-  const stopped = session.stop();
-  transitions.push({
-    action: "stop",
-    status: stopped.status,
-    capturedFrames: stopped.capturedFrames
-  });
+  try {
+    audit.log("perception.capture.start", "perception_source", "screen", { scope });
+    const started = await session.start();
+    transitions.push({
+      action: "start",
+      status: started.status,
+      capturedFrames: started.capturedFrames
+    });
+    const captured = await session.captureOnce();
+    audit.log("perception.capture.frame", "perception_source", "screen", {
+      scope,
+      capturedFrames: captured.length,
+      rawStored: false
+    });
+    transitions.push({
+      action: "capture",
+      status: session.snapshot().status,
+      capturedFrames: captured.length
+    });
+    const paused = session.pause();
+    audit.log("perception.capture.pause", "perception_source", "screen", { scope });
+    transitions.push({
+      action: "pause",
+      status: paused.status,
+      capturedFrames: paused.capturedFrames
+    });
+    const resumed = session.resume();
+    audit.log("perception.capture.resume", "perception_source", "screen", { scope });
+    transitions.push({
+      action: "resume",
+      status: resumed.status,
+      capturedFrames: resumed.capturedFrames
+    });
+    const stopped = session.stop();
+    audit.log("perception.capture.stop", "perception_source", "screen", {
+      scope,
+      capturedFrames: stopped.capturedFrames
+    });
+    transitions.push({
+      action: "stop",
+      status: stopped.status,
+      capturedFrames: stopped.capturedFrames
+    });
 
-  return { scope, transitions };
+    return { orbitHome: database.orbitHome, dbPath: database.dbPath, scope, transitions };
+  } finally {
+    database.close();
+  }
+}
+
+export function cleanupPerceptionRawSidecars(options: {
+  dryRun?: boolean;
+} = {}): PerceptionCleanupCommandResult {
+  const config = getCliConfig();
+  const database = openOrbitDatabase({ orbitHome: config.orbitHome });
+  try {
+    return {
+      orbitHome: database.orbitHome,
+      dbPath: database.dbPath,
+      cleanup: cleanupPerceptionSidecars(database, { dryRun: options.dryRun === true })
+    };
+  } finally {
+    database.close();
+  }
+}
+
+export function getPerceptionReleaseGate(): PerceptionReleaseGateCommandResult {
+  const config = getCliConfig();
+  const database = openOrbitDatabase({ orbitHome: config.orbitHome });
+  try {
+    const cleanup = cleanupPerceptionSidecars(database, { dryRun: true });
+    const operations = new AuditRepository(database.db).listAuditLogs().map((log) => log.operation);
+    return {
+      orbitHome: database.orbitHome,
+      dbPath: database.dbPath,
+      releaseGate: evaluatePerceptionReleaseGate({
+        perception: readPerceptionStatus(database.db),
+        auditOperations: operations,
+        cleanup,
+        packaging: {
+          excludesTmp: true,
+          excludesFixtures: true,
+          nativeHelperMode: "mock",
+          signed: false,
+          notarized: false
+        }
+      })
+    };
+  } finally {
+    database.close();
+  }
 }
 
 function smokeScope(kind: ScreenCaptureScope["kind"]): ScreenCaptureScope {

@@ -15,7 +15,12 @@ import {
   getObserveStatus,
   ingestMockDesktopObservations
 } from "./commands/observe";
-import { getPerceptionStatus, runScreenOcrSmoke } from "./commands/perception";
+import {
+  cleanupPerceptionRawSidecars,
+  getPerceptionReleaseGate,
+  getPerceptionStatus,
+  runScreenOcrSmoke
+} from "./commands/perception";
 import {
   openOrbitDatabase,
   SettingsRepository,
@@ -237,6 +242,8 @@ describe("cli commands", () => {
       "transcript"
     ]);
     expect(status.perception.sources.every((source) => source.enabled === false)).toBe(true);
+    expect(status.perception.resourcePolicy.provider.allowExternalByDefault).toBe(false);
+    expect(status.perception.resourcePolicy.queue.dropRawPayloadsFirst).toBe(true);
     expect(status.perception.providerRoutes.map((route) => route.task)).toEqual([
       "ocr",
       "vision",
@@ -418,6 +425,27 @@ describe("cli commands", () => {
     expect(perceptionHelp).toContain("screen-ocr-smoke");
     expect(perceptionHelp).toContain("source-policy");
     expect(perceptionHelp).toContain("provider-route");
+    expect(perceptionHelp).toContain("cleanup");
+    expect(perceptionHelp).toContain("release-gate");
     expect(ingestHelp).toContain("perception-fixtures");
+  });
+
+  it("evaluates Goal 8F perception cleanup and release gates without starting capture", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-perception-gate-test-"));
+    tempDirs.push(orbitHome);
+    process.env.ORBIT_HOME = orbitHome;
+
+    const cleanup = cleanupPerceptionRawSidecars({ dryRun: true });
+    expect(cleanup.cleanup.dryRun).toBe(true);
+    expect(cleanup.cleanup.cleanedEvents).toBe(0);
+
+    const gate = getPerceptionReleaseGate();
+    expect(gate.releaseGate.status).toBe("pass");
+    expect(gate.releaseGate.checks.find((check) => check.id === "no_default_capture")?.status).toBe(
+      "pass"
+    );
+    expect(gate.releaseGate.checks.find((check) => check.id === "sidecar_cleanup")?.status).toBe(
+      "pass"
+    );
   });
 });

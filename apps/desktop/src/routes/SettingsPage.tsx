@@ -557,6 +557,32 @@ export function SettingsPage({
                 ))}
               </div>
             </Section>
+            <Section title={t("section.perceptionBudgets")}>
+              <dl className="settings-grid">
+                <DetailRow
+                  label={t("settings.perceptionCpuBudget")}
+                  value={`${snapshot.perception.resourcePolicy.cpu.maxCaptureDutyCyclePercent}% / ${snapshot.perception.resourcePolicy.cpu.minScreenCaptureIntervalMs}ms`}
+                />
+                <DetailRow
+                  label={t("settings.perceptionBatteryBudget")}
+                  value={`${snapshot.perception.resourcePolicy.battery.pauseBelowPercent}%`}
+                />
+                <DetailRow
+                  label={t("settings.perceptionStorageBudget")}
+                  value={`${Math.round(
+                    snapshot.perception.resourcePolicy.storage.maxRawSidecarBytes / 1024 / 1024
+                  )} MB / ${snapshot.perception.resourcePolicy.storage.defaultRawTtlMinutes}m`}
+                />
+                <DetailRow
+                  label={t("settings.perceptionQueueBudget")}
+                  value={`${snapshot.perception.resourcePolicy.queue.maxItems} / ${snapshot.perception.resourcePolicy.queue.drainBatchSize}`}
+                />
+                <DetailRow
+                  label={t("settings.perceptionProviderBudget")}
+                  value={`${snapshot.perception.resourcePolicy.provider.maxRequestsPerHour} / ${snapshot.perception.resourcePolicy.provider.maxTokensPerHour}`}
+                />
+              </dl>
+            </Section>
           </div>
         ) : null}
 

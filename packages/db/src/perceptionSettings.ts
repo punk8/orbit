@@ -232,6 +232,9 @@ function normalizePolicyPatch(patch: PerceptionSourcePolicyPatch): PerceptionSou
     const ttl = Number(next.rawRetentionTtlMinutes);
     next.rawRetentionTtlMinutes = Number.isFinite(ttl) && ttl > 0 ? Math.round(ttl) : null;
   }
+  if (next.canStoreRaw === true && next.rawRetentionTtlMinutes === undefined) {
+    next.rawRetentionTtlMinutes = 60;
+  }
   if (next.canStoreRaw === false) {
     next.rawRetentionTtlMinutes = null;
   }

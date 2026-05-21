@@ -5,13 +5,14 @@
   "type": "module",
   "scripts": {
     "orbit": "tsx src/index.ts",
-    "test": "vitest run",
+    "test": "cd ../.. && vitest run apps/cli/src",
     "typecheck": "tsc --noEmit -p ../../tsconfig.json"
   },
   "dependencies": {
     "@orbit/adapters": "workspace:*",
     "@orbit/ai": "workspace:*",
     "@orbit/core": "workspace:*",
-    "@orbit/db": "workspace:*"
+    "@orbit/db": "workspace:*",
+    "@orbit/privacy": "workspace:*"
   }
 }

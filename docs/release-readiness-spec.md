@@ -134,6 +134,8 @@ Audit logs must be written for:
 - Settings changed.
 - Data cleared.
 - Privacy cleanup run.
+- Perception sidecar cleanup run.
+- Perception release gate evaluated.
 
 Audit log entries should include:
 
@@ -145,6 +147,10 @@ Audit log entries should include:
 - Provider/source metadata where relevant.
 - No raw private payloads.
 
+Perception audit review must cover capture start/stop, pause/resume, redaction failure,
+model-assisted vision/OCR/transcription calls or policy skips, raw sidecar deletion, and Handoff
+inclusion/exclusion counts.
+
 ## Performance Budgets
 
 Complete product defaults should target:
@@ -155,6 +161,15 @@ Complete product defaults should target:
 - Desktop initial load remains usable with thousands of Events.
 - Source adapters respect CPU and storage limits.
 - Screen/audio capture, when enabled, has explicit CPU/storage budgets and visible running state.
+
+Current Alpha perception budgets:
+
+- CPU: max 10% capture duty cycle, minimum 30s screen interval, max 6 OCR frames/minute.
+- Battery: pause when Low Power Mode is active and below 20%.
+- Storage: max 250 MB raw sidecars with 60 minute default TTL.
+- Queue: max 1000 queued observations, 25 item drain batch, raw stripped before event drops.
+- Provider: max 60 requests/hour, 4000 input chars/request, 100k tokens/hour, external off by
+  default.
 
 Concrete numeric budgets should be set once realistic dogfood data volume is available. Until then,
 performance tests should cover small, medium, and large synthetic stores.

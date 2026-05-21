@@ -13,6 +13,7 @@ export function SourcesPage({
   onDeleteSource,
   onResetSourceCursor,
   onCleanupLegacyEventPrivacy,
+  onCleanupPerceptionSidecars,
   onUpdateSourceRuntime,
   onUpdatePerceptionSourceRuntime
 }: {
@@ -22,6 +23,7 @@ export function SourcesPage({
   onDeleteSource(sourceId: string): Promise<void>;
   onResetSourceCursor(sourceId: string): Promise<void>;
   onCleanupLegacyEventPrivacy(): Promise<void>;
+  onCleanupPerceptionSidecars(): Promise<void>;
   onUpdateSourceRuntime(sourceId: string, action: DesktopSourceRuntimeAction): Promise<void>;
   onUpdatePerceptionSourceRuntime(
     sourceKind: DesktopSnapshot["perception"]["sources"][number]["sourceKind"],
@@ -306,6 +308,24 @@ export function SourcesPage({
             >
               {t("action.configureSeaTalk")}
             </button>
+          </article>
+          <article className="list-item">
+            <div>
+              <h3>{t("source.perceptionSidecarCleanup")}</h3>
+              <p>{t("source.perceptionSidecarCleanupDescription")}</p>
+            </div>
+            <div className="source-actions">
+              <button
+                className="secondary-button"
+                onClick={() => {
+                  if (!window.confirm(t("confirm.cleanupPerceptionSidecars"))) return;
+                  void onCleanupPerceptionSidecars();
+                }}
+                type="button"
+              >
+                {t("action.cleanupPerceptionSidecars")}
+              </button>
+            </div>
           </article>
         </div>
       </Section>

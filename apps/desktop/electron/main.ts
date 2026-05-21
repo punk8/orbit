@@ -2,6 +2,7 @@ import { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage } from "electron";
 import { join } from "node:path";
 import {
   cleanupLegacyEventPrivacyForDesktop,
+  cleanupPerceptionSidecarsForDesktop,
   clearLocalDataForDesktop,
   deleteSourceForDesktop,
   editKnowledgeForDesktop,
@@ -168,6 +169,7 @@ ipcMain.handle("orbit:resetSourceCursor", (_event, sourceId: string) =>
   resetSourceCursorForDesktop(sourceId)
 );
 ipcMain.handle("orbit:cleanupLegacyEventPrivacy", () => cleanupLegacyEventPrivacyForDesktop());
+ipcMain.handle("orbit:cleanupPerceptionSidecars", () => cleanupPerceptionSidecarsForDesktop());
 ipcMain.handle("orbit:generateHandoff", (_event, input) => generateHandoffForDesktop(input));
 ipcMain.handle("orbit:reindexLocalData", () => reindexForDesktop());
 ipcMain.handle("orbit:clearLocalData", () => clearLocalDataForDesktop());

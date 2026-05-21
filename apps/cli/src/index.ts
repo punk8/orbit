@@ -39,6 +39,8 @@ import {
   ingestMockDesktopObservations
 } from "./commands/observe";
 import {
+  cleanupPerceptionRawSidecars,
+  getPerceptionReleaseGate,
   getPerceptionStatus,
   runScreenOcrSmoke,
   setPerceptionProviderRoute,
@@ -454,15 +456,26 @@ export function buildProgram(): Command {
     .option("--ai <value>", "true or false")
     .option("--export <value>", "true or false")
     .option("--raw <value>", "true or false")
+    .option("--raw-ttl-minutes <minutes>", "raw sidecar TTL in minutes")
     .option("--json", "output JSON")
     .action(
-      (source: string, options: { ai?: string; export?: string; raw?: string; json?: boolean }) => {
+      (
+        source: string,
+        options: {
+          ai?: string;
+          export?: string;
+          raw?: string;
+          rawTtlMinutes?: string;
+          json?: boolean;
+        }
+      ) => {
         const result = setPerceptionSourcePolicy({
           sourceKind: source,
           patch: omitUndefined({
             canUseForAI: parseBooleanOption(options.ai),
             canExportToAgent: parseBooleanOption(options.export),
-            canStoreRaw: parseBooleanOption(options.raw)
+            canStoreRaw: parseBooleanOption(options.raw),
+            rawRetentionTtlMinutes: parsePositiveIntegerOption(options.rawTtlMinutes)
           })
         });
         writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
@@ -476,6 +489,23 @@ export function buildProgram(): Command {
     .option("--json", "output JSON")
     .action((task: string, provider: string, options: { json?: boolean }) => {
       const result = setPerceptionProviderRoute({ task, provider });
+      writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
+    });
+  perception
+    .command("cleanup")
+    .description("Remove expired or policy-blocked raw perception sidecars")
+    .option("--dry-run", "report cleanup without modifying events or files")
+    .option("--json", "output JSON")
+    .action((options: { dryRun?: boolean; json?: boolean }) => {
+      const result = cleanupPerceptionRawSidecars({ dryRun: options.dryRun === true });
+      writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
+    });
+  perception
+    .command("release-gate")
+    .description("Evaluate Alpha perception release gates without starting capture")
+    .option("--json", "output JSON")
+    .action((options: { json?: boolean }) => {
+      const result = getPerceptionReleaseGate();
       writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
     });
 
@@ -507,6 +537,13 @@ function parseBooleanOption(value: string | undefined): boolean | undefined {
   if (value === "true") return true;
   if (value === "false") return false;
   throw new Error(`Expected true or false, received: ${value}`);
+}
+
+function parsePositiveIntegerOption(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  throw new Error(`Expected a positive integer, received: ${value}`);
 }
 
 function parseListOption(value: string | undefined): string[] | undefined {

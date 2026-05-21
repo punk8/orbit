@@ -210,6 +210,13 @@ export function App(): ReactElement {
     );
   }
 
+  async function cleanupPerceptionSidecars(): Promise<void> {
+    await runDesktopAction(
+      () => window.orbit.cleanupPerceptionSidecars(),
+      t("error.sourceRuntime")
+    );
+  }
+
   async function reindexLocalData(): Promise<void> {
     await runDesktopAction(() => window.orbit.reindexLocalData(), t("error.reindex"));
   }
@@ -372,6 +379,7 @@ export function App(): ReactElement {
                 deleteSource,
                 resetSourceCursor,
                 cleanupLegacyEventPrivacy,
+                cleanupPerceptionSidecars,
                 reindexLocalData,
                 clearLocalData,
                 exportContext,
@@ -429,6 +437,7 @@ interface PageActions {
   deleteSource(sourceId: string): Promise<void>;
   resetSourceCursor(sourceId: string): Promise<void>;
   cleanupLegacyEventPrivacy(): Promise<void>;
+  cleanupPerceptionSidecars(): Promise<void>;
   reindexLocalData(): Promise<void>;
   clearLocalData(): Promise<void>;
   exportContext(): Promise<void>;
@@ -486,6 +495,7 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
           onDeleteSource={actions.deleteSource}
           onResetSourceCursor={actions.resetSourceCursor}
           onCleanupLegacyEventPrivacy={actions.cleanupLegacyEventPrivacy}
+          onCleanupPerceptionSidecars={actions.cleanupPerceptionSidecars}
           onUpdateSourceRuntime={actions.updateSourceRuntime}
           onUpdatePerceptionSourceRuntime={actions.updatePerceptionSourceRuntime}
         />

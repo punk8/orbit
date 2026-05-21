@@ -46,6 +46,7 @@ import {
   AuditRepository,
   clearLocalData,
   cleanupLegacyEventPrivacy,
+  cleanupPerceptionSidecars,
   buildProjectHandoffPack,
   buildTodayHandoffPack,
   EventRepository,
@@ -706,6 +707,20 @@ export function cleanupLegacyEventPrivacyForDesktop(): DesktopActionResult {
   }
 }
 
+export function cleanupPerceptionSidecarsForDesktop(): DesktopActionResult {
+  const database = openOrbitDatabase();
+  try {
+    const result = cleanupPerceptionSidecars(database);
+    return {
+      snapshot: readDesktopSnapshot(),
+      message: `Cleaned ${result.cleanedEvents} perception events; removed ${result.removedRawRefs} raw refs`,
+      warnings: result.warnings
+    };
+  } finally {
+    database.close();
+  }
+}
+
 export function generateHandoffForDesktop(input: DesktopHandoffRequest): DesktopHandoffResult {
   const database = openOrbitDatabase();
   try {
@@ -825,6 +840,9 @@ export function updatePerceptionSourceRuntimeForDesktop(
   const database = openOrbitDatabase();
   try {
     updatePerceptionSourceRuntime(database.db, sourceKind, action);
+    if (action === "disable" || action === "delete") {
+      cleanupPerceptionSidecars(database, { sourceKind });
+    }
   } finally {
     database.close();
   }
@@ -838,6 +856,9 @@ export function updatePerceptionSourcePolicyForDesktop(
   const database = openOrbitDatabase();
   try {
     updatePerceptionSourcePolicy(database.db, sourceKind, patch);
+    if (patch.canStoreRaw === false || patch.rawRetentionTtlMinutes === null) {
+      cleanupPerceptionSidecars(database, { sourceKind });
+    }
   } finally {
     database.close();
   }

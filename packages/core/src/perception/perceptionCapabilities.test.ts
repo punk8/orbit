@@ -35,6 +35,9 @@ describe("perception capability descriptors", () => {
     expect(status.sources.every((source) => source.policy.canStoreRaw === false)).toBe(true);
     expect(status.sources.every((source) => source.policy.canUseForAI === false)).toBe(true);
     expect(status.sources.every((source) => source.policy.canExportToAgent === false)).toBe(true);
+    expect(status.resourcePolicy.cpu.minScreenCaptureIntervalMs).toBe(30_000);
+    expect(status.resourcePolicy.storage.defaultRawTtlMinutes).toBe(60);
+    expect(status.resourcePolicy.provider.allowExternalByDefault).toBe(false);
     expect(defaultPerceptionProviderRoutes.map((route) => route.task)).toEqual([
       "ocr",
       "vision",

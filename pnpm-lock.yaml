@@ -66,6 +66,9 @@ importers:
       '@orbit/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@orbit/privacy':
+        specifier: workspace:*
+        version: link:../../packages/privacy
 
   apps/desktop:
     dependencies:

@@ -73,6 +73,7 @@ const translations = {
     "section.privacyPermissions": "Privacy And Permissions",
     "section.sourcePolicyMatrix": "Source Policy Matrix",
     "section.perceptionPolicyMatrix": "Perception Policy Matrix",
+    "section.perceptionBudgets": "Perception Budgets",
     "section.perceptionSources": "Perception Sources",
     "section.indexStatus": "Index Status",
     "section.agentInterface": "Agent Interface",
@@ -337,6 +338,7 @@ const translations = {
     "action.resetCursor": "Reset Cursor",
     "action.deleteSource": "Delete Source",
     "action.cleanupLegacyPrivacy": "Clean Legacy Privacy",
+    "action.cleanupPerceptionSidecars": "Clean Perception Sidecars",
     "action.startObservation": "Start Observation",
     "action.stopObservation": "Stop Observation",
     "handoff.generate": "Generate Agent Handoff",
@@ -376,6 +378,9 @@ const translations = {
     "source.legacyPrivacyCleanup": "Legacy Privacy Cleanup",
     "source.legacyPrivacyCleanupDescription":
       "Remove old raw event text when source policy disallows raw storage, while keeping summaries and evidence pointers.",
+    "source.perceptionSidecarCleanup": "Perception Sidecar Cleanup",
+    "source.perceptionSidecarCleanupDescription":
+      "Remove expired or policy-blocked raw perception sidecars while preserving summaries and evidence pointers.",
     "prompt.sourcePath": "Enter the approved local path for this source.",
     "confirm.resetSourceCursor":
       "Reset this source cursor? The next ingestion can reread the source without duplicating existing events.",
@@ -383,6 +388,8 @@ const translations = {
       "Delete this source configuration? Existing derived Activity, Knowledge, Memory, and Recommendations remain for review.",
     "confirm.cleanupLegacyPrivacy":
       "Clean legacy raw event text according to source privacy policy? This writes an audit log.",
+    "confirm.cleanupPerceptionSidecars":
+      "Clean expired or policy-blocked perception sidecars? This writes an audit log.",
     "confirm.clearLocalData":
       "Clear all local Orbit data? This cannot be undone and will write an audit log.",
     "confirm.rejectKnowledge":
@@ -462,6 +469,11 @@ const translations = {
     "settings.rawStorageAllowedSources": "Sources allowing raw storage",
     "settings.agentExportAllowedSources": "Sources exportable to Agent",
     "settings.retentionPolicies": "Retention policies",
+    "settings.perceptionCpuBudget": "CPU / interval",
+    "settings.perceptionBatteryBudget": "Battery pause below",
+    "settings.perceptionStorageBudget": "Raw storage / TTL",
+    "settings.perceptionQueueBudget": "Queue / drain",
+    "settings.perceptionProviderBudget": "Provider requests / tokens",
     "settings.eventStore": "Event store",
     "settings.knowledgeFts": "Knowledge FTS",
     "settings.memoryFts": "Memory FTS",
@@ -656,6 +668,7 @@ const translations = {
     "section.privacyPermissions": "隐私与权限",
     "section.sourcePolicyMatrix": "来源权限矩阵",
     "section.perceptionPolicyMatrix": "感知策略矩阵",
+    "section.perceptionBudgets": "感知资源预算",
     "section.perceptionSources": "感知来源",
     "section.indexStatus": "索引状态",
     "section.agentInterface": "Agent 接口",
@@ -917,6 +930,7 @@ const translations = {
     "action.resetCursor": "重置游标",
     "action.deleteSource": "删除来源",
     "action.cleanupLegacyPrivacy": "清理旧隐私数据",
+    "action.cleanupPerceptionSidecars": "清理感知 Sidecar",
     "action.startObservation": "启动观察",
     "action.stopObservation": "停止观察",
     "handoff.generate": "生成 Agent 交接包",
@@ -955,12 +969,17 @@ const translations = {
     "source.legacyPrivacyCleanup": "旧数据隐私清理",
     "source.legacyPrivacyCleanupDescription":
       "当来源策略不允许 raw 存储时，移除旧事件中的 raw 文本，同时保留摘要和证据指针。",
+    "source.perceptionSidecarCleanup": "感知 Sidecar 清理",
+    "source.perceptionSidecarCleanupDescription":
+      "移除过期或被策略禁止的 raw 感知 sidecar，同时保留摘要和证据指针。",
     "prompt.sourcePath": "输入这个来源已授权的本地路径。",
     "confirm.resetSourceCursor":
       "确定重置这个来源的游标吗？下次采集可以重新读取来源，且不会重复写入已有事件。",
     "confirm.deleteSource": "确定删除这个来源配置吗？已有的活动、知识、记忆和建议会保留用于审阅。",
     "confirm.cleanupLegacyPrivacy":
       "确定按来源隐私策略清理旧事件 raw 文本吗？此操作会写入审计日志。",
+    "confirm.cleanupPerceptionSidecars":
+      "确定清理过期或被策略禁止的感知 sidecar 吗？此操作会写入审计日志。",
     "confirm.clearLocalData": "确定清空所有本地 Orbit 数据吗？此操作不可撤销，并会写入审计日志。",
     "confirm.rejectKnowledge": "确定拒绝这条知识文档吗？它会保留用于审计追溯，但不应生成记忆。",
     "confirm.archiveKnowledge":
@@ -1033,6 +1052,11 @@ const translations = {
     "settings.rawStorageAllowedSources": "允许 raw 存储的来源",
     "settings.agentExportAllowedSources": "允许导出给 Agent 的来源",
     "settings.retentionPolicies": "保留策略",
+    "settings.perceptionCpuBudget": "CPU / 间隔",
+    "settings.perceptionBatteryBudget": "电量低于时暂停",
+    "settings.perceptionStorageBudget": "Raw 存储 / TTL",
+    "settings.perceptionQueueBudget": "队列 / 批量处理",
+    "settings.perceptionProviderBudget": "Provider 请求 / token",
     "settings.eventStore": "事件存储",
     "settings.knowledgeFts": "Knowledge FTS",
     "settings.memoryFts": "Memory FTS",
