@@ -12,6 +12,42 @@
 - **本地结构补充**：通过只读 CLI / 数据结构理解 Activity、Knowledge、Memory 的字段含义和长期数据模型。
 - **产品建议**：面向 Orbit 的信息架构和 Electron UI 设计，不等同于 Yansu 当前实现。
 
+## Yansu 参考图归档
+
+以下四张图来自用户提供的 Yansu 应用参考截图，用作 Orbit 下一阶段还原 Activity / Knowledge / Memory / Handoff 工作模式的视觉约束。它们只用于内部产品设计对齐，不代表要逐像素复制 Yansu，也不应把图中具体工作内容当成 Orbit 的数据样例。
+
+### Knowledge Detail
+
+![Yansu knowledge detail reference](assets/yansu/yansu-knowledge-detail-reference-01.jpg)
+
+这张图约束 Knowledge Artifact 的目标形态：左侧是可搜索、按时间排列的知识文档列表；右侧是可审阅的 Markdown-like 文档详情，固定包含 Metadata、Description、Key Insights，并把 Activity Session 作为来源入口。Orbit 的 Knowledge 页面应优先成为“可读、可复制、可追溯、可编辑”的知识文档库，而不是只展示摘要卡片。
+
+### Activity Timeline With Event Stream
+
+![Yansu activity timeline reference](assets/yansu/yansu-activity-timeline-reference-02.jpg)
+
+这张图约束 Activity 的证据层体验：左侧按时间段列出 Activity Session，右侧同时展示录制 / 快照预览、时间轴 scrubber、帧数、事件数、涉及应用、本地状态和事件流。Orbit 的 Activity 页面应回答“发生了什么、证据在哪里、这段工作如何还原”，而不是把截图或 OCR 文本做成孤立搜索结果。
+
+### Memory Overview
+
+![Yansu memory overview reference](assets/yansu/yansu-memory-overview-reference-03.jpg)
+
+这张图约束 Memory 的治理台形态：左侧按维度管理长期记忆，右侧展示文件数、大小、索引片段、向量搜索状态和最近记忆。Orbit 的 Memory 页面需要体现长期事实层的可治理性，包括维度、来源、索引状态、确认状态、版本历史和删除 / 重新索引边界。
+
+### Activity Playback
+
+![Yansu activity playback reference](assets/yansu/yansu-activity-playback-reference-04.jpg)
+
+这张图约束 Activity Playback 的“现场还原”能力：用户应能从 session 列表进入一个具体工作片段，看到录制画面、播放控制、帧进度、事件流和本地存储提示。Orbit 可以先实现低频截图 + OCR + 事件流，但 UI 结构需要为连续播放、隐私遮挡、受保护应用、保留策略和来源追溯预留空间。
+
+对 Orbit 的综合要求：
+
+- Activity 是现场证据层，核心单位是 Activity Session，不是单张截图。
+- Knowledge 是可审阅文档层，必须保留 Metadata、Description、Key Insights 和来源 session。
+- Memory 是长期事实层，需要确认、分组、索引状态和版本治理。
+- Handoff 应从最近 Activity、确认 Knowledge、确认 Memory 和可解释 Recommendation 组装，不应变成一份无法追溯的独立笔记。
+- Screen / OCR 是理解真实工作现场的入口，但产品中心仍然是工作上下文连续性和结构化记忆。
+
 ## Yansu UI 拆解
 
 ### 主窗口与左侧导航

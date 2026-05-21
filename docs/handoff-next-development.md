@@ -154,6 +154,21 @@ Agent-facing context defaults are now conservative:
   icon, native ABI recovery wrappers, and deterministic packaged smoke, but signing/notarization
   remains a later release gate. See `docs/alpha-release-checklist.md`.
 
+## Product Reference Assets
+
+Yansu reference screenshots are now checked in under `docs/assets/yansu/` and indexed from
+`docs/ui-design.md`:
+
+- `yansu-activity-timeline-reference-02.jpg`: Activity timeline with recording preview, scrubber, metadata, and event stream.
+- `yansu-activity-playback-reference-04.jpg`: focused Activity playback and session evidence review.
+- `yansu-knowledge-detail-reference-01.jpg`: Knowledge document detail with Metadata, Description, Key Insights, and source sessions.
+- `yansu-memory-overview-reference-03.jpg`: Memory governance overview with dimensions, file/index status, and recent memories.
+
+Use these as product-shape references for the next UI and perception goals. The target is to restore the
+Yansu-like Activity -> Knowledge -> Memory -> Handoff continuity mode while keeping Orbit's independent,
+local-first, permission-aware architecture. Do not use them as pixel-perfect UI requirements or as a reason
+to turn Orbit into a screenshot search product.
+
 ## Goal 7: Agent Continuity And Perception Readiness
 
 Status: in progress on branch `codex/goal-7-agent-continuity`.

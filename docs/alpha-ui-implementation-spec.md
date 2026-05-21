@@ -34,6 +34,12 @@ Source Adapter -> Event -> Activity Session -> Knowledge Artifact -> Memory -> R
 - Handoff 是 Agent warm-start 视图，不是新的 source of truth。
 - Screen / OCR / audio 是未来 Source Adapter 和 Processing 能力，不应把 Orbit 做成截图搜索工具。
 
+视觉参考入口：
+
+- Yansu 的 Activity timeline、Activity playback、Knowledge detail 和 Memory overview 参考图已归档在 `docs/assets/yansu/`，并在 `docs/ui-design.md` 的 “Yansu 参考图归档” 中说明对应的产品约束。
+- 后续 UI 开发需要以这些参考图校准产品模式：Activity 还原现场，Knowledge 沉淀可审阅文档，Memory 治理长期事实，Handoff 从这些对象组装 agent continuity。
+- 参考图只用于对齐信息架构、交互密度和追溯关系，不用于逐像素复刻，也不应让 Orbit 退化成截图搜索或录屏回放工具。
+
 ## 混合 AI Provider 策略
 
 本地模型组件线索有参考价值，但结论不是“默认本地 LLM 推理”，而是“按任务拆 Provider”。
@@ -49,18 +55,18 @@ Source Adapter -> Event -> Activity Session -> Knowledge Artifact -> Memory -> R
 
 任务级 Provider 目标：
 
-| 能力 | 当前状态 | Alpha 目标 | 默认数据边界 |
-| --- | --- | --- | --- |
-| Knowledge drafting | 已有 mock / OpenAI-compatible | 保持外部可选，继续要求 evidence-backed JSON | 按 source permission 过滤，审计 |
-| Activity summarization | 确定性摘要为主 | 预留 `summarizeActivity` | 默认本地，可外部可选 |
-| Memory extraction | 确定性候选 | 预留 `extractMemoryCandidates` Provider | 默认需 review，不自动 confirmed |
-| Recommendation ranking | 规则原型 | 预留 `rankRecommendations` / `generateRecommendations` | 只生成建议，不执行副作用 |
-| Embedding / semantic search | 未实现真实向量 | 优先本地 ONNX / Ollama / FTS fallback | 本地 sidecar，可重建可删除 |
-| OCR / screen text | research-only | 优先 Apple Vision / local OCR | 原始截图不默认出本机 |
-| ASR | 未实现 | 本地 sherpa-onnx / Whisper 类能力 | 音频和 transcript 需短 TTL / 权限 |
-| VAD | 未实现 | 本地 Silero VAD 类能力 | 只做本地预处理 |
-| Redaction / sensitivity | 基础 privacy 包 | 本地规则优先，小模型可选 | 外部 AI 前必须通过 |
-| Handoff compression | 有 Pack 格式 | 可加压缩 Provider | 默认只用 confirmed / permitted objects |
+| 能力                        | 当前状态                      | Alpha 目标                                             | 默认数据边界                           |
+| --------------------------- | ----------------------------- | ------------------------------------------------------ | -------------------------------------- |
+| Knowledge drafting          | 已有 mock / OpenAI-compatible | 保持外部可选，继续要求 evidence-backed JSON            | 按 source permission 过滤，审计        |
+| Activity summarization      | 确定性摘要为主                | 预留 `summarizeActivity`                               | 默认本地，可外部可选                   |
+| Memory extraction           | 确定性候选                    | 预留 `extractMemoryCandidates` Provider                | 默认需 review，不自动 confirmed        |
+| Recommendation ranking      | 规则原型                      | 预留 `rankRecommendations` / `generateRecommendations` | 只生成建议，不执行副作用               |
+| Embedding / semantic search | 未实现真实向量                | 优先本地 ONNX / Ollama / FTS fallback                  | 本地 sidecar，可重建可删除             |
+| OCR / screen text           | research-only                 | 优先 Apple Vision / local OCR                          | 原始截图不默认出本机                   |
+| ASR                         | 未实现                        | 本地 sherpa-onnx / Whisper 类能力                      | 音频和 transcript 需短 TTL / 权限      |
+| VAD                         | 未实现                        | 本地 Silero VAD 类能力                                 | 只做本地预处理                         |
+| Redaction / sensitivity     | 基础 privacy 包               | 本地规则优先，小模型可选                               | 外部 AI 前必须通过                     |
+| Handoff compression         | 有 Pack 格式                  | 可加压缩 Provider                                      | 默认只用 confirmed / permitted objects |
 
 Provider 设置不能只有一个全局 `ai.provider`。长期 UI 应拆成：
 
