@@ -23,7 +23,9 @@ import { mockTranscriptionProvider, mockVisionProvider } from "@orbit/ai";
 import {
   defaultProtectedAppRules,
   ingestEventsFromAdapter,
-  type ObservationStatus
+  type ObservationStatus,
+  type PerceptionControlPlaneStatus,
+  type PerceptionSourceKind
 } from "@orbit/core";
 import {
   AuditRepository,
@@ -73,6 +75,9 @@ export async function ingestPerceptionFixtures(
     const protectedApps =
       settingsRepository.get<ObservationStatus["protectedApps"]>("observation.protectedApps") ??
       defaultProtectedAppRules();
+    const perceptionStatus = readPerceptionStatus(database.db);
+    const screenPolicy = perceptionSourcePolicy(perceptionStatus, "screen");
+    const ocrPolicy = perceptionSourcePolicy(perceptionStatus, "ocr");
     const fixtureRead = readScreenCaptureFixtures(
       join(config.fixturesRoot, "perception/screen-ocr")
     );
@@ -84,7 +89,10 @@ export async function ingestPerceptionFixtures(
         frames: fixtureRead.frames,
         scope,
         permission,
-        protectedApps
+        protectedApps,
+        allowRawFrameStorage: screenPolicy.policy.canStoreRaw,
+        canUseForAI: screenPolicy.policy.canUseForAI,
+        canExportToAgent: screenPolicy.policy.canExportToAgent
       }),
       new OcrObservationAdapter({
         id: OCR_OBSERVATION_ADAPTER_ID,
@@ -92,7 +100,9 @@ export async function ingestPerceptionFixtures(
         scope,
         engine: new MockOcrEngine(),
         permission,
-        protectedApps
+        protectedApps,
+        canUseForAI: ocrPolicy.policy.canUseForAI,
+        canExportToAgent: ocrPolicy.policy.canExportToAgent
       })
     ];
 
@@ -133,7 +143,7 @@ export async function ingestPerceptionFixtures(
           (event) => event.source.adapterId === OCR_OBSERVATION_ADAPTER_ID
         ),
         provider: mockVisionProvider,
-        policy: visionPolicyFromPerceptionStatus(readPerceptionStatus(database.db))
+        policy: visionPolicyFromPerceptionStatus(perceptionStatus)
       });
       sourceRepository.upsertFromAdapter(visionAdapter);
       const cursor = sourceRepository.getCursor(visionAdapter.id);
@@ -162,20 +172,23 @@ export async function ingestPerceptionFixtures(
       const audioRead = readAudioFixtures(join(config.fixturesRoot, "perception/audio"));
       const audioScope = audioRead.segments[0]?.scope ?? defaultAudioFixtureScope;
       const permission = audioPermission("microphone", "granted");
+      const audioPolicy = perceptionSourcePolicy(perceptionStatus, "microphone_audio");
       const audioAdapters = [
         new AudioObservationAdapter({
           id: AUDIO_OBSERVATION_ADAPTER_ID,
           segments: audioRead.segments,
           scope: audioScope,
           permission,
-          protectedApps
+          protectedApps,
+          canUseForAI: audioPolicy.policy.canUseForAI,
+          canExportToAgent: audioPolicy.policy.canExportToAgent
         }),
         new TranscriptObservationAdapter({
           id: TRANSCRIPT_OBSERVATION_ADAPTER_ID,
           segments: audioRead.segments,
           scope: audioScope,
           provider: mockTranscriptionProvider,
-          policy: transcriptPolicyFromPerceptionStatus(readPerceptionStatus(database.db)),
+          policy: transcriptPolicyFromPerceptionStatus(perceptionStatus),
           permission,
           protectedApps
         })
@@ -234,3 +247,12 @@ const defaultAudioFixtureScope = {
   label: "Goal 8D mock meeting",
   deviceId: "fixture-mic"
 };
+
+function perceptionSourcePolicy(
+  status: PerceptionControlPlaneStatus,
+  sourceKind: PerceptionSourceKind
+): PerceptionControlPlaneStatus["sources"][number] {
+  const source = status.sources.find((item) => item.sourceKind === sourceKind);
+  if (!source) throw new Error(`Unknown perception source: ${sourceKind}`);
+  return source;
+}

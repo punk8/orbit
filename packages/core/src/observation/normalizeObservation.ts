@@ -24,7 +24,9 @@ export function normalizeObservationInput(
   const content = buildContent(input, eventType, appName, protectedApp);
   const sensitivity = inferSensitivity(input, eventType, protectedApp);
   const redactionState =
-    protectedApp || input.accessibility?.containsSecureField ? "redacted" : "none";
+    protectedApp || input.accessibility?.containsSecureField
+      ? "redacted"
+      : (input.redactionState ?? "none");
   const hashInput = {
     sourcePointer: pointer,
     type: eventType,

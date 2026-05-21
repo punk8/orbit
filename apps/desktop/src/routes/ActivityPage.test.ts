@@ -11,6 +11,7 @@ describe("ActivityPage evidence workbench", () => {
     expect(source).toContain("activity.eventStream");
     expect(source).toContain("activity.processing");
     expect(source).toContain("activity.storage");
+    expect(source).toContain("activity.sourcePolicy");
     expect(source).toContain("activity.derivedObjects");
     expect(source).toContain("activity.providerBoundary");
   });

@@ -6,7 +6,8 @@ import { Section } from "../components/Section";
 import { useI18n } from "../i18n";
 
 export function TodayPage({ snapshot }: { snapshot: DesktopSnapshot }): ReactElement {
-  const { t, sensitivity, impact, recommendationType, formatTimeRange } = useI18n();
+  const { t, sensitivity, sourceKind, status, impact, recommendationType, formatTimeRange } =
+    useI18n();
 
   return (
     <div className="page-grid">
@@ -46,7 +47,9 @@ export function TodayPage({ snapshot }: { snapshot: DesktopSnapshot }): ReactEle
                     {session.eventCount} {t("unit.events")}
                   </span>
                   <span>{session.apps.join(", ")}</span>
+                  <span>{session.sourceKinds.map(sourceKind).join(", ")}</span>
                 </div>
+                <EvidenceList evidence={session.evidence} limit={3} />
               </div>
               <span className={`sensitivity ${session.privacy.sensitivity}`}>
                 {sensitivity(session.privacy.sensitivity)}
@@ -55,6 +58,30 @@ export function TodayPage({ snapshot }: { snapshot: DesktopSnapshot }): ReactEle
           ))}
           {snapshot.today.activitySessions.length === 0 ? (
             <div className="empty-state">{t("empty.noActivityForDate")}</div>
+          ) : null}
+        </div>
+      </Section>
+
+      <Section title={t("section.knowledgeDrafts")}>
+        <div className="item-list">
+          {snapshot.today.knowledgeArtifacts.map((artifact) => (
+            <article className="list-item" key={artifact.id}>
+              <div>
+                <h3>{artifact.title}</h3>
+                <p>{artifact.content.description}</p>
+                <div className="meta-line">
+                  <span>{status(artifact.status)}</span>
+                  <span>{artifact.metadata.apps.join(", ") || t("fallback.unknownApp")}</span>
+                  <span>
+                    {artifact.metadata.sourceSessionIds.length} {t("knowledge.sourceSessionsShort")}
+                  </span>
+                </div>
+                <EvidenceList evidence={artifact.evidence} limit={4} />
+              </div>
+            </article>
+          ))}
+          {snapshot.today.knowledgeArtifacts.length === 0 ? (
+            <div className="empty-state">{t("empty.noKnowledgeDrafts")}</div>
           ) : null}
         </div>
       </Section>

@@ -7,7 +7,14 @@ import {
   generateRecommendations
 } from "@orbit/core";
 import type { DraftKnowledgeOutput, AIProvider, EvidenceBackedText } from "@orbit/ai";
-import type { Event, EvidenceRef, FollowUp, KnowledgeArtifact, PermissionScope } from "@orbit/core";
+import type {
+  ActivitySession,
+  Event,
+  EvidenceRef,
+  FollowUp,
+  KnowledgeArtifact,
+  PermissionScope
+} from "@orbit/core";
 import type { OrbitDatabase } from "./connection";
 import { ActivityRepository } from "./repositories/activityRepository";
 import { AuditRepository } from "./repositories/auditRepository";
@@ -66,7 +73,11 @@ function runSemanticPipelineCore(
   const sourcePermissions = readSourcePermissions(new SourceRepository(database.db));
 
   const events = eventRepository.listEvents();
-  const sessions = buildActivitySessions(events);
+  const sessions = attachSourcePolicySnapshots(
+    buildActivitySessions(events),
+    events,
+    sourcePermissions
+  );
   const existingArtifacts = knowledgeRepository.listKnowledgeArtifacts();
   for (const session of sessions) {
     activityRepository.upsertActivitySession(session);
@@ -282,14 +293,69 @@ function finishSemanticPipeline({
   };
 }
 
-function readSourcePermissions(sourceRepository: SourceRepository): Record<string, PermissionScope> {
+function readSourcePermissions(
+  sourceRepository: SourceRepository
+): Record<string, PermissionScope> {
   return Object.fromEntries(
-    sourceRepository.listSources().map((source) => [
-      source.id,
-      source.permissionScope ??
-        defaultPermissionScopeForSource(source.kind, source.defaultSensitivity)
-    ])
+    sourceRepository
+      .listSources()
+      .map((source) => [
+        source.id,
+        source.permissionScope ??
+          defaultPermissionScopeForSource(source.kind, source.defaultSensitivity)
+      ])
   );
+}
+
+function attachSourcePolicySnapshots(
+  sessions: ActivitySession[],
+  events: Event[],
+  sourcePermissions: Record<string, PermissionScope>
+): ActivitySession[] {
+  const eventsById = new Map(events.map((event) => [event.id, event]));
+  return sessions.map((session) => {
+    const sourcePolicies = dedupeSourcePolicies(
+      session.eventIds
+        .map((eventId) => eventsById.get(eventId))
+        .filter((event) => event !== undefined)
+        .map((event) => {
+          const permission = sourcePermissions[event.source.adapterId];
+          if (!permission) return undefined;
+          return {
+            sourceAdapterId: event.source.adapterId,
+            sourceKind: event.source.kind,
+            canStoreRaw: permission.canStoreRaw,
+            canStoreSummary: permission.canStoreSummary,
+            canUseForAI: permission.canUseForAI,
+            canExportToAgent: permission.canExportToAgent,
+            retentionPolicyId: permission.retentionPolicyId
+          };
+        })
+        .filter((item) => item !== undefined)
+    );
+    if (sourcePolicies.length === 0) return session;
+    return {
+      ...session,
+      localState: {
+        ...session.localState,
+        sourcePolicies
+      }
+    };
+  });
+}
+
+function dedupeSourcePolicies(
+  policies: NonNullable<ActivitySession["localState"]["sourcePolicies"]>
+): NonNullable<ActivitySession["localState"]["sourcePolicies"]> {
+  const seen = new Set<string>();
+  const result: NonNullable<ActivitySession["localState"]["sourcePolicies"]> = [];
+  for (const policy of policies) {
+    const key = `${policy.sourceAdapterId}:${policy.sourceKind}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(policy);
+  }
+  return result;
 }
 
 function filterEventsForAI(

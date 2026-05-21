@@ -24,6 +24,8 @@ export interface ScreenObservationAdapterOptions {
   protectedApps?: ProtectedAppRule[];
   maxFramesPerRead?: number;
   allowRawFrameStorage?: boolean;
+  canUseForAI?: boolean;
+  canExportToAgent?: boolean;
   rawRetentionTtlMinutes?: number;
 }
 
@@ -41,6 +43,8 @@ export class ScreenObservationAdapter implements SourceAdapter {
     this.defaultSensitivity = options.defaultSensitivity ?? "confidential";
     this.permissionScope = perceptionPermissionScope(this.kind, {
       canStoreRaw: options.allowRawFrameStorage ?? false,
+      canUseForAI: options.canUseForAI ?? false,
+      canExportToAgent: options.canExportToAgent ?? false,
       retentionPolicyId: options.allowRawFrameStorage
         ? `perception_raw_ttl_${options.rawRetentionTtlMinutes ?? 60}m`
         : "perception_summary_only"

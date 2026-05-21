@@ -23,6 +23,7 @@ export interface TranscriptPolicy {
   canUseAudioForAI: boolean;
   canUseTranscriptForAI: boolean;
   allowExternal: boolean;
+  exportEligible: boolean;
 }
 
 export function transcriptPolicyFromPerceptionStatus(
@@ -37,7 +38,9 @@ export function transcriptPolicyFromPerceptionStatus(
     providerEnabled: route?.enabled ?? false,
     canUseAudioForAI: audio?.policy.canUseForAI ?? false,
     canUseTranscriptForAI: transcript?.policy.canUseForAI ?? false,
-    allowExternal: route?.allowExternal === true
+    allowExternal: route?.allowExternal === true,
+    exportEligible:
+      audio?.policy.canExportToAgent === true && transcript?.policy.canExportToAgent === true
   };
 }
 
@@ -67,7 +70,10 @@ export class TranscriptObservationAdapter implements SourceAdapter {
     this.id = options.id ?? TRANSCRIPT_OBSERVATION_ADAPTER_ID;
     this.displayName = options.displayName ?? "Transcript Observation";
     this.defaultSensitivity = options.defaultSensitivity ?? "confidential";
-    this.permissionScope = perceptionPermissionScope(this.kind);
+    this.permissionScope = perceptionPermissionScope(this.kind, {
+      canUseForAI: options.policy.canUseAudioForAI && options.policy.canUseTranscriptForAI,
+      canExportToAgent: options.policy.exportEligible
+    });
   }
 
   async readCursor(cursor?: string): Promise<AdapterReadResult> {

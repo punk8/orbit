@@ -152,7 +152,8 @@ function allowTranscriptPolicy(): ConstructorParameters<
     providerEnabled: true,
     canUseAudioForAI: true,
     canUseTranscriptForAI: true,
-    allowExternal: false
+    allowExternal: false,
+    exportEligible: false
   };
 }
 

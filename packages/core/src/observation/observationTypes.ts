@@ -48,6 +48,7 @@ export interface ObservationInput {
   sourceKind: ObservationSourceKind;
   occurredAt: string;
   observedAt?: string;
+  redactionState?: "none" | "redacted" | "failed";
   runtimeSessionId: string;
   sequence: number;
   app?: {

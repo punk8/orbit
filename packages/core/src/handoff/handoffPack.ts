@@ -170,7 +170,7 @@ export function buildHandoffPack(input: BuildHandoffPackInput): HandoffPack {
   const evidence = new Map<string, HandoffEvidenceItem>();
   const excluded: HandoffExclusion[] = [];
   const packScope: HandoffPackScope = {
-    kind: input.kind,
+    kind: input.kind
   };
   if (input.date) packScope.date = input.date;
   if (input.project) packScope.project = input.project;
@@ -440,7 +440,10 @@ function buildEvidenceIds(input: {
   };
 }
 
-function mergeEvidence(evidence: Map<string, HandoffEvidenceItem>, result: EvidenceBuildResult): void {
+function mergeEvidence(
+  evidence: Map<string, HandoffEvidenceItem>,
+  result: EvidenceBuildResult
+): void {
   for (const item of result.evidenceItems) {
     if (!evidence.has(item.id)) {
       evidence.set(item.id, item);
@@ -454,11 +457,10 @@ function includeOrExclude(
   objectType: HandoffExclusion["objectType"],
   objectId: string
 ): boolean {
-  if (result.exclusions.length === 0) return true;
   for (const reason of result.exclusions) {
     excluded.push({ objectType, objectId, reason });
   }
-  return false;
+  return result.evidenceIds.length > 0;
 }
 
 function buildCurrentState(

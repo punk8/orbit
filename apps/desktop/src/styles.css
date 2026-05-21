@@ -1101,6 +1101,17 @@ button {
   white-space: nowrap;
 }
 
+.detail-block .source-policy-list {
+  padding: 0;
+}
+
+.detail-block .source-policy-list article {
+  border: 1px solid #ece9e2;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px;
+}
+
 .policy-toggle {
   display: inline-flex;
   align-items: center;

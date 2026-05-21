@@ -336,6 +336,65 @@ describe("cli commands", () => {
     expect(JSON.stringify(listActivitySessions())).not.toContain("sk-test");
   });
 
+  it("completes Goal 8E perception context with safe summaries and preserved review state", async () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-perception-context-test-"));
+    tempDirs.push(orbitHome);
+    process.env.ORBIT_HOME = orbitHome;
+
+    const database = openOrbitDatabase({ orbitHome });
+    try {
+      for (const source of ["screen", "ocr", "vision", "microphone_audio", "transcript"] as const) {
+        updatePerceptionSourcePolicy(database.db, source, {
+          canUseForAI: true,
+          canExportToAgent: true
+        });
+      }
+      updatePerceptionProviderRoute(database.db, "vision", "mock");
+      updatePerceptionProviderRoute(database.db, "transcription", "mock");
+    } finally {
+      database.close();
+    }
+
+    const result = await ingestPerceptionFixtures({ includeVision: true, includeAudio: true });
+    expect(result.pipeline.activitySessions.total).toBe(2);
+    expect(result.pipeline.knowledgeArtifacts.total).toBe(2);
+
+    const sessions = listActivitySessions();
+    expect(sessions.flatMap((session) => session.localState.sourcePolicies ?? [])).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sourceAdapterId: "perception_screen",
+          canExportToAgent: true
+        }),
+        expect.objectContaining({
+          sourceAdapterId: "perception_transcript",
+          canExportToAgent: true
+        })
+      ])
+    );
+    const today = getTodayContext("2026-05-21");
+    expect(today.activitySessions).toHaveLength(2);
+    expect(today.knowledgeArtifacts).toHaveLength(2);
+    expect(today.recommendations.some((item) => item.type === "follow_up")).toBe(true);
+    expect(today.recommendations.some((item) => item.type === "risk")).toBe(true);
+
+    const artifact = listKnowledgeArtifacts()[0]!;
+    runKnowledgeReviewAction(artifact.id, "confirm");
+    await ingestPerceptionFixtures({ includeVision: true, includeAudio: true });
+    expect(listKnowledgeArtifacts().find((item) => item.id === artifact.id)?.status).toBe(
+      "confirmed"
+    );
+
+    const handoff = getTodayHandoff({ date: "2026-05-21" });
+    expect(handoff.recentActivity.length).toBeGreaterThan(0);
+    expect(handoff.confirmedKnowledge.length).toBeGreaterThan(0);
+    expect(handoff.recommendedNextActions.length).toBeGreaterThan(0);
+    expect(JSON.stringify(handoff)).toContain("screen://capture");
+    expect(JSON.stringify(handoff)).not.toContain("hunter2");
+    expect(JSON.stringify(handoff)).not.toContain("sk-test");
+    expect(JSON.stringify(handoff)).not.toContain("person@example.com");
+  });
+
   it("runs a mock screen/OCR start pause resume stop smoke", async () => {
     const smoke = await runScreenOcrSmoke("window");
     expect(smoke.scope.kind).toBe("window");

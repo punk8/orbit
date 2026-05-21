@@ -341,6 +341,37 @@ function ActivityDetail({
         <EvidenceList evidence={session.evidence} limit={12} />
       </DetailBlock>
 
+      <DetailBlock title={t("activity.sourcePolicy")}>
+        {session.localState.sourcePolicies?.length ? (
+          <div className="source-policy-list">
+            {session.localState.sourcePolicies.map((policy) => (
+              <article key={`${policy.sourceAdapterId}-${policy.sourceKind}`}>
+                <div className="item-heading">
+                  <h3>{sourceKind(policy.sourceKind)}</h3>
+                  <span>{policy.sourceAdapterId}</span>
+                </div>
+                <div className="meta-line">
+                  <span>
+                    {policy.canStoreRaw ? t("activity.policyRawOn") : t("activity.policyRawOff")}
+                  </span>
+                  <span>
+                    {policy.canUseForAI ? t("activity.policyAiOn") : t("activity.policyAiOff")}
+                  </span>
+                  <span>
+                    {policy.canExportToAgent
+                      ? t("activity.policyExportOn")
+                      : t("activity.policyExportOff")}
+                  </span>
+                  <span>{policy.retentionPolicyId}</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="muted">{t("fallback.none")}</p>
+        )}
+      </DetailBlock>
+
       <DetailBlock title={t("activity.eventStream")}>
         {detail?.events.length ? (
           <div className="event-stream">

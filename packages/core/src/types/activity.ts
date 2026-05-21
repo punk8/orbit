@@ -1,5 +1,15 @@
 import type { EvidenceRef, ID, Sensitivity, SourceKind } from "./common";
 
+export interface ActivitySourcePolicySnapshot {
+  sourceAdapterId: ID;
+  sourceKind: SourceKind;
+  canStoreRaw: boolean;
+  canStoreSummary: boolean;
+  canUseForAI: boolean;
+  canExportToAgent: boolean;
+  retentionPolicyId: string;
+}
+
 export interface ActivitySession {
   id: ID;
   schemaVersion: number;
@@ -26,6 +36,7 @@ export interface ActivitySession {
     storageBytes?: number;
     closed?: boolean;
     closeReason?: "idle" | "explicit_boundary" | "historical";
+    sourcePolicies?: ActivitySourcePolicySnapshot[];
   };
   privacy: {
     sensitivity: Sensitivity;

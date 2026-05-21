@@ -75,13 +75,14 @@ export function getTodayContext(date = getLocalDateKey()): TodayContext {
     buildTodayContext({
       date,
       activitySessions: repositories.activity.listActivitySessions(),
-      knowledgeArtifacts: repositories.knowledge
-        .listKnowledgeArtifacts()
-        .filter((artifact) => artifact.status === "confirmed"),
-      memories: repositories.memory.listMemories().filter((memory) => memory.status === "confirmed"),
+      knowledgeArtifacts: repositories.knowledge.listKnowledgeArtifacts(),
+      memories: repositories.memory
+        .listMemories()
+        .filter((memory) => memory.status === "confirmed"),
       recommendations: repositories.recommendation
         .listRecommendations()
-        .filter((recommendation) => recommendation.evidence.length > 0)
+        .filter((recommendation) => recommendation.evidence.length > 0),
+      events: repositories.event.listEvents()
     })
   );
 }
@@ -94,7 +95,8 @@ export function getProjectContext(project: string): ProjectContext {
     const knowledgeArtifacts = repositories.knowledge
       .listKnowledgeArtifacts()
       .filter(
-        (artifact) => artifact.status === "confirmed" && artifact.metadata.projects.includes(project)
+        (artifact) =>
+          artifact.status === "confirmed" && artifact.metadata.projects.includes(project)
       );
     const memories = repositories.memory
       .listMemories()
@@ -109,16 +111,17 @@ export function getProjectContext(project: string): ProjectContext {
     );
     const recommendations = repositories.recommendation
       .listRecommendations()
-      .filter((recommendation) =>
-        recommendation.evidence.length > 0 &&
-        recommendation.evidence.some(
-          (ref) =>
-            (ref.eventId && projectEventIds.has(ref.eventId)) ||
-            (ref.activitySessionId &&
-              activitySessions.some((session) => session.id === ref.activitySessionId)) ||
-            (ref.artifactId &&
-              knowledgeArtifacts.some((artifact) => artifact.id === ref.artifactId))
-        )
+      .filter(
+        (recommendation) =>
+          recommendation.evidence.length > 0 &&
+          recommendation.evidence.some(
+            (ref) =>
+              (ref.eventId && projectEventIds.has(ref.eventId)) ||
+              (ref.activitySessionId &&
+                activitySessions.some((session) => session.id === ref.activitySessionId)) ||
+              (ref.artifactId &&
+                knowledgeArtifacts.some((artifact) => artifact.id === ref.artifactId))
+          )
       );
 
     return {

@@ -185,6 +185,31 @@ describe("observation normalization", () => {
     expect(transcript.classification?.topics).toEqual(["perception", "audio"]);
   });
 
+  it("preserves explicit failed redaction state on perception Events", () => {
+    const audio = normalizeObservationInput({
+      type: "audio_segment",
+      tier: "tier3",
+      sourceKind: "audio",
+      occurredAt: "2026-05-21T01:30:00.000Z",
+      redactionState: "failed",
+      runtimeSessionId: "audio-runtime",
+      sequence: 3,
+      app: {
+        name: "Zoom",
+        bundleId: "us.zoom.xos"
+      },
+      audio: {
+        scopeKind: "microphone",
+        segmentId: "segment_failed",
+        segmentHash: "audio_hash_failed",
+        durationMs: 8_000,
+        redactedSummary: "Redaction failed for this segment."
+      }
+    });
+
+    expect(audio.privacy.redactionState).toBe("failed");
+  });
+
   it("rejects invalid observation runtime transitions", () => {
     expect(() => assertObservationStatusTransition("ready", "paused")).toThrow(
       /Invalid observation status transition/

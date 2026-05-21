@@ -44,7 +44,7 @@ export class VisionSummaryAdapter implements SourceAdapter {
     this.id = options.id ?? VISION_SUMMARY_ADAPTER_ID;
     this.permissionScope = perceptionPermissionScope("screen", {
       canStoreRaw: false,
-      canUseForAI: false,
+      canUseForAI: options.policy.canUseScreenForAI && options.policy.canUseVisionForAI,
       canExportToAgent: options.policy.exportEligible,
       retentionPolicyId: "perception_summary_only"
     });

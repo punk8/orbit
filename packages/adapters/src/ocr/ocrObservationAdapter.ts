@@ -40,6 +40,8 @@ export interface OcrObservationAdapterOptions {
   permission?: ObservationPermissionStatus;
   protectedApps?: ProtectedAppRule[];
   maxFramesPerRead?: number;
+  canUseForAI?: boolean;
+  canExportToAgent?: boolean;
 }
 
 export class OcrObservationAdapter implements SourceAdapter {
@@ -54,7 +56,10 @@ export class OcrObservationAdapter implements SourceAdapter {
     this.id = options.id ?? OCR_OBSERVATION_ADAPTER_ID;
     this.displayName = options.displayName ?? "OCR Observation";
     this.defaultSensitivity = options.defaultSensitivity ?? "confidential";
-    this.permissionScope = perceptionPermissionScope(this.kind);
+    this.permissionScope = perceptionPermissionScope(this.kind, {
+      canUseForAI: options.canUseForAI ?? false,
+      canExportToAgent: options.canExportToAgent ?? false
+    });
   }
 
   async readCursor(cursor?: string): Promise<AdapterReadResult> {

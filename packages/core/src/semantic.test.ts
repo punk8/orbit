@@ -60,6 +60,42 @@ describe("semantic pipeline", () => {
     expect(split[0]?.localState.closed).toBe(true);
     expect(split[1]?.localState.closed).toBe(true);
   });
+
+  it("turns perception follow-ups and visible risks into review-only recommendations", () => {
+    const events = [
+      makePerceptionEvent(
+        "screen_bug",
+        "screen",
+        "A Sources page bug note and Settings scrolling fix are visible."
+      ),
+      makePerceptionEvent(
+        "transcript_followup",
+        "transcript",
+        "Follow up: verify context today and Handoff exclusions."
+      )
+    ];
+    const sessions = buildActivitySessions(events, {
+      now: new Date("2026-05-21T10:30:00.000Z")
+    });
+    const artifacts = sessions.map((session) =>
+      draftKnowledgeArtifact({
+        session,
+        events: events.filter((event) => session.eventIds.includes(event.id))
+      })
+    );
+    const recommendations = generateRecommendations({
+      events,
+      sessions,
+      artifacts,
+      memories: []
+    });
+
+    expect(recommendations.some((item) => item.type === "risk")).toBe(true);
+    expect(recommendations.some((item) => item.type === "follow_up")).toBe(true);
+    expect(recommendations.some((item) => item.type === "context_needed")).toBe(true);
+    expect(artifacts.flatMap((artifact) => artifact.content.followUps ?? [])).not.toHaveLength(0);
+    expect(artifacts[0]?.content.markdown).toContain("## Evidence");
+  });
 });
 
 function makeEvent(id: string, type: Event["type"]): Event {
@@ -119,5 +155,44 @@ function makeObservationEvent(id: string, occurredAt: string, app: string): Even
       redactionState: "none"
     },
     hash: `obs_hash_${id}`
+  };
+}
+
+function makePerceptionEvent(
+  id: string,
+  sourceKind: "screen" | "transcript",
+  summary: string
+): Event {
+  return {
+    id: `perception_event_${id}`,
+    schemaVersion: 1,
+    source: {
+      kind: sourceKind,
+      adapterId: `perception_${sourceKind}`,
+      externalId: id,
+      pointer: `${sourceKind}://fixture/${id}`
+    },
+    occurredAt: `2026-05-21T10:0${sourceKind === "screen" ? "0" : "1"}:00.000Z`,
+    observedAt: `2026-05-21T10:0${sourceKind === "screen" ? "0" : "1"}:00.000Z`,
+    context: {
+      app: sourceKind === "screen" ? "Cursor" : "Google Meet",
+      threadId: "perception-fixture"
+    },
+    type: sourceKind === "screen" ? "screen_observation" : "transcript_segment",
+    content: {
+      title: `${sourceKind} evidence`,
+      summary
+    },
+    classification: {
+      topics: ["perception"],
+      entities: [],
+      confidence: 0.82
+    },
+    privacy: {
+      sensitivity: "confidential",
+      retentionPolicyId: "perception_summary_only",
+      redactionState: "redacted"
+    },
+    hash: `perception_hash_${id}`
   };
 }

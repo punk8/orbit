@@ -1,4 +1,12 @@
-import type { ActivitySession, Event, KnowledgeArtifact, Memory, Recommendation } from "../index";
+import type {
+  ActivitySession,
+  Event,
+  EvidenceRef,
+  KnowledgeArtifact,
+  Memory,
+  Recommendation,
+  SourceKind
+} from "../index";
 import { createStableId } from "../id";
 
 export interface GenerateRecommendationInput {
@@ -9,7 +17,8 @@ export interface GenerateRecommendationInput {
 }
 
 export function generateRecommendations(input: GenerateRecommendationInput): Recommendation[] {
-  const followUps = input.events
+  const safeEvents = input.events.filter(isSafeRecommendationEvent);
+  const explicitFollowUps = safeEvents
     .filter((event) => event.type === "todo")
     .map((event) => {
       const evidence = {
@@ -34,6 +43,43 @@ export function generateRecommendations(input: GenerateRecommendationInput): Rec
         createdAt: event.observedAt
       };
     });
+  const perceptionFollowUps = safeEvents
+    .filter((event) => isPerceptionSource(event.source.kind))
+    .filter((event) => /\b(follow up|action item|next)\b/i.test(eventText(event)))
+    .map((event) =>
+      recommendationFromEvent({
+        event,
+        type: "follow_up",
+        title:
+          event.source.kind === "transcript"
+            ? "Review meeting follow-up from transcript"
+            : "Review follow-up visible in perception evidence",
+        explanation:
+          "Perception evidence contains follow-up language in a redacted summary or transcript segment.",
+        suggestedAction:
+          "Review the linked Activity evidence and decide whether it belongs in the task list.",
+        confidence: Math.max(event.classification?.confidence ?? 0.72, 0.74),
+        impact: "medium"
+      })
+    );
+  const visibleRisks = safeEvents
+    .filter((event) => isPerceptionSource(event.source.kind))
+    .filter((event) =>
+      /\b(error|failed|failure|bug|blocked|unresolved|exception)\b/i.test(eventText(event))
+    )
+    .map((event) =>
+      recommendationFromEvent({
+        event,
+        type: "risk",
+        title: "Review unresolved issue visible in perception evidence",
+        explanation:
+          "Screen, OCR, or transcript evidence suggests an unresolved error, bug, blocker, or failure.",
+        suggestedAction:
+          "Open the source Activity and verify whether the issue still needs follow-up.",
+        confidence: Math.max(event.classification?.confidence ?? 0.7, 0.76),
+        impact: "high"
+      })
+    );
 
   const contextRecommendation =
     input.sessions.length > 0 && input.artifacts.length > 0
@@ -57,6 +103,136 @@ export function generateRecommendations(input: GenerateRecommendationInput): Rec
           }
         ]
       : [];
+  const perceptionContextRecommendation = buildPerceptionContextRecommendation(input);
 
-  return [...followUps, ...contextRecommendation];
+  return dedupeRecommendations([
+    ...explicitFollowUps,
+    ...perceptionFollowUps,
+    ...visibleRisks,
+    ...contextRecommendation,
+    ...perceptionContextRecommendation
+  ]);
+}
+
+function recommendationFromEvent(input: {
+  event: Event;
+  type: Recommendation["type"];
+  title: string;
+  explanation: string;
+  suggestedAction: string;
+  confidence: number;
+  impact: Recommendation["impact"];
+}): Recommendation {
+  const excerpt = truncate(eventText(input.event), 220);
+  const evidence = evidenceFromEvent(input.event, excerpt);
+  return {
+    id: createStableId("recommendation", {
+      type: input.type,
+      eventId: input.event.id,
+      title: input.title
+    }),
+    schemaVersion: 1,
+    type: input.type,
+    title: input.title,
+    explanation: input.explanation,
+    suggestedAction: input.suggestedAction,
+    confidence: clamp(input.confidence),
+    impact: input.impact,
+    status: "new",
+    evidence: [evidence],
+    createdAt: input.event.observedAt
+  };
+}
+
+function buildPerceptionContextRecommendation(
+  input: GenerateRecommendationInput
+): Recommendation[] {
+  const perceptionSessions = input.sessions.filter((session) =>
+    session.sourceKinds.some(isPerceptionSource)
+  );
+  if (perceptionSessions.length === 0) return [];
+  const reviewedArtifactIds = new Set(
+    input.artifacts
+      .filter((artifact) => artifact.status === "confirmed")
+      .flatMap((artifact) => artifact.metadata.sourceSessionIds)
+  );
+  const unreviewedSessions = perceptionSessions.filter(
+    (session) => !reviewedArtifactIds.has(session.id)
+  );
+  if (unreviewedSessions.length === 0) return [];
+  const safeEventIds = new Set(
+    input.events.filter(isSafeRecommendationEvent).map((event) => event.id)
+  );
+  const evidence = unreviewedSessions
+    .flatMap((session) => session.evidence)
+    .filter((ref) => ref.eventId && safeEventIds.has(ref.eventId))
+    .slice(0, 6);
+  if (evidence.length === 0) return [];
+  return [
+    {
+      id: createStableId("recommendation", {
+        type: "context_needed",
+        sessions: unreviewedSessions.map((session) => session.id)
+      }),
+      schemaVersion: 1,
+      type: "context_needed",
+      title: "Review perception-backed context before relying on it",
+      explanation:
+        "Perception-derived Activity exists, but its Knowledge drafts still need user review before becoming durable Memory.",
+      suggestedAction: "Open Knowledge review and confirm only stable, non-sensitive conclusions.",
+      confidence: 0.73,
+      impact: "medium",
+      status: "new",
+      evidence,
+      createdAt: unreviewedSessions[0]?.updatedAt ?? new Date().toISOString()
+    }
+  ];
+}
+
+function evidenceFromEvent(event: Event, excerpt: string): EvidenceRef {
+  return {
+    eventId: event.id,
+    sourceKind: event.source.kind,
+    sourcePointer: event.source.pointer,
+    timestamp: event.occurredAt,
+    excerpt
+  };
+}
+
+function eventText(event: Event): string {
+  return [event.content.title, event.content.summary, event.content.text]
+    .filter((value): value is string => Boolean(value))
+    .join(" ");
+}
+
+function isPerceptionSource(sourceKind: SourceKind): boolean {
+  return (
+    sourceKind === "screen" ||
+    sourceKind === "ocr" ||
+    sourceKind === "audio" ||
+    sourceKind === "transcript"
+  );
+}
+
+function isSafeRecommendationEvent(event: Event): boolean {
+  return event.privacy.sensitivity !== "secret" && event.privacy.redactionState !== "failed";
+}
+
+function dedupeRecommendations(recommendations: Recommendation[]): Recommendation[] {
+  const seen = new Set<string>();
+  const result: Recommendation[] = [];
+  for (const recommendation of recommendations) {
+    if (seen.has(recommendation.id)) continue;
+    seen.add(recommendation.id);
+    result.push(recommendation);
+  }
+  return result;
+}
+
+function clamp(value: number): number {
+  return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0.5;
+}
+
+function truncate(value: string, maxLength: number): string {
+  return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
 }

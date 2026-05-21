@@ -25,6 +25,8 @@ export interface AudioObservationAdapterOptions {
   protectedApps?: ProtectedAppRule[];
   paused?: boolean;
   maxSegmentsPerRead?: number;
+  canUseForAI?: boolean;
+  canExportToAgent?: boolean;
 }
 
 export class AudioObservationAdapter implements SourceAdapter {
@@ -39,7 +41,10 @@ export class AudioObservationAdapter implements SourceAdapter {
     this.id = options.id ?? AUDIO_OBSERVATION_ADAPTER_ID;
     this.displayName = options.displayName ?? "Audio Observation";
     this.defaultSensitivity = options.defaultSensitivity ?? "confidential";
-    this.permissionScope = perceptionPermissionScope(this.kind);
+    this.permissionScope = perceptionPermissionScope(this.kind, {
+      canUseForAI: options.canUseForAI ?? false,
+      canExportToAgent: options.canExportToAgent ?? false
+    });
   }
 
   async readCursor(cursor?: string): Promise<AdapterReadResult> {
@@ -101,6 +106,7 @@ export function segmentToAudioObservationInput(segment: AudioSegment): Observati
     sourceKind: "audio",
     occurredAt: segment.startedAt,
     observedAt: segment.endedAt,
+    ...(segment.redactionState ? { redactionState: segment.redactionState } : {}),
     runtimeSessionId: segment.runtimeSessionId,
     sequence: segment.sequence,
     ...(segment.app ? { app: { ...segment.app } } : {}),

@@ -5,6 +5,7 @@ import type { TodayContext } from "@orbit/core";
 import type { OrbitDatabase } from "./connection";
 import { ActivityRepository } from "./repositories/activityRepository";
 import { AuditRepository } from "./repositories/auditRepository";
+import { EventRepository } from "./repositories/eventRepository";
 import { KnowledgeRepository } from "./repositories/knowledgeRepository";
 import { MemoryRepository } from "./repositories/memoryRepository";
 import { RecommendationRepository } from "./repositories/recommendationRepository";
@@ -86,6 +87,7 @@ export function exportTodayContext(
   const knowledgeRepository = new KnowledgeRepository(database.db);
   const memoryRepository = new MemoryRepository(database.db);
   const recommendationRepository = new RecommendationRepository(database.db);
+  const eventRepository = new EventRepository(database.db);
   const sourceRepository = new SourceRepository(database.db);
   const today = buildTodayContext({
     date,
@@ -96,7 +98,8 @@ export function exportTodayContext(
     memories: memoryRepository.listMemories().filter((memory) => memory.status === "confirmed"),
     recommendations: recommendationRepository
       .listRecommendations()
-      .filter((recommendation) => recommendation.evidence.length > 0)
+      .filter((recommendation) => recommendation.evidence.length > 0),
+    events: eventRepository.listEvents()
   });
   const exportDir = join(database.orbitHome, "exports");
   mkdirSync(exportDir, { recursive: true });

@@ -153,12 +153,14 @@ export function readDesktopSnapshot(date = getLocalDateKey()): DesktopSnapshot {
     const knowledgeArtifacts = knowledgeRepository.listKnowledgeArtifacts();
     const memories = memoryRepository.listMemories();
     const recommendations = recommendationRepository.listRecommendations();
+    const events = eventRepository.listEvents();
     const today = buildTodayContext({
       date,
       activitySessions,
       knowledgeArtifacts,
       memories,
-      recommendations
+      recommendations,
+      events
     });
 
     return {

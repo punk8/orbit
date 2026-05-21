@@ -77,6 +77,68 @@ describe("handoff pack", () => {
     );
   });
 
+  it("includes safe perception summaries while excluding blocked evidence from the same object", () => {
+    const pack = buildHandoffPack({
+      kind: "today",
+      objective: "Continue Orbit development",
+      date: "2026-05-21",
+      generatedAt: baseTime,
+      activitySessions: [
+        makeActivity({
+          id: "act_perception",
+          eventIds: ["evt_screen", "evt_transcript_blocked"],
+          sourceKinds: ["screen", "transcript"],
+          evidence: [
+            makeEvidence("evt_screen", "screen"),
+            makeEvidence("evt_transcript_blocked", "transcript")
+          ]
+        })
+      ],
+      knowledgeArtifacts: [],
+      memories: [],
+      recommendations: [],
+      eventSafety: new Map([
+        [
+          "evt_screen",
+          makeEventSafety({
+            eventId: "evt_screen",
+            sourceAdapterId: "perception_screen",
+            sourceKind: "screen",
+            sourcePointer: "screen://capture/day/frame#1",
+            sensitivity: "confidential",
+            redactionState: "redacted",
+            canExportToAgent: true
+          })
+        ],
+        [
+          "evt_transcript_blocked",
+          makeEventSafety({
+            eventId: "evt_transcript_blocked",
+            sourceAdapterId: "perception_transcript",
+            sourceKind: "transcript",
+            sourcePointer: "transcript://meeting/day/audio#1",
+            sensitivity: "confidential",
+            canExportToAgent: false
+          })
+        ]
+      ])
+    });
+
+    expect(pack.recentActivity).toHaveLength(1);
+    expect(pack.recentActivity[0]?.evidenceIds).toHaveLength(1);
+    expect(pack.evidenceIndex.map((item) => item.sourcePointer)).toEqual([
+      "screen://capture/day/frame#1"
+    ]);
+    expect(pack.excluded).toEqual([
+      {
+        objectType: "activity",
+        objectId: "act_perception",
+        reason: "source_export_blocked"
+      }
+    ]);
+    expect(JSON.stringify(pack)).not.toContain("transcript://meeting/day/audio#1");
+  });
+
   it("formats markdown without raw event payloads", () => {
     const pack = buildHandoffPack({
       kind: "today",
@@ -107,11 +169,14 @@ describe("handoff pack", () => {
   });
 });
 
-function makeEvidence(eventId: string): EvidenceRef {
+function makeEvidence(
+  eventId: string,
+  sourceKind: EvidenceRef["sourceKind"] = "codex"
+): EvidenceRef {
   return {
     eventId,
-    sourceKind: "codex",
-    sourcePointer: `codex://session.jsonl#${eventId}`,
+    sourceKind,
+    sourcePointer: `${sourceKind}://session.jsonl#${eventId}`,
     timestamp: baseTime,
     excerpt: "Reviewed summary, not RAW_EVENT_TEXT"
   };
@@ -214,8 +279,11 @@ function makeRecommendation(
     schemaVersion: 1,
     type: overrides.type ?? "risk",
     title: overrides.title ?? "Keep screen capture out of Goal 7",
-    explanation: overrides.explanation ?? "Perception should stay research-only until permissions are designed.",
-    suggestedAction: overrides.suggestedAction ?? "Implement disabled descriptors and research doc first.",
+    explanation:
+      overrides.explanation ??
+      "Perception should stay research-only until permissions are designed.",
+    suggestedAction:
+      overrides.suggestedAction ?? "Implement disabled descriptors and research doc first.",
     confidence: overrides.confidence ?? 0.82,
     impact: overrides.impact ?? "high",
     status: overrides.status,
