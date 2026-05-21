@@ -8,8 +8,10 @@
     "dev": "vite --host 127.0.0.1",
     "build": "vite build && node scripts/build-electron.mjs",
     "build:electron": "node scripts/build-electron.mjs",
-    "package:dir": "pnpm build && electron-builder --dir --config electron-builder.yml",
-    "package:dmg": "pnpm build && electron-builder --mac dmg --config electron-builder.yml",
+    "package:dir": "pnpm rebuild:native:electron && pnpm build && electron-builder --dir --config electron-builder.yml; status=$?; pnpm rebuild:native:node; exit $status",
+    "package:dmg": "pnpm rebuild:native:electron && pnpm build && electron-builder --mac dmg --config electron-builder.yml; status=$?; pnpm rebuild:native:node; exit $status",
+    "rebuild:native:electron": "npm_config_runtime=electron npm_config_target=$(node -p \"require('electron/package.json').version\") npm_config_disturl=https://electronjs.org/headers pnpm rebuild better-sqlite3",
+    "rebuild:native:node": "pnpm rebuild better-sqlite3",
     "typecheck": "tsc --noEmit -p ../../tsconfig.json",
     "test": "vitest run --passWithNoTests",
     "test:e2e": "node scripts/e2e-smoke.mjs"
