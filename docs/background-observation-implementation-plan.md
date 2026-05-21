@@ -35,17 +35,248 @@ that bypasses Event ingestion or repositories.
 
 ## Implementation Strategy
 
-Build in six slices:
+Build in four checkpoint-sized cuts:
 
-1. **4A: Observation domain and fixture stream**
-2. **4B: Runtime state, permission model, and UI controls**
-3. **4C: Mock observer to Event ingestion**
-4. **4D: Real Tier 1 macOS app/window observer**
-5. **4E: Live pipeline integration into Activity/Today/Handoff**
-6. **4F: Tier 2 gates for Accessibility, filesystem, terminal/browser metadata, and clipboard**
+1. **4A: Mock background observation to Activity**
+   - Observation domain types.
+   - Desktop observation fixtures.
+   - Runtime state in settings.
+   - Mock observer and in-process queue.
+   - Mock Events ingested into Activity Sessions.
+2. **4B: Real Tier 1 app/window observer**
+   - Real macOS app focus capture.
+   - Window title capture only when available without extra permission, otherwise mark as
+     `needs_permission`.
+   - Protected-app suppression.
+   - Menu bar start/pause/resume.
+3. **4C: Live pipeline and review integration**
+   - Batch-drain into Event ingestion.
+   - Activity/Today/Handoff refresh.
+   - Knowledge/Recommendation scheduling.
+   - Memory candidate creation remains gated by confirmed Knowledge.
+4. **4D: Tier 2 gates**
+   - Accessibility permission detector and mock snapshots.
+   - Explicit filesystem allowlist.
+   - Clipboard hash-only mode.
+   - Browser/terminal metadata only through approved paths.
 
 Do not implement Tier 3 screen/OCR/audio in these slices unless a later task explicitly adds the
 stronger permission, protected-app, TTL, redaction, storage, audit, and smoke-test gates.
+
+## Core Type Contracts
+
+Use these interfaces as the implementation contract for Goal 4A. Names can be adjusted to match
+local style, but field semantics should remain stable.
+
+```ts
+type ObservationTier = "tier1" | "tier2" | "tier3";
+
+type ObservationRuntimeStatus =
+  | "not_configured"
+  | "needs_permission"
+  | "ready"
+  | "collecting"
+  | "paused"
+  | "warning"
+  | "error"
+  | "disabled";
+
+type ObservationSourceKind =
+  | "desktop"
+  | "accessibility"
+  | "browser"
+  | "terminal"
+  | "clipboard"
+  | "filesystem"
+  | "screen"
+  | "audio";
+
+type ObservationInputType =
+  | "app_focus"
+  | "window_focus"
+  | "window_title_change"
+  | "accessibility_snapshot"
+  | "browser_navigation"
+  | "terminal_command"
+  | "terminal_output_summary"
+  | "clipboard_change"
+  | "file_activity"
+  | "observation_state"
+  | "permission_state";
+
+interface ObservationInput {
+  id?: string;
+  type: ObservationInputType;
+  tier: ObservationTier;
+  sourceKind: ObservationSourceKind;
+  occurredAt: string;
+  observedAt?: string;
+  runtimeSessionId: string;
+  sequence: number;
+  app?: {
+    name: string;
+    bundleId?: string;
+    pid?: number;
+    isProtected?: boolean;
+  };
+  window?: {
+    title?: string;
+    titleHash?: string;
+    isPrivate?: boolean;
+  };
+  browser?: {
+    url?: string;
+    title?: string;
+    profileId?: string;
+  };
+  terminal?: {
+    sessionId: string;
+    commandIndex: number;
+    command?: string;
+    cwd?: string;
+    exitCode?: number;
+  };
+  clipboard?: {
+    contentType: "text" | "image" | "file" | "url" | "unknown";
+    contentHash: string;
+    redactedSummary?: string;
+  };
+  file?: {
+    rootId: string;
+    relativePath: string;
+    operation: "created" | "modified" | "deleted" | "renamed";
+    contentHash?: string;
+  };
+  accessibility?: {
+    role?: string;
+    focusedElementRole?: string;
+    text?: string;
+    textHash?: string;
+    containsSecureField?: boolean;
+  };
+  permission?: PermissionStatus;
+  raw?: {
+    text?: string;
+    localRef?: string;
+    sizeBytes?: number;
+  };
+}
+
+interface ObservationDrainResult {
+  read: number;
+  inserted: number;
+  skipped: number;
+  dropped: number;
+  warnings: string[];
+  lastEventAt?: string;
+}
+
+interface ObservationStatus {
+  status: ObservationRuntimeStatus;
+  enabled: boolean;
+  paused: boolean;
+  activeRuntimeSessionId?: string;
+  tiers: Record<ObservationTier, ObservationTierStatus>;
+  permissions: PermissionStatus[];
+  protectedApps: ProtectedAppRule[];
+  allowedFolders: AllowedFolderRule[];
+  lastStartedAt?: string;
+  lastStoppedAt?: string;
+  lastEventAt?: string;
+  lastError?: string;
+  queueDepth: number;
+}
+
+interface ObservationTierStatus {
+  enabled: boolean;
+  status: ObservationRuntimeStatus;
+  sourceKinds: ObservationSourceKind[];
+  lastEventAt?: string;
+  lastError?: string;
+}
+
+interface PermissionStatus {
+  kind: "accessibility" | "screen" | "microphone" | "filesystem" | "automation";
+  requiredFor: ObservationSourceKind[];
+  status: "not_required" | "not_determined" | "granted" | "denied" | "restricted" | "unknown";
+  canRequestFromApp: boolean;
+  instructions?: string;
+}
+
+interface ProtectedAppRule {
+  id: string;
+  match:
+    | { kind: "bundle_id"; value: string }
+    | { kind: "app_name"; value: string }
+    | { kind: "window_title_pattern"; value: string };
+  reason: "default_sensitive_app" | "user_added" | "private_window" | "password_field";
+  enabled: boolean;
+}
+
+interface AllowedFolderRule {
+  id: string;
+  rootPath: string;
+  displayName: string;
+  project?: string;
+  enabled: boolean;
+  includeGlobs: string[];
+  excludeGlobs: string[];
+  defaultSensitivity: "public" | "internal" | "confidential" | "secret";
+}
+```
+
+Implementation notes:
+
+- `ObservationInput.raw` is transient. It must be dropped or converted to policy-allowed
+  `Event.content.summary` before persistence.
+- `runtimeSessionId` is created when observation starts and changes after a full stop/start.
+- `sequence` is monotonic within `runtimeSessionId` and is used for source pointers.
+- `PermissionStatus.status = denied` must not be treated as an error if lower tiers can still run.
+
+## Mock Fixture Contract
+
+Goal 4A should use deterministic fixture streams before real OS capture.
+
+Recommended files:
+
+```text
+fixtures/desktop/day-1.jsonl
+fixtures/desktop/protected-app.jsonl
+fixtures/expected/desktop-events.json
+fixtures/expected/desktop-activity-sessions.json
+```
+
+Each JSONL line is an `ObservationInput` with stable timestamps and sequence numbers.
+
+Example:
+
+```json
+{"type":"app_focus","tier":"tier1","sourceKind":"desktop","occurredAt":"2026-05-21T09:00:00.000Z","runtimeSessionId":"obs-fixture-day-1","sequence":1,"app":{"name":"Terminal","bundleId":"com.apple.Terminal","pid":101}}
+```
+
+```json
+{"type":"window_focus","tier":"tier1","sourceKind":"desktop","occurredAt":"2026-05-21T09:00:03.000Z","runtimeSessionId":"obs-fixture-day-1","sequence":2,"app":{"name":"Terminal","bundleId":"com.apple.Terminal","pid":101},"window":{"title":"orbit - zsh"}}
+```
+
+```json
+{"type":"app_focus","tier":"tier1","sourceKind":"desktop","occurredAt":"2026-05-21T09:05:00.000Z","runtimeSessionId":"obs-fixture-protected","sequence":1,"app":{"name":"1Password","bundleId":"com.1password.1password","pid":202,"isProtected":true},"window":{"title":"Private vault"}}
+```
+
+Mock observer behavior:
+
+- Reads JSONL from `fixtures/desktop/*.jsonl` or a test-provided path.
+- Sorts by `occurredAt`, then `sequence`.
+- Emits inputs into `ObservationQueue`.
+- Respects pause/resume by not emitting while paused.
+- Can be enabled by `ORBIT_OBSERVATION_MOCK=1`.
+- Does not require OS permissions.
+
+Expected protected-app result:
+
+- The resulting Event keeps app name and protected indication.
+- Window title is omitted or redacted.
+- `content.summary` uses a protected-app placeholder.
+- No raw text is stored.
 
 ## Proposed Module Boundaries
 
@@ -173,7 +404,8 @@ state and support fixture/mock observation tests.
 Preferred first implementation:
 
 - Use Electron `powerMonitor`, `app`, and BrowserWindow lifecycle only for Orbit runtime state.
-- Use a small macOS helper only if Electron cannot reliably provide frontmost app/window metadata.
+- Use **Swift helper via stdio** for real frontmost app/window metadata in Goal 4B unless a quick
+  spike proves a pure Electron/Node approach is reliable.
 - Implement a mock observer first and keep the real observer behind a narrow interface.
 
 Candidate real macOS APIs:
@@ -189,6 +421,9 @@ Decision:
   Accessibility.
 - Window title capture should be marked `needs_permission` when Accessibility is required.
 - Do not block all observation on window-title availability.
+- Goal 4A does not include real macOS capture.
+- Goal 4B starts with the Swift helper because Electron alone does not expose reliable frontmost app
+  metadata across arbitrary macOS apps.
 
 ### Native Helper Shape
 
@@ -353,6 +588,34 @@ observation.idleThresholdMs
 
 ## Event Mapping
 
+Every normalized observation Event must include these canonical fields:
+
+| Field | Rule |
+| --- | --- |
+| `id` | Stable ID from adapter ID, source pointer, type, occurredAt, and dedup key. |
+| `schemaVersion` | `1` until the core Event schema changes. |
+| `source.kind` | One of `desktop`, `accessibility`, `browser`, `filesystem`, or the matching observation source kind. |
+| `source.adapterId` | Stable configured source ID, usually `desktop_observation`. |
+| `source.externalId` | Optional; use source-native ID only when stable. |
+| `source.pointer` | Generated from the pointer schemes in this document. |
+| `occurredAt` | Source observation timestamp. |
+| `observedAt` | Ingestion timestamp; default to `occurredAt` for fixtures. |
+| `context.app` | Required for app/window/accessibility/browser/clipboard observations when known. |
+| `context.windowTitle` | Only when allowed, redacted, and not protected. |
+| `context.url` | Only origin/path policy allows; strip query/fragment by default. |
+| `type` | Matching Event type from the observation input. |
+| `content.title` | Short user-readable label. |
+| `content.summary` | Bounded, redacted summary. Required when raw text is dropped. |
+| `content.text` | Only when source policy explicitly allows raw text. |
+| `content.rawRef` | Only for policy-allowed sidecars; not used in Goal 4A. |
+| `privacy.sensitivity` | `internal` for metadata, `confidential` for semantic text unless policy says otherwise. |
+| `privacy.retentionPolicyId` | Source permission scope retention ID, default `default`. |
+| `privacy.redactionState` | `none`, `redacted`, or `failed`. |
+| `hash` | Deterministic hash of normalized source pointer, type, occurredAt, content summary/title, and context. |
+
+If a field is blocked by protected-app or redaction policy, omit the field rather than storing a
+placeholder that leaks sensitive detail.
+
 ### App Focus Event
 
 Input:
@@ -375,6 +638,18 @@ source.pointer: desktop://app-focus/<runtime-session-id>#<sequence>
 ```
 
 No raw text.
+
+Canonical pointer:
+
+```text
+desktop://app-focus/<runtimeSessionId>#<sequence>
+```
+
+Dedup key:
+
+```text
+app_focus:<bundleId-or-appName>
+```
 
 ### Window Focus Event
 
@@ -399,6 +674,18 @@ source.pointer: desktop://window/<runtime-session-id>#<sequence>
 ```
 
 If the app is protected, omit `windowTitle` and set summary to a protected-app placeholder.
+
+Canonical pointer:
+
+```text
+desktop://window/<runtimeSessionId>#<sequence>
+```
+
+Dedup key:
+
+```text
+window_focus:<bundleId-or-appName>:<redactedWindowTitleHash>
+```
 
 ### Accessibility Snapshot Event
 
@@ -426,6 +713,12 @@ source.pointer: accessibility://snapshot/<runtime-session-id>#<sequence>
 Default raw text storage is off, so `content.text` should usually be removed after summary
 generation.
 
+Canonical pointer:
+
+```text
+accessibility://snapshot/<runtimeSessionId>#<sequence>
+```
+
 ### Browser Navigation Event
 
 Input:
@@ -448,6 +741,12 @@ source.pointer: browser://navigation/<profile-or-app>/<timestamp>
 ```
 
 Default URL policy should strip query strings and fragments.
+
+Canonical pointer:
+
+```text
+browser://navigation/<profile-or-app>/<timestamp-or-sequence>
+```
 
 ### Terminal Command Event
 
@@ -473,6 +772,12 @@ source.pointer: terminal://session/<id>#<command-index>
 
 Do not store full command output by default.
 
+Canonical pointer:
+
+```text
+terminal://session/<sessionId>#<commandIndex>
+```
+
 ### Clipboard Change Event
 
 Input:
@@ -493,6 +798,12 @@ source.pointer: clipboard://change/<runtime-session-id>#<sequence>
 ```
 
 Default raw text storage is off.
+
+Canonical pointer:
+
+```text
+clipboard://change/<runtimeSessionId>#<sequence>
+```
 
 ### File Activity Event
 
@@ -516,6 +827,12 @@ source.pointer: filesystem://watch/<root-id>/<relative-path>#<event-id>
 ```
 
 Avoid full path leakage when displaying outside Settings/Source detail.
+
+Canonical pointer:
+
+```text
+filesystem://watch/<rootId>/<relativePath>#<eventId>
+```
 
 ## Sampling, Debounce, And Deduplication Defaults
 
@@ -543,6 +860,40 @@ clipboard_change: contentHash
 file_activity: rootId + relativePath + operation + contentHash
 terminal_command: sessionId + commandIndex
 ```
+
+## Anti-Noise Thresholds
+
+Background observation can produce many low-value focus Events. The first implementation should use
+these thresholds to prevent noisy Activity, Knowledge, and Recommendations:
+
+Activity Session creation:
+
+- Create/keep a session for Tier 1-only data only when there are at least 2 Events spanning at least
+  30 seconds, or when the session links to a higher-signal source such as command, file activity,
+  Codex/local-agent, chat, meeting, or explicit user action.
+- Merge isolated app focus changes under 30 seconds into neighboring sessions when app/project
+  context matches.
+- Do not create a separate session for a protected-app focus blip unless it lasts at least 5 minutes;
+  even then, keep it metadata-only.
+
+Knowledge generation:
+
+- Do not generate Knowledge from Tier 1 app/window metadata alone unless the Activity Session lasts
+  at least 10 minutes and includes at least one non-protected window title or source-backed summary.
+- Prefer Today summary wording like "Observed work in Terminal and editor" for low-signal sessions.
+- Generate detailed Knowledge only when the session includes semantic Events, explicit source Events,
+  command/file changes, discussions, meetings, or user-triggered recap.
+
+Recommendation generation:
+
+- Do not generate Recommendations from app/window focus alone.
+- Require todo/blocker/failed-test/repeated-workflow evidence or a user-visible stale follow-up.
+- Suppress duplicate recommendations with the same type and evidence set until new evidence appears.
+
+Memory generation:
+
+- Never generate Memory directly from observation Events.
+- Memory candidates only come from confirmed Knowledge or explicit user save.
 
 ## Protected Apps Strategy
 
@@ -755,9 +1106,9 @@ Manual local smoke for real macOS Tier 1:
 - Resume and verify Events continue.
 - Open a protected app and verify semantic capture is suppressed.
 
-## First Code Goal Cut
+## First Code Goal Cuts
 
-The first implementation goal should not attempt all of Goal 4. Use this smaller cut:
+The first implementation goal should not attempt all of Goal 4. Use these smaller cuts:
 
 ### Goal 4A: Mock Background Observation To Activity
 
@@ -844,4 +1195,3 @@ These should be resolved during implementation spikes:
 
 Until resolved, implementation should keep interfaces mockable and avoid committing core logic to a
 single OS capture mechanism.
-
