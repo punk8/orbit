@@ -1,6 +1,10 @@
+import { readFile, stat } from "node:fs/promises";
+import { basename } from "node:path";
 import type { ID } from "@orbit/core";
 
 export type VisionProviderKind = "disabled" | "mock" | "local" | "openai-compatible";
+
+export const DEFAULT_OPENAI_COMPATIBLE_VISION_MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 
 export interface VisionSummaryInput {
   language?: string;
@@ -14,6 +18,14 @@ export interface VisionSummaryInput {
   screen: {
     summary: string;
     frameHash?: string;
+    width?: number;
+    height?: number;
+  };
+  image?: {
+    localPath: string;
+    mimeType?: string;
+    filename?: string;
+    sizeBytes?: number;
     width?: number;
     height?: number;
   };
@@ -32,6 +44,7 @@ export interface VisionSummaryInput {
     maxInputChars: number;
     maxOutputTokens: number;
     maxImagePixels?: number;
+    maxImageBytes?: number;
   };
 }
 
@@ -72,6 +85,7 @@ export interface OpenAICompatibleVisionProviderConfig {
   apiKey?: string;
   timeoutMs?: number;
   maxTokens?: number;
+  maxImageBytes?: number;
 }
 
 export class VisionProviderError extends Error {
@@ -127,6 +141,7 @@ export function createOpenAICompatibleVisionProvider(
   const endpoint = normalizeChatCompletionsUrl(config.baseUrl);
   const timeoutMs = config.timeoutMs ?? 30_000;
   const maxTokens = readPositiveInteger(config.maxTokens, 700);
+  const maxImageBytes = config.maxImageBytes ?? DEFAULT_OPENAI_COMPATIBLE_VISION_MAX_IMAGE_BYTES;
 
   return {
     id: "openai_compatible_vision",
@@ -136,7 +151,8 @@ export function createOpenAICompatibleVisionProvider(
     model: config.model,
     async summarizeVision(input: VisionSummaryInput): Promise<VisionSummaryOutput> {
       assertVisionPolicyAllowsUse(input, true);
-      const payload = buildVisionChatCompletionsPayload(input, config.model, maxTokens);
+      await assertVisionImageBudget(input, maxImageBytes);
+      const payload = await buildVisionChatCompletionsPayload(input, config.model, maxTokens);
       const response = await postChatCompletion(endpoint, config.apiKey, payload, timeoutMs);
       return sanitizeVisionSummaryOutput(extractChatCompletionContent(response), input, {
         id: "openai_compatible_vision",
@@ -182,11 +198,11 @@ function assertVisionPolicyAllowsUse(input: VisionSummaryInput, external: boolea
   }
 }
 
-function buildVisionChatCompletionsPayload(
+async function buildVisionChatCompletionsPayload(
   input: VisionSummaryInput,
   model: string,
   maxTokens: number
-): Record<string, unknown> {
+): Promise<Record<string, unknown>> {
   return {
     model,
     messages: [
@@ -200,12 +216,31 @@ function buildVisionChatCompletionsPayload(
       },
       {
         role: "user",
-        content: JSON.stringify(buildVisionPromptInput(input), null, 2)
+        content: await buildVisionUserContent(input)
       }
     ],
     temperature: 0,
     max_tokens: maxTokens
   };
+}
+
+async function buildVisionUserContent(
+  input: VisionSummaryInput
+): Promise<string | Array<Record<string, unknown>>> {
+  const prompt = JSON.stringify(buildVisionPromptInput(input), null, 2);
+  if (!input.image?.localPath) return prompt;
+  return [
+    {
+      type: "text",
+      text: prompt
+    },
+    {
+      type: "image_url",
+      image_url: {
+        url: await readImageDataUrl(input.image)
+      }
+    }
+  ];
 }
 
 function buildVisionPromptInput(input: VisionSummaryInput): Record<string, unknown> {
@@ -225,12 +260,48 @@ function buildVisionPromptInput(input: VisionSummaryInput): Record<string, unkno
           languages: input.ocr.languages
         }
       : undefined,
+    image: input.image
+      ? {
+          filename: input.image.filename ?? basename(input.image.localPath),
+          mimeType: input.image.mimeType ?? "application/octet-stream",
+          sizeBytes: input.image.sizeBytes,
+          width: input.image.width,
+          height: input.image.height
+        }
+      : undefined,
     policy: {
       redactionState: input.policy.redactionState,
       exportEligible: input.policy.exportEligible
     },
     budget: input.budget
   };
+}
+
+async function assertVisionImageBudget(
+  input: VisionSummaryInput,
+  providerMaxImageBytes: number
+): Promise<void> {
+  if (!input.image?.localPath) return;
+  if (input.policy.redactionState === "failed") {
+    throw new VisionProviderError("Vision redaction failed; image provider call is blocked.");
+  }
+  const sizeBytes = input.image.sizeBytes ?? (await stat(input.image.localPath)).size;
+  const maxImageBytes = input.budget.maxImageBytes ?? providerMaxImageBytes;
+  if (sizeBytes > maxImageBytes) {
+    throw new VisionProviderError(`Vision image exceeds size budget: ${sizeBytes} bytes`);
+  }
+  const width = input.image.width ?? input.screen.width;
+  const height = input.image.height ?? input.screen.height;
+  const pixels = width && height ? width * height : undefined;
+  if (pixels && input.budget.maxImagePixels && pixels > input.budget.maxImagePixels) {
+    throw new VisionProviderError(`Vision image exceeds pixel budget: ${pixels} pixels`);
+  }
+}
+
+async function readImageDataUrl(image: NonNullable<VisionSummaryInput["image"]>): Promise<string> {
+  const bytes = await readFile(image.localPath);
+  const mimeType = image.mimeType ?? "application/octet-stream";
+  return `data:${mimeType};base64,${Buffer.from(bytes).toString("base64")}`;
 }
 
 async function postChatCompletion(

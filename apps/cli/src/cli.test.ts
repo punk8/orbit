@@ -20,6 +20,7 @@ import {
   getPerceptionReleaseGate,
   getPerceptionStatus,
   runScreenOcrSmoke,
+  summarizeVisionFixture,
   transcribeAudioFixture
 } from "./commands/perception";
 import {
@@ -355,6 +356,38 @@ describe("cli commands", () => {
     expect(JSON.stringify(artifact)).not.toContain("sk-test");
   });
 
+  it("runs Goal 9C configured vision fixture through provider policy", async () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-vision-command-test-"));
+    tempDirs.push(orbitHome);
+    process.env.ORBIT_HOME = orbitHome;
+
+    const blocked = await summarizeVisionFixture();
+    expect(
+      blocked.sources.find((source) => source.adapterId === "perception_vision")?.inserted
+    ).toBe(0);
+    expect(
+      blocked.sources.find((source) => source.adapterId === "perception_vision")?.warnings
+    ).toContain("Vision provider route is disabled.");
+
+    const database = openOrbitDatabase({ orbitHome });
+    try {
+      updatePerceptionSourcePolicy(database.db, "screen", { canUseForAI: true });
+      updatePerceptionSourcePolicy(database.db, "vision", { canUseForAI: true });
+      updatePerceptionProviderRoute(database.db, "vision", "mock");
+    } finally {
+      database.close();
+    }
+
+    const result = await summarizeVisionFixture();
+    expect(
+      result.sources.find((source) => source.adapterId === "perception_screen")?.inserted
+    ).toBe(0);
+    expect(
+      result.sources.find((source) => source.adapterId === "perception_vision")?.inserted
+    ).toBe(2);
+    expect(result.pipeline.knowledgeArtifacts.total).toBe(1);
+  });
+
   it("feeds mock meeting audio transcripts into Activity when policy allows", async () => {
     const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-audio-fixture-test-"));
     tempDirs.push(orbitHome);
@@ -501,6 +534,7 @@ describe("cli commands", () => {
     expect(perceptionHelp).toContain("screen-ocr-smoke");
     expect(perceptionHelp).toContain("source-policy");
     expect(perceptionHelp).toContain("provider-route");
+    expect(perceptionHelp).toContain("vision-fixture");
     expect(perceptionHelp).toContain("transcribe-fixture");
     expect(perceptionHelp).toContain("cleanup");
     expect(perceptionHelp).toContain("release-gate");

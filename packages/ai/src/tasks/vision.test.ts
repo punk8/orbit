@@ -1,5 +1,8 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   createOpenAICompatibleVisionProvider,
@@ -8,6 +11,7 @@ import {
 } from "./vision";
 
 const servers: Array<{ close(callback?: (error?: Error) => void): void }> = [];
+const tempDirs: string[] = [];
 
 afterEach(async () => {
   await Promise.all(
@@ -18,6 +22,9 @@ afterEach(async () => {
         })
     )
   );
+  for (const dir of tempDirs.splice(0)) {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 describe("vision providers", () => {
@@ -96,6 +103,88 @@ describe("vision providers", () => {
     expect(JSON.stringify(requestBody)).toContain("Settings scrolling issue");
     expect(JSON.stringify(requestBody)).not.toContain("sidecar://raw/frame.png");
   });
+
+  it("can send bounded image bytes without exposing the local image path", async () => {
+    const imagePath = writeFixtureImage();
+    let requestBody: unknown;
+    const baseUrl = await startProviderServer(async (request, response) => {
+      requestBody = JSON.parse(await readRequestBody(request));
+      writeJson(response, {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                title: "Image vision",
+                summary: "Provider inspected a bounded image input.",
+                keyInsights: ["Image payload was accepted."],
+                decisions: [],
+                followUps: [],
+                confidence: 0.88
+              })
+            }
+          }
+        ]
+      });
+    });
+    const provider = createOpenAICompatibleVisionProvider({
+      baseUrl,
+      model: "vision-test-model",
+      maxImageBytes: 1024
+    });
+
+    const output = await provider.summarizeVision(
+      makeVisionInput({
+        image: {
+          localPath: imagePath,
+          mimeType: "image/png",
+          filename: "frame.png",
+          width: 64,
+          height: 64
+        },
+        budget: {
+          maxInputChars: 500,
+          maxOutputTokens: 300,
+          maxImagePixels: 10_000,
+          maxImageBytes: 1024
+        }
+      })
+    );
+
+    const serialized = JSON.stringify(requestBody);
+    expect(output.summary).toContain("bounded image");
+    expect(serialized).toContain("image_url");
+    expect(serialized).toContain("data:image/png;base64");
+    expect(serialized).toContain("frame.png");
+    expect(serialized).not.toContain(imagePath);
+  });
+
+  it("blocks image inputs that exceed image budgets", async () => {
+    const imagePath = writeFixtureImage();
+    const provider = createOpenAICompatibleVisionProvider({
+      baseUrl: "http://localhost:1",
+      model: "vision-test-model",
+      maxImageBytes: 1
+    });
+
+    await expect(
+      provider.summarizeVision(
+        makeVisionInput({
+          image: {
+            localPath: imagePath,
+            mimeType: "image/png",
+            width: 128,
+            height: 128
+          },
+          budget: {
+            maxInputChars: 500,
+            maxOutputTokens: 300,
+            maxImagePixels: 100,
+            maxImageBytes: 1
+          }
+        })
+      )
+    ).rejects.toThrow(/size budget|pixel budget/i);
+  });
 });
 
 function makeVisionInput(
@@ -135,6 +224,14 @@ function makeVisionInput(
     },
     ...overrides
   };
+}
+
+function writeFixtureImage(): string {
+  const dir = mkdtempSync(join(tmpdir(), "orbit-vision-test-"));
+  tempDirs.push(dir);
+  const imagePath = join(dir, "frame.png");
+  writeFileSync(imagePath, Buffer.from("fake-png-orbit-frame"));
+  return imagePath;
 }
 
 async function startProviderServer(

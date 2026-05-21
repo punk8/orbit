@@ -1,18 +1,31 @@
 import {
   audioPermission,
   MockScreenCaptureNativeHelper,
+  MockOcrEngine,
+  OCR_OBSERVATION_ADAPTER_ID,
+  OcrObservationAdapter,
   readAudioFixtures,
+  readScreenCaptureFixtures,
+  SCREEN_OBSERVATION_ADAPTER_ID,
+  ScreenObservationAdapter,
   ScreenObservationSession,
   type ScreenCaptureScope,
   screenPermission,
   TRANSCRIPT_OBSERVATION_ADAPTER_ID,
   TranscriptObservationAdapter,
-  transcriptPolicyFromPerceptionStatus
+  transcriptPolicyFromPerceptionStatus,
+  VISION_SUMMARY_ADAPTER_ID,
+  VisionSummaryAdapter,
+  visionPolicyFromPerceptionStatus
 } from "@orbit/adapters";
 import {
   buildTranscriptionProvider,
+  createOpenAICompatibleVisionProvider,
+  disabledVisionProvider,
   disabledTranscriptionProvider,
-  readAIProviderConfigFromEnv
+  mockVisionProvider,
+  readAIProviderConfigFromEnv,
+  type VisionProvider
 } from "@orbit/ai";
 import { ingestEventsFromAdapter } from "@orbit/core";
 import {
@@ -84,6 +97,20 @@ export interface TranscribeFixtureCommandResult {
     nextCursor?: string;
     warnings: string[];
   };
+  pipeline: SemanticPipelineResult;
+}
+
+export interface VisionFixtureCommandResult {
+  orbitHome: string;
+  dbPath: string;
+  sources: Array<{
+    adapterId: string;
+    read: number;
+    inserted: number;
+    skipped: number;
+    nextCursor?: string;
+    warnings: string[];
+  }>;
   pipeline: SemanticPipelineResult;
 }
 
@@ -334,6 +361,112 @@ export async function transcribeAudioFixture(): Promise<TranscribeFixtureCommand
   }
 }
 
+export async function summarizeVisionFixture(): Promise<VisionFixtureCommandResult> {
+  const config = getCliConfig();
+  const database = openOrbitDatabase({ orbitHome: config.orbitHome });
+  try {
+    const sourceRepository = new SourceRepository(database.db);
+    const eventRepository = new EventRepository(database.db);
+    const auditRepository = new AuditRepository(database.db);
+    const perception = readPerceptionStatus(database.db);
+    const fixtureRead = readScreenCaptureFixtures(
+      join(config.fixturesRoot, "perception/screen-ocr")
+    );
+    const scope = fixtureRead.frames[0]?.scope ?? smokeScope("display");
+    const screenAdapters = [
+      new ScreenObservationAdapter({
+        id: SCREEN_OBSERVATION_ADAPTER_ID,
+        frames: fixtureRead.frames,
+        scope,
+        permission: screenPermission("granted"),
+        protectedApps: perception.protectedApps,
+        allowRawFrameStorage: false,
+        canUseForAI:
+          perception.sources.find((source) => source.sourceKind === "screen")?.policy
+            .canUseForAI === true,
+        canExportToAgent:
+          perception.sources.find((source) => source.sourceKind === "screen")?.policy
+            .canExportToAgent === true
+      }),
+      new OcrObservationAdapter({
+        id: OCR_OBSERVATION_ADAPTER_ID,
+        frames: fixtureRead.frames,
+        scope,
+        engine: new MockOcrEngine(),
+        permission: screenPermission("granted"),
+        protectedApps: perception.protectedApps,
+        canUseForAI:
+          perception.sources.find((source) => source.sourceKind === "ocr")?.policy.canUseForAI ===
+          true,
+        canExportToAgent:
+          perception.sources.find((source) => source.sourceKind === "ocr")?.policy
+            .canExportToAgent === true
+      })
+    ];
+    const results: VisionFixtureCommandResult["sources"] = [];
+    for (const adapter of screenAdapters) {
+      sourceRepository.upsertFromAdapter(adapter);
+      const cursor = sourceRepository.getCursor(adapter.id);
+      const result = await ingestEventsFromAdapter(adapter, eventRepository, cursor);
+      sourceRepository.setCursor(adapter.id, result.nextCursor);
+      sourceRepository.recordSyncSuccess(adapter.id, { lastEventAt: result.lastEventAt });
+      const warnings = [...fixtureRead.warnings, ...result.warnings];
+      results.push({
+        adapterId: result.adapterId,
+        read: result.read,
+        inserted: result.inserted,
+        skipped: result.skipped,
+        ...(result.nextCursor ? { nextCursor: result.nextCursor } : {}),
+        warnings
+      });
+    }
+
+    const providerBuild = buildCliVisionProvider(perception);
+    const allEvents = eventRepository.listEvents();
+    const visionAdapter = new VisionSummaryAdapter({
+      id: VISION_SUMMARY_ADAPTER_ID,
+      screenEvents: allEvents.filter(
+        (event) => event.source.adapterId === SCREEN_OBSERVATION_ADAPTER_ID
+      ),
+      ocrEvents: allEvents.filter((event) => event.source.adapterId === OCR_OBSERVATION_ADAPTER_ID),
+      provider: providerBuild.provider,
+      policy: visionPolicyFromPerceptionStatus(perception)
+    });
+    sourceRepository.upsertFromAdapter(visionAdapter);
+    const cursor = sourceRepository.getCursor(visionAdapter.id);
+    const result = await ingestEventsFromAdapter(visionAdapter, eventRepository, cursor);
+    sourceRepository.setCursor(visionAdapter.id, result.nextCursor);
+    sourceRepository.recordSyncSuccess(visionAdapter.id, { lastEventAt: result.lastEventAt });
+    const visionWarnings = [...providerBuild.warnings, ...result.warnings];
+    auditRepository.log("perception.vision_fixture", "source", visionAdapter.id, {
+      mode: "explicit_fixture_vision",
+      provider: providerBuild.provider.kind,
+      read: result.read,
+      inserted: result.inserted,
+      skipped: result.skipped,
+      warnings: visionWarnings
+    });
+    results.push({
+      adapterId: result.adapterId,
+      read: result.read,
+      inserted: result.inserted,
+      skipped: result.skipped,
+      ...(result.nextCursor ? { nextCursor: result.nextCursor } : {}),
+      warnings: visionWarnings
+    });
+
+    const pipeline = runSemanticPipeline(database);
+    return {
+      orbitHome: database.orbitHome,
+      dbPath: database.dbPath,
+      sources: results,
+      pipeline
+    };
+  } finally {
+    database.close();
+  }
+}
+
 function buildCliTranscriptionProvider(perception: PerceptionControlPlaneStatus): {
   provider: ReturnType<typeof buildTranscriptionProvider>;
   warnings: string[];
@@ -356,6 +489,41 @@ function buildCliTranscriptionProvider(perception: PerceptionControlPlaneStatus)
   } catch (error) {
     return {
       provider: disabledTranscriptionProvider,
+      warnings: [error instanceof Error ? error.message : String(error)]
+    };
+  }
+}
+
+function buildCliVisionProvider(perception: PerceptionControlPlaneStatus): {
+  provider: VisionProvider;
+  warnings: string[];
+} {
+  const route = perception.providerRoutes.find((item) => item.task === "vision");
+  const aiConfig = readAIProviderConfigFromEnv();
+  try {
+    if (route?.provider === "mock") return { provider: mockVisionProvider, warnings: [] };
+    if (route?.provider === "openai-compatible") {
+      if (!aiConfig.baseUrl?.trim()) {
+        throw new Error("OpenAI-compatible vision provider requires a base URL.");
+      }
+      if (!aiConfig.model?.trim()) {
+        throw new Error("OpenAI-compatible vision provider requires a model.");
+      }
+      return {
+        provider: createOpenAICompatibleVisionProvider({
+          baseUrl: aiConfig.baseUrl,
+          model: aiConfig.model,
+          ...(aiConfig.apiKey ? { apiKey: aiConfig.apiKey } : {}),
+          ...(aiConfig.timeoutMs ? { timeoutMs: aiConfig.timeoutMs } : {}),
+          ...(aiConfig.maxTokens ? { maxTokens: aiConfig.maxTokens } : {})
+        }),
+        warnings: []
+      };
+    }
+    return { provider: disabledVisionProvider, warnings: [] };
+  } catch (error) {
+    return {
+      provider: disabledVisionProvider,
       warnings: [error instanceof Error ? error.message : String(error)]
     };
   }

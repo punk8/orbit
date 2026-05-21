@@ -45,6 +45,7 @@ import {
   runScreenOcrSmoke,
   setPerceptionProviderRoute,
   setPerceptionSourcePolicy,
+  summarizeVisionFixture,
   transcribeAudioFixture
 } from "./commands/perception";
 import { runSemanticPipeline } from "./commands/semanticPipeline";
@@ -510,6 +511,14 @@ export function buildProgram(): Command {
     .option("--json", "output JSON")
     .action((task: string, provider: string, options: { json?: boolean }) => {
       const result = setPerceptionProviderRoute({ task, provider });
+      writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
+    });
+  perception
+    .command("vision-fixture")
+    .description("Run explicit screen/OCR fixture vision summary through the configured route")
+    .option("--json", "output JSON")
+    .action(async (options: { json?: boolean }) => {
+      const result = await summarizeVisionFixture();
       writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
     });
   perception
