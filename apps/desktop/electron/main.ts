@@ -4,9 +4,11 @@ import {
   cleanupLegacyEventPrivacyForDesktop,
   clearLocalDataForDesktop,
   deleteSourceForDesktop,
+  editKnowledgeForDesktop,
   exportContextForDesktop,
   generateHandoffForDesktop,
   getActivitySessionDetailForDesktop,
+  getKnowledgeArtifactDetailForDesktop,
   readDesktopSnapshot,
   readDesktopSettings,
   reconfigureSourceForDesktop,
@@ -17,6 +19,7 @@ import {
   reviewRecommendationForDesktop,
   runBackgroundIngestionForDesktop,
   setCollectionPausedForDesktop,
+  searchKnowledgeForDesktop,
   setupSourceForDesktop,
   testAIProviderForDesktop,
   updateSourceRuntimeForDesktop,
@@ -69,6 +72,15 @@ async function createMainWindow(): Promise<BrowserWindow> {
 ipcMain.handle("orbit:getSnapshot", () => readDesktopSnapshot());
 ipcMain.handle("orbit:getActivitySessionDetail", (_event, id: string) =>
   getActivitySessionDetailForDesktop(id)
+);
+ipcMain.handle("orbit:searchKnowledge", (_event, query: string, filters = {}) =>
+  searchKnowledgeForDesktop(String(query ?? ""), filters)
+);
+ipcMain.handle("orbit:getKnowledgeArtifactDetail", (_event, id: string) =>
+  getKnowledgeArtifactDetailForDesktop(id)
+);
+ipcMain.handle("orbit:editKnowledge", (_event, id: string, patch) =>
+  editKnowledgeForDesktop(id, patch)
 );
 ipcMain.handle("orbit:reviewKnowledge", (_event, id: string, action: string) =>
   reviewKnowledgeForDesktop(id, requireKnowledgeAction(action))
@@ -277,6 +289,11 @@ async function runRendererSmoke(window: BrowserWindow): Promise<void> {
             await click('[data-page-id="' + pageId + '"]');
             await waitFor('[data-page-id="' + pageId + '"].active');
           }
+          await click('[data-page-id="knowledge"]');
+          const artifact = await waitFor(".knowledge-list-item");
+          artifact.click();
+          await waitFor(".knowledge-detail-pane .detail-header");
+          await waitFor(".markdown-preview");
           await click('[data-page-id="activity"]');
           const session = await waitFor(".activity-list-item");
           session.click();

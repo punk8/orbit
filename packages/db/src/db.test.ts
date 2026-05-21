@@ -14,7 +14,12 @@ import { ActivityRepository } from "./repositories/activityRepository";
 import { KnowledgeRepository } from "./repositories/knowledgeRepository";
 import { MemoryRepository } from "./repositories/memoryRepository";
 import { AuditRepository } from "./repositories/auditRepository";
-import { reviewKnowledgeArtifact, reviewMemory, reviewRecommendation } from "./governance";
+import {
+  editKnowledgeArtifact,
+  reviewKnowledgeArtifact,
+  reviewMemory,
+  reviewRecommendation
+} from "./governance";
 import { RecommendationRepository } from "./repositories/recommendationRepository";
 import { openOrbitDatabase } from "./connection";
 import { resolveOrbitDbPath, writeOrbitRuntimeConfig } from "./orbitHome";
@@ -124,6 +129,34 @@ describe("sqlite store", () => {
       expect(operations).toContain("memory.generate_candidate");
       expect(operations).toContain("memory.confirm");
       expect(operations).toContain("recommendation.dismiss");
+    } finally {
+      close();
+    }
+  });
+
+  it("edits knowledge content without dropping evidence or FTS indexing", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-db-knowledge-edit-test-"));
+    tempDirs.push(orbitHome);
+    const { db, close } = openOrbitDatabase({ orbitHome });
+    try {
+      const event = makeEvent();
+      new EventRepository(db).upsertEvent(event);
+      const repository = new KnowledgeRepository(db);
+      repository.upsertKnowledgeArtifact(makeKnowledge(event));
+
+      const updated = editKnowledgeArtifact(db, "knowledge_fixture", {
+        title: "Edited fixture knowledge",
+        description: "Edited description.",
+        keyInsights: ["Edited insight"],
+        markdown: "# Edited fixture knowledge\n\nEdited description."
+      });
+
+      expect(updated.evidence).toEqual([evidenceFromEvent(event, "Synthetic fixture event")]);
+      expect(repository.searchKnowledge("Edited").map((artifact) => artifact.id)).toContain(
+        "knowledge_fixture"
+      );
+      const operations = new AuditRepository(db).listAuditLogs().map((log) => log.operation);
+      expect(operations).toContain("knowledge.edit");
     } finally {
       close();
     }

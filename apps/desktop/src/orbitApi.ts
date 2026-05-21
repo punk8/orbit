@@ -3,6 +3,7 @@ import type {
   Event,
   HandoffPack,
   KnowledgeArtifact,
+  KnowledgeArtifactType,
   Memory,
   Recommendation,
   SourceRecord,
@@ -13,6 +14,7 @@ import type {
   MemoryReviewAction,
   RecommendationReviewAction
 } from "@orbit/db";
+import type { KnowledgeEditInput } from "@orbit/db";
 
 export interface DesktopSnapshot {
   orbitHome: string;
@@ -66,6 +68,21 @@ export interface DesktopActivitySessionDetail {
   linkedKnowledge: KnowledgeArtifact[];
   linkedMemories: Memory[];
   linkedRecommendations: Recommendation[];
+}
+
+export interface DesktopKnowledgeSearchFilters {
+  status?: KnowledgeArtifact["status"] | undefined;
+  type?: KnowledgeArtifactType | undefined;
+  project?: string | undefined;
+  sourceKind?: string | undefined;
+  dateFrom?: string | undefined;
+  dateTo?: string | undefined;
+}
+
+export interface DesktopKnowledgeArtifactDetail {
+  artifact: KnowledgeArtifact;
+  sourceSessions: ActivitySession[];
+  relatedMemories: Memory[];
 }
 
 export type DesktopSettingKey =
@@ -135,6 +152,12 @@ export interface DesktopHandoffResult extends DesktopActionResult {
 export interface OrbitDesktopApi {
   getSnapshot(): Promise<DesktopSnapshot>;
   getActivitySessionDetail(id: string): Promise<DesktopActivitySessionDetail>;
+  searchKnowledge(
+    query: string,
+    filters?: DesktopKnowledgeSearchFilters
+  ): Promise<KnowledgeArtifact[]>;
+  getKnowledgeArtifactDetail(id: string): Promise<DesktopKnowledgeArtifactDetail>;
+  editKnowledge(id: string, patch: KnowledgeEditInput): Promise<DesktopSnapshot>;
   reviewKnowledge(id: string, action: KnowledgeReviewAction): Promise<DesktopSnapshot>;
   reviewMemory(id: string, action: MemoryReviewAction): Promise<DesktopSnapshot>;
   reviewRecommendation(

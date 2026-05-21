@@ -22,6 +22,7 @@ import type {
   SourceSetupKind
 } from "./orbitApi";
 import type {
+  KnowledgeEditInput,
   KnowledgeReviewAction,
   MemoryReviewAction,
   RecommendationReviewAction
@@ -200,6 +201,10 @@ export function App(): ReactElement {
     );
   }
 
+  function editKnowledge(id: string, patch: KnowledgeEditInput): Promise<void> {
+    return runReviewAction(() => window.orbit.editKnowledge(id, patch), t("error.knowledgeEdit"));
+  }
+
   function reviewMemory(id: string, action: MemoryReviewAction): Promise<void> {
     return runReviewAction(() => window.orbit.reviewMemory(id, action), t("error.memoryReview"));
   }
@@ -286,6 +291,7 @@ export function App(): ReactElement {
           {snapshot
             ? renderPage(activePage, snapshot, {
                 reviewKnowledge,
+                editKnowledge,
                 reviewMemory,
                 reviewRecommendation,
                 updateSetting,
@@ -321,6 +327,7 @@ function tRuntimeStatus(
 
 interface PageActions {
   reviewKnowledge(id: string, action: KnowledgeReviewAction): Promise<void>;
+  editKnowledge(id: string, patch: KnowledgeEditInput): Promise<void>;
   reviewMemory(id: string, action: MemoryReviewAction): Promise<void>;
   reviewRecommendation(id: string, action: RecommendationReviewAction): Promise<void>;
   updateSetting(key: DesktopSettingKey, value: unknown): Promise<void>;
@@ -347,7 +354,13 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
     case "activity":
       return <ActivityPage sessions={snapshot.activitySessions} />;
     case "knowledge":
-      return <KnowledgePage artifacts={snapshot.knowledgeArtifacts} />;
+      return (
+        <KnowledgePage
+          artifacts={snapshot.knowledgeArtifacts}
+          onEditKnowledge={actions.editKnowledge}
+          onReviewKnowledge={actions.reviewKnowledge}
+        />
+      );
     case "memory":
       return <MemoryPage memories={snapshot.memories} />;
     case "recommendations":

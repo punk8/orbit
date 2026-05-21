@@ -4,6 +4,7 @@ import {
   getLocalDateKey,
   ingestEventsFromAdapter,
   type EvidenceRef,
+  type KnowledgeArtifact,
   type SourceAdapter,
   type SourceKind
 } from "@orbit/core";
@@ -37,6 +38,7 @@ import {
   RecommendationRepository,
   SettingsRepository,
   SourceRepository,
+  editKnowledgeArtifact,
   reviewKnowledgeArtifact,
   reviewMemory,
   reviewRecommendation,
@@ -44,6 +46,7 @@ import {
 } from "@orbit/db";
 import { safeStorage } from "electron";
 import type {
+  KnowledgeEditInput,
   KnowledgeReviewAction,
   MemoryReviewAction,
   RecommendationReviewAction
@@ -55,6 +58,8 @@ import type {
   DesktopAIProviderTestConfig,
   DesktopHandoffRequest,
   DesktopHandoffResult,
+  DesktopKnowledgeArtifactDetail,
+  DesktopKnowledgeSearchFilters,
   DesktopRuntimeStatus,
   DesktopSourceRuntimeAction,
   DesktopSettingKey,
@@ -189,6 +194,67 @@ export function getActivitySessionDetailForDesktop(id: string): DesktopActivityS
   } finally {
     database.close();
   }
+}
+
+export function searchKnowledgeForDesktop(
+  query = "",
+  filters: DesktopKnowledgeSearchFilters = {}
+): KnowledgeArtifact[] {
+  const database = openOrbitDatabase();
+  try {
+    const repository = new KnowledgeRepository(database.db);
+    const trimmedQuery = query.trim();
+    const artifacts = trimmedQuery
+      ? repository.searchKnowledge(toFtsQuery(trimmedQuery))
+      : repository.listKnowledgeArtifacts();
+    return filterKnowledgeArtifacts(artifacts, filters);
+  } finally {
+    database.close();
+  }
+}
+
+export function getKnowledgeArtifactDetailForDesktop(id: string): DesktopKnowledgeArtifactDetail {
+  const database = openOrbitDatabase();
+  try {
+    const knowledgeRepository = new KnowledgeRepository(database.db);
+    const activityRepository = new ActivityRepository(database.db);
+    const memoryRepository = new MemoryRepository(database.db);
+    const artifact = knowledgeRepository.getKnowledgeArtifact(id);
+    if (!artifact) {
+      throw new Error(`Unknown knowledge artifact: ${id}`);
+    }
+
+    const sessionIds = new Set(artifact.metadata.sourceSessionIds);
+    for (const ref of artifact.evidence) {
+      if (ref.activitySessionId) {
+        sessionIds.add(ref.activitySessionId);
+      }
+    }
+
+    const evidenceKeys = evidenceKeySet(artifact.evidence);
+    return {
+      artifact,
+      sourceSessions: [...sessionIds]
+        .map((sessionId) => activityRepository.getActivitySession(sessionId))
+        .filter((session) => session !== undefined),
+      relatedMemories: memoryRepository.listMemories().filter((memory) => {
+        if (artifact.memoryCandidateIds?.includes(memory.id)) return true;
+        return memory.evidence.some((ref) => evidenceKeys.has(evidenceKey(ref)));
+      })
+    };
+  } finally {
+    database.close();
+  }
+}
+
+export function editKnowledgeForDesktop(id: string, patch: KnowledgeEditInput): DesktopSnapshot {
+  const database = openOrbitDatabase();
+  try {
+    editKnowledgeArtifact(database.db, id, patch);
+  } finally {
+    database.close();
+  }
+  return readDesktopSnapshot();
 }
 
 export function reviewKnowledgeForDesktop(
@@ -660,6 +726,42 @@ export async function testAIProviderForDesktop(
   } finally {
     database.close();
   }
+}
+
+function filterKnowledgeArtifacts(
+  artifacts: KnowledgeArtifact[],
+  filters: DesktopKnowledgeSearchFilters
+): KnowledgeArtifact[] {
+  return artifacts.filter((artifact) => {
+    if (filters.status && artifact.status !== filters.status) return false;
+    if (filters.type && artifact.type !== filters.type) return false;
+    if (filters.project && !artifact.metadata.projects.includes(filters.project)) return false;
+    if (
+      filters.sourceKind &&
+      !artifact.evidence.some((ref) => ref.sourceKind === filters.sourceKind)
+    ) {
+      return false;
+    }
+    const date = artifact.metadata.timeWindow?.startAt ?? artifact.createdAt;
+    if (filters.dateFrom && date < `${filters.dateFrom}T00:00:00.000Z`) return false;
+    if (filters.dateTo && date > `${filters.dateTo}T23:59:59.999Z`) return false;
+    return true;
+  });
+}
+
+function toFtsQuery(query: string): string {
+  return query
+    .split(/\s+/)
+    .map((term) => `"${term.replaceAll('"', '""')}"`)
+    .join(" ");
+}
+
+function evidenceKeySet(evidence: EvidenceRef[]): Set<string> {
+  return new Set(evidence.map(evidenceKey));
+}
+
+function evidenceKey(ref: EvidenceRef): string {
+  return `${ref.eventId ?? ""}:${ref.activitySessionId ?? ""}:${ref.sourcePointer}`;
 }
 
 function readSettings(settings: SettingsRepository): DesktopSnapshot["settings"] {
