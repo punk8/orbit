@@ -24,6 +24,7 @@ Orbit's job is to reduce re-explanation. The user and their AI tools should not 
 - **Raw data is cost, structured knowledge is value**: Events, messages, recordings, and commands are evidence. Knowledge Artifacts and Memories are the durable product output.
 - **Trust requires traceability**: Important summaries, memories, and recommendations must link back to source Activity Sessions or Events.
 - **Adapters are replaceable**: Codex, SeaTalk, screen capture, calendar, mail, Jira, and GitLab are input channels. The stable core is the Event schema and processing pipeline.
+- **Perception is an input, not the center**: Screen and audio can become first-class future adapters because they help Orbit understand browser, UI, meeting, and design work. They must remain permissioned, high-risk evidence sources rather than the main product surface.
 - **Proactivity must be explainable**: Recommendations need basis, confidence, and suggested action. Orbit should not perform side effects without approval.
 - **Automation comes after reliability**: Orbit should first become a trustworthy context system, then gradually support task execution and handoff.
 
@@ -60,6 +61,8 @@ Orbit should also treat **Handoff Pack** as a first-class product output.
 - Handoff generation is read-only by default; it can suggest next actions but must not execute them.
 
 See [Handoff Pack](./handoff-pack.md) for the product shape and default inclusion rules.
+
+Screen and audio perception should support Handoff Pack later by contributing redacted, traceable Events. Handoff Pack must not depend on perception capture and must block raw screenshots, recordings, audio, transcripts, failed-redaction data, and non-exportable sources by default. See [Perception Research Spike](./perception-research-spike.md).
 
 ## Non-Goals For The First Development Cycle
 

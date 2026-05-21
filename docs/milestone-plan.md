@@ -102,7 +102,7 @@ Acceptance criteria:
 - User can review Knowledge and Memory.
 - User can pause adapters.
 
-## Milestone 5: Memory Extraction And Agent Interface
+## Milestone 5: Handoff Pack And Agent Continuity
 
 Goal: make Orbit useful to external agents and new agent sessions.
 
@@ -120,16 +120,21 @@ Scope:
   - `orbit context project <name>`
   - `orbit handoff today`
   - `orbit handoff project <name>`
-- MCP server read APIs.
-- Basic Codex/Claude skill wrapper around CLI.
+- Desktop Handoff review/copy surface.
+- Read-only resource descriptors for later MCP/local API exposure.
+- Hardened explicit-path Codex/local-agent ingestion so handoffs can rely on real local source fixtures.
 
 Acceptance criteria:
 
 - External agent can retrieve today's context.
 - External agent can search confirmed Memories.
 - External agent can retrieve a concise Handoff Pack with current state, recent Activity, confirmed Knowledge, active Memory, Recommendations, safety boundaries, and evidence pointers.
+- User can review and copy the Handoff Pack locally before giving it to another agent.
 - Memory writes require user confirmation.
 - Recommendations include evidence and confidence.
+- No handoff output includes raw Event text, secret content, failed-redaction data, draft Knowledge, unconfirmed Memory, or non-exportable sources by default.
+
+MCP server read APIs and Codex/Claude skill wrappers should follow after this milestone, once the CLI/Desktop Handoff Pack shape is stable.
 
 ## Milestone 6: Recommendation Engine
 
@@ -178,3 +183,6 @@ Run these before committing to final code shape:
 
 5. **Agent CLI**
    - Verify an external agent can retrieve context through CLI without opening the UI.
+
+6. **Perception Capture Gate**
+   - Verify permission copy, visible running state, pause/stop controls, retention defaults, app/window exclusions, audit logging, local processing, redaction before persistence, default agent export blocking, CPU/storage budget, and explicit user approval before raw screen or audio capture.

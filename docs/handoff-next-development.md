@@ -103,6 +103,17 @@ Implemented and recently verified:
   - CLI context/export defaults include confirmed Knowledge/Memory only
   - Sources UI displays source permissions, readable fields, raw storage policy, AI policy, export policy, and adapter interface
   - desktop clear-local-data action has a confirmation boundary
+- Goal 7 agent continuity work on branch `codex/goal-7-agent-continuity`:
+  - privacy-safe Handoff Pack builder in `@orbit/core`
+  - DB assembly and local `handoff.generate` audit logging
+  - `orbit handoff today --json`
+  - `orbit handoff today --format markdown`
+  - `orbit handoff project <name> --json`
+  - `orbit handoff project <name> --format markdown`
+  - Desktop Handoff page for local generate, preview, and copy
+  - read-only agent resource descriptors for `orbit://handoff/today` and `orbit://handoff/project/<name>`
+  - hardened explicit-path Codex/local-agent fixture coverage for nested directories, `.json` arrays, malformed JSONL warnings, stable pointers, and cursor idempotency
+  - screen/audio research and disabled capability descriptors; no raw capture implementation
 
 ## Important Current Behavior
 
@@ -126,11 +137,88 @@ Agent-facing context defaults are now conservative:
 - Existing local databases may contain old source records created before `sources.adapterConfigs`. Sources now exposes a reconfigure action so a user can attach the missing adapter path/interface without deleting the database.
 - Existing Events inserted before the privacy gate may still contain old `content.text`. Sources now exposes legacy privacy cleanup, which removes raw event text when the source policy disallows raw storage while preserving summaries and evidence pointers.
 - Source permission policies are visible but not yet user-editable from the UI.
-- `packages/agent-api` is still a placeholder. CLI context commands are the only usable agent interface right now.
+- `packages/agent-api` exposes read-only handoff resource descriptors, but there is still no running MCP server or local HTTP agent API.
 - MCP/local HTTP server/Skill wrapper are not implemented yet.
 - No screen capture, OCR, audio transcription, active app/window accessibility capture, or calendar/mail/Jira/GitLab adapters have been implemented.
 - SeaTalk remains approved-import-only. Do not add speculative scraping.
 - Packaging is unsigned and not notarized. See `docs/alpha-release-checklist.md`.
+
+## Goal 7: Agent Continuity And Perception Readiness
+
+Status: in progress on branch `codex/goal-7-agent-continuity`.
+
+Base commit before Goal 7 implementation:
+
+- `2507788 docs: plan agent continuity goal`
+
+Update this section with the final commit hash after the checkpoint commit lands.
+
+Implemented scope:
+
+- Handoff Pack domain builder and Markdown formatter.
+- Default Handoff Pack privacy exclusions for draft Knowledge, unconfirmed Memory, terminal Recommendations, missing evidence, secret content, failed redaction, and sources that disallow agent export.
+- Evidence index with compact source pointers instead of raw Event text.
+- DB assembly for today/project Handoff Packs with local `handoff.generate` audit logs.
+- CLI handoff commands:
+  - `orbit handoff today --json`
+  - `orbit handoff today --format markdown`
+  - `orbit handoff today --date <YYYY-MM-DD>`
+  - `orbit handoff project <name> --json`
+  - `orbit handoff project <name> --format markdown`
+- Desktop Handoff route:
+  - sidebar navigation item
+  - generate today handoff
+  - generate project handoff
+  - preview Markdown locally
+  - copy Markdown to clipboard
+  - safety boundary and evidence summaries
+  - English and Chinese i18n strings
+- Codex/local-agent adapter hardening tests for explicit local paths:
+  - nested directories
+  - `.json` array fixtures
+  - malformed JSONL warnings
+  - deterministic source pointers
+  - cursor idempotency
+- Agent API descriptor builders:
+  - `orbit://handoff/today`
+  - `orbit://handoff/project/<name>`
+  - read-only Markdown descriptors only
+- Screen/audio perception readiness:
+  - `SourceKind` now includes `audio`
+  - disabled descriptors for screen and audio are exported from `@orbit/core`
+  - descriptors are `research_only`, disabled by default, permission-required, non-capturing, and blocked from default agent export
+  - [Perception Research Spike](./perception-research-spike.md) documents the future macOS path and production-capture gate
+
+Exact acceptance commands for final Goal 7 verification:
+
+```bash
+rm -rf .tmp/goal-7-acceptance
+export ORBIT_HOME="$PWD/.tmp/goal-7-acceptance"
+pnpm test
+pnpm typecheck
+pnpm lint
+pnpm --filter @orbit/adapters test
+pnpm --filter @orbit/cli orbit ingest fixtures --json
+pnpm --filter @orbit/cli orbit ingest codex --path fixtures/codex-sessions --json
+pnpm --filter @orbit/cli orbit ingest local-agent --path fixtures/realistic/local-agent --json
+pnpm --filter @orbit/cli orbit pipeline run --json
+pnpm --filter @orbit/cli orbit handoff today --json
+pnpm --filter @orbit/cli orbit handoff today --format markdown
+pnpm --filter @orbit/cli orbit handoff project orbit --json
+pnpm --filter @orbit/desktop build
+pnpm --filter @orbit/desktop test:e2e
+pnpm --filter @orbit/desktop package:dir
+pnpm rebuild better-sqlite3
+pnpm --filter @orbit/cli orbit status --json
+```
+
+Goal 7 watchouts:
+
+- Handoff generation is local read-only assembly. It does not send content to agents automatically.
+- `--format markdown` is the only non-JSON format implemented; unsupported format validation can be tightened later.
+- Desktop copy uses the user's clipboard, but there is no external send/share action.
+- Agent API is descriptor-only. MCP/local HTTP serving remains later work.
+- Screen/audio are visible as future capabilities only. Do not add ScreenCaptureKit, OCR, microphone, transcription, or raw media storage without passing the production-capture gate in `docs/perception-research-spike.md`.
 
 ## Goal 6: Source Reconfiguration And Privacy Cleanup
 

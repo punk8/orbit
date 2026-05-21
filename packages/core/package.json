@@ -8,7 +8,7 @@
     "./*": "./src/*"
   },
   "scripts": {
-    "test": "vitest run",
+    "test": "vitest run --root ../.. packages/core/src",
     "typecheck": "tsc --noEmit -p ../../tsconfig.json"
   }
 }

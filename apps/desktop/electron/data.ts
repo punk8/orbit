@@ -1,5 +1,6 @@
 import {
   buildTodayContext,
+  formatHandoffMarkdown,
   getLocalDateKey,
   ingestEventsFromAdapter,
   type SourceAdapter,
@@ -24,6 +25,8 @@ import {
   AuditRepository,
   clearLocalData,
   cleanupLegacyEventPrivacy,
+  buildProjectHandoffPack,
+  buildTodayHandoffPack,
   EventRepository,
   exportTodayContext,
   KnowledgeRepository,
@@ -48,6 +51,8 @@ import { isAbsolute, join, resolve } from "node:path";
 import type {
   DesktopActionResult,
   DesktopAIProviderTestConfig,
+  DesktopHandoffRequest,
+  DesktopHandoffResult,
   DesktopRuntimeStatus,
   DesktopSourceRuntimeAction,
   DesktopSettingKey,
@@ -363,6 +368,24 @@ export function cleanupLegacyEventPrivacyForDesktop(): DesktopActionResult {
     return {
       snapshot: readDesktopSnapshot(),
       message: `Cleaned ${result.cleanedEvents} legacy events; scanned ${result.scannedEvents}`
+    };
+  } finally {
+    database.close();
+  }
+}
+
+export function generateHandoffForDesktop(input: DesktopHandoffRequest): DesktopHandoffResult {
+  const database = openOrbitDatabase();
+  try {
+    const handoff =
+      input.kind === "project"
+        ? buildProjectHandoffPack(database, input.project)
+        : buildTodayHandoffPack(database, input.date ? { date: input.date } : {});
+    return {
+      snapshot: readDesktopSnapshot(),
+      message: `Generated ${handoff.kind} handoff`,
+      handoff,
+      markdown: formatHandoffMarkdown(handoff)
     };
   } finally {
     database.close();

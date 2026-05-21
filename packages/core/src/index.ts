@@ -17,3 +17,6 @@ export * from "./knowledge/draftKnowledgeArtifact";
 export * from "./memory/extractMemoryCandidates";
 export * from "./recommendation/generateRecommendations";
 export * from "./context/todayContext";
+export * from "./handoff/handoffPack";
+export * from "./handoff/formatHandoff";
+export * from "./perception/perceptionCapabilities";

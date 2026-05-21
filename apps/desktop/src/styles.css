@@ -661,6 +661,45 @@ button {
   padding: 16px;
 }
 
+.handoff-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px;
+}
+
+.handoff-project-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.handoff-project-control label {
+  color: #73736b;
+  font-size: 12px;
+}
+
+.handoff-preview {
+  max-height: 420px;
+  margin: 0;
+  overflow: auto;
+  border-radius: 0 0 8px 8px;
+  background: #fbfaf7;
+  color: #253033;
+  font:
+    12px/1.55 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    monospace;
+  padding: 16px;
+  white-space: pre-wrap;
+}
+
+.compact-page-grid {
+  padding: 0;
+}
+
 @media (max-width: 900px) {
   .settings-layout {
     grid-template-columns: 1fr;

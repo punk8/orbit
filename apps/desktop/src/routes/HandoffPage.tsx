@@ -1,0 +1,136 @@
+import { useState } from "react";
+import type { ReactElement } from "react";
+import type { DesktopHandoffResult, DesktopSnapshot } from "../orbitApi";
+import { MetricCard } from "../components/MetricCard";
+import { Section } from "../components/Section";
+import { useI18n } from "../i18n";
+
+export function HandoffPage({
+  snapshot,
+  onGenerateHandoff
+}: {
+  snapshot: DesktopSnapshot;
+  onGenerateHandoff(
+    input: { kind: "today"; date?: string } | { kind: "project"; project: string }
+  ): Promise<DesktopHandoffResult>;
+}): ReactElement {
+  const { t } = useI18n();
+  const [project, setProject] = useState("orbit");
+  const [result, setResult] = useState<DesktopHandoffResult | undefined>();
+  const [error, setError] = useState<string | undefined>();
+  const [copied, setCopied] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  async function generate(input: { kind: "today"; date?: string } | { kind: "project"; project: string }) {
+    setIsGenerating(true);
+    setError(undefined);
+    setCopied(false);
+    try {
+      setResult(await onGenerateHandoff(input));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : t("handoff.error"));
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
+  async function copyMarkdown(): Promise<void> {
+    if (!result) return;
+    await navigator.clipboard.writeText(result.markdown);
+    setCopied(true);
+  }
+
+  return (
+    <div className="page-grid">
+      <div className="metrics-row">
+        <MetricCard label={t("handoff.evidence")} value={result?.handoff.evidenceIndex.length ?? 0} />
+        <MetricCard
+          label={t("section.recentActivity")}
+          value={result?.handoff.recentActivity.length ?? snapshot.today.activitySessions.length}
+        />
+        <MetricCard
+          label={t("section.knowledgeArtifacts")}
+          value={result?.handoff.confirmedKnowledge.length ?? 0}
+        />
+        <MetricCard
+          label={t("section.memoryStore")}
+          value={result?.handoff.activeMemories.length ?? 0}
+        />
+      </div>
+
+      <Section title={t("handoff.generate")}>
+        <div className="handoff-controls">
+          <button
+            className="secondary-button"
+            disabled={isGenerating}
+            onClick={() => void generate({ kind: "today", date: snapshot.date })}
+            type="button"
+          >
+            {t("handoff.today")}
+          </button>
+          <div className="handoff-project-control">
+            <label htmlFor="handoff-project">{t("handoff.projectName")}</label>
+            <input
+              className="text-input compact-input"
+              id="handoff-project"
+              onChange={(event) => setProject(event.currentTarget.value)}
+              value={project}
+            />
+            <button
+              className="secondary-button"
+              disabled={isGenerating || project.trim().length === 0}
+              onClick={() => void generate({ kind: "project", project: project.trim() })}
+              type="button"
+            >
+              {t("handoff.project")}
+            </button>
+          </div>
+        </div>
+      </Section>
+
+      {error ? <div className="error-banner">{`${t("handoff.error")}: ${error}`}</div> : null}
+
+      <Section
+        title={t("handoff.preview")}
+        action={
+          result ? (
+            <button className="secondary-button" onClick={() => void copyMarkdown()} type="button">
+              {copied ? t("handoff.copied") : t("handoff.copyMarkdown")}
+            </button>
+          ) : null
+        }
+      >
+        {result ? (
+          <pre className="handoff-preview">{result.markdown}</pre>
+        ) : (
+          <div className="empty-state">{t("handoff.empty")}</div>
+        )}
+      </Section>
+
+      {result ? (
+        <div className="page-grid two-column compact-page-grid">
+          <Section title={t("handoff.safetyBoundaries")}>
+            <div className="item-list compact">
+              {result.handoff.safetyBoundaries.map((boundary) => (
+                <article className="list-item vertical" key={boundary.kind}>
+                  <h3>{boundary.title}</h3>
+                  <p>{boundary.description}</p>
+                </article>
+              ))}
+            </div>
+          </Section>
+          <Section title={t("handoff.evidence")}>
+            <div className="item-list compact">
+              {result.handoff.evidenceIndex.map((evidence) => (
+                <article className="list-item vertical" key={evidence.id}>
+                  <h3>{evidence.sourceKind}</h3>
+                  <p>{evidence.sourcePointer}</p>
+                </article>
+              ))}
+            </div>
+          </Section>
+        </div>
+      ) : null}
+    </div>
+  );
+}

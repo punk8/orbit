@@ -1,5 +1,6 @@
 import type {
   ActivitySession,
+  HandoffPack,
   KnowledgeArtifact,
   Memory,
   Recommendation,
@@ -113,6 +114,15 @@ export interface DesktopActionResult {
   warnings?: string[];
 }
 
+export type DesktopHandoffRequest =
+  | { kind: "today"; date?: string }
+  | { kind: "project"; project: string };
+
+export interface DesktopHandoffResult extends DesktopActionResult {
+  handoff: HandoffPack;
+  markdown: string;
+}
+
 export interface OrbitDesktopApi {
   getSnapshot(): Promise<DesktopSnapshot>;
   reviewKnowledge(id: string, action: KnowledgeReviewAction): Promise<DesktopSnapshot>;
@@ -137,6 +147,7 @@ export interface OrbitDesktopApi {
   deleteSource(sourceId: string): Promise<DesktopActionResult>;
   resetSourceCursor(sourceId: string): Promise<DesktopActionResult>;
   cleanupLegacyEventPrivacy(): Promise<DesktopActionResult>;
+  generateHandoff(input: DesktopHandoffRequest): Promise<DesktopHandoffResult>;
   reindexLocalData(): Promise<DesktopActionResult>;
   clearLocalData(): Promise<DesktopActionResult>;
   exportContext(): Promise<DesktopActionResult>;

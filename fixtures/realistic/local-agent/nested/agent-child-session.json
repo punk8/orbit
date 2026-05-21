@@ -1,0 +1,28 @@
+[
+  {
+    "id": "local-agent-json-1",
+    "timestamp": "2026-05-20T10:25:00.000Z",
+    "type": "test_result",
+    "role": "assistant",
+    "agent": "Claude Code",
+    "project": "orbit",
+    "repository": "orbit",
+    "sessionId": "claude-thread-alpha",
+    "title": "Local agent fixture tests pass",
+    "content": "Nested JSON array records should ingest without losing source pointers.",
+    "topics": ["local-agent", "verification"]
+  },
+  {
+    "id": "local-agent-json-2",
+    "timestamp": "2026-05-20T10:30:00.000Z",
+    "type": "code_change",
+    "role": "assistant",
+    "agent": "Claude Code",
+    "project": "orbit",
+    "repository": "orbit",
+    "sessionId": "claude-thread-alpha",
+    "title": "Harden local agent adapter",
+    "content": "Cursor and warning behavior should stay explicit-path only.",
+    "topics": ["local-agent", "adapter"]
+  }
+]

@@ -5,6 +5,7 @@ import {
   clearLocalDataForDesktop,
   deleteSourceForDesktop,
   exportContextForDesktop,
+  generateHandoffForDesktop,
   readDesktopSnapshot,
   readDesktopSettings,
   reconfigureSourceForDesktop,
@@ -112,6 +113,7 @@ ipcMain.handle("orbit:resetSourceCursor", (_event, sourceId: string) =>
   resetSourceCursorForDesktop(sourceId)
 );
 ipcMain.handle("orbit:cleanupLegacyEventPrivacy", () => cleanupLegacyEventPrivacyForDesktop());
+ipcMain.handle("orbit:generateHandoff", (_event, input) => generateHandoffForDesktop(input));
 ipcMain.handle("orbit:reindexLocalData", () => reindexForDesktop());
 ipcMain.handle("orbit:clearLocalData", () => clearLocalDataForDesktop());
 ipcMain.handle("orbit:exportContext", () => exportContextForDesktop());
