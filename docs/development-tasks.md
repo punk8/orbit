@@ -1148,6 +1148,9 @@ Implementation guide: follow
 [Background Observation Implementation Plan](./background-observation-implementation-plan.md).
 When starting code work, prefer the smaller Goal 4A/4B/4C/4D cuts defined there instead of trying
 to complete all of Goal 4 in one checkpoint.
+Before coding, review the "Full Goal 4 Readiness Checklist" in that document and explicitly state
+which cut is being implemented, which required decisions are deferred, and which safety gates remain
+mocked, fixture-backed, or disabled.
 
 Expected deliverables:
 
@@ -1206,6 +1209,9 @@ Scope:
 Constraints:
 - Follow AGENTS.md.
 - Follow docs/background-observation-core-spec.md.
+- Follow the Full Goal 4 Readiness Checklist in docs/background-observation-implementation-plan.md.
+- Implement Goal 4 through the 4A/4B/4C/4D checkpoints unless the user explicitly requests a larger
+  combined implementation.
 - Do not implement raw screen recording, OCR, or audio unless their explicit permission, protected-app, short-retention, redaction, and audit gates are complete.
 - Do not capture keystrokes or password fields.
 - Do not scan arbitrary private folders.

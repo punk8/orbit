@@ -63,6 +63,123 @@ Build in four checkpoint-sized cuts:
 Do not implement Tier 3 screen/OCR/audio in these slices unless a later task explicitly adds the
 stronger permission, protected-app, TTL, redaction, storage, audit, and smoke-test gates.
 
+## Full Goal 4 Readiness Checklist
+
+Use this checklist when opening a development goal for the complete Background Observation Core.
+The codebase is ready to start Goal 4, but the full goal is not a single implementation step. It
+requires the following missing pieces to be implemented and verified across the 4A/4B/4C/4D cuts.
+
+### 1. Core Schema And Observation Domain
+
+Implement before any observer writes data:
+
+- Extend core `EventType` with observation-specific types such as `app_focus`, `window_focus`,
+  `window_title_change`, `accessibility_snapshot`, `browser_navigation`, `terminal_command`,
+  `clipboard_change`, `observation_state`, and `permission_state`.
+- Extend core `SourceKind` with observation source kinds such as `desktop`, `accessibility`,
+  `browser`, `terminal`, and `clipboard`.
+- Add pure observation modules under `packages/core/src/observation/*`.
+- Implement `ObservationInput -> Event` normalization with stable IDs, source pointers, hashes,
+  sensitivity, redaction state, and bounded summaries.
+- Keep raw observation payloads transient unless an explicit source policy allows storage.
+- Add protected-app policy tests and redaction tests before any live capture is enabled.
+
+### 2. Goal 4A Mock Observation Spine
+
+Implement this first so the pipeline can be tested without OS permissions:
+
+- Add deterministic desktop JSONL fixtures and expected Event/Activity outputs.
+- Add a mock observer that reads fixtures, sorts by `occurredAt` and `sequence`, and emits
+  `ObservationInput` records.
+- Add an in-process observation queue and drain result.
+- Add runtime settings for enabled/paused/status/protected apps even if real capture is not present.
+- Add CLI diagnostics for `orbit observe status --json`.
+- Ingest mock observations through the existing Event ingestion path and run the semantic pipeline
+  so Activity Sessions are created.
+- Verify protected-app fixture data does not persist semantic window text.
+
+### 3. Runtime, Permission UX, And Audit
+
+Implement before real capture is exposed in the desktop app:
+
+- Persist the runtime state machine in `SettingsRepository` or a dedicated repository if state
+  becomes too large.
+- Add start, pause, resume, stop, disable, and clear-data actions through Electron IPC.
+- Show observation status in Settings, Sources, and the menu bar.
+- Show per-tier permission status instead of treating denied Tier 2 permissions as global errors.
+- Add protected-app configuration and a default protected bundle list.
+- Write audit logs for runtime transitions, permission changes, source enablement, protected-app
+  changes, and clear-data operations.
+- Keep screen/OCR/audio controls visible only as disabled or gated future capabilities until their
+  stronger safety gates exist.
+
+### 4. Goal 4B Real Tier 1 Capture
+
+Resolve the Tier 1 macOS technical path before claiming real observation support:
+
+- Confirm whether a pure Electron/Node implementation can reliably read frontmost app metadata.
+- If not, implement the Swift helper over stdio as the default Tier 1 path.
+- Define helper build, packaging, signing, and launch behavior inside the Electron app.
+- Normalize helper JSON lines into `ObservationInput`.
+- Capture app focus without requiring screen recording.
+- Treat window title as optional and mark `needs_permission` when Accessibility is required.
+- Suppress protected apps before semantic window data can enter Event ingestion.
+- Add manual macOS smoke tests for start, pause, resume, protected apps, and no raw screen/OCR/audio.
+
+### 5. Goal 4C Live Pipeline Integration
+
+Implement before relying on observation for Today/Handoff:
+
+- Batch-drain observation queues into Event ingestion.
+- Rebuild or incrementally update Activity Sessions after observation batches.
+- Apply idle/session-close rules so low-signal focus events do not produce noisy sessions.
+- Preserve user review state when sessions, Knowledge, Memories, or Recommendations are rebuilt.
+- Generate Knowledge drafts only for sessions that pass the anti-noise thresholds.
+- Generate Memory candidates only from confirmed Knowledge or explicit user save.
+- Generate Recommendations only from evidence-backed follow-ups, blockers, failed tests, repeated
+  workflows, or stale items.
+- Refresh Today and Handoff from the observed data while excluding unsafe raw observation payloads.
+
+### 6. Goal 4D Tier 2 Permissioned Sources
+
+Implement only through explicit gates:
+
+- Accessibility: permission detector first, mock snapshots in tests, protected-app exclusion,
+  password-field exclusion, max text length, hash dedupe, and redaction before persistence.
+- Filesystem: explicit allowlisted folders, dry-run preview, default ignore rules, metadata-first
+  storage, and no arbitrary path scanning.
+- Terminal: explicit shell integration or explicit log import only; do not infer commands from
+  screen text.
+- Browser: approved API, extension path, explicit import, or permissioned Accessibility metadata
+  only; do not silently scrape browser internals.
+- Clipboard: off by default, hash/content-type first, redacted summary only by opt-in, disabled
+  while protected apps are foreground.
+
+### 7. Privacy And Handoff Hardening
+
+Complete these checks before marking the full Goal 4 done:
+
+- Protected-app Events omit semantic window title/text and use metadata-only summaries.
+- Failed-redaction Events drop raw payloads and are excluded from Handoff/export.
+- Unsafe raw observation payloads are not sent to external AI by default.
+- Tier 2 raw content is excluded from agent handoff unless an explicit policy allows it.
+- Unconfirmed Memory and draft Knowledge remain excluded from default Handoff.
+- Clipboard text, Accessibility dumps, screen frames, OCR text, and audio are not stored by default.
+- Tests cover Handoff exclusion for protected, failed-redaction, secret, draft, and unconfirmed data.
+
+### 8. Decisions Required Before Claiming Complete Goal 4
+
+These decisions can be resolved during 4B/4D spikes, but they must be documented before complete
+Goal 4 acceptance:
+
+- Whether Swift helper is the standard Tier 1 implementation.
+- Helper build, signing, packaging, and update strategy.
+- Whether observation queue state must survive app restart before Beta.
+- Whether window title capture requires Accessibility from day one.
+- Default protected bundle IDs and how users override them.
+- Whether terminal integration belongs in `packages/adapters` or a separate local source writer.
+- Whether each Tier 2 source is enabled in the product or only represented behind a safe mock/gate.
+
 ## Core Type Contracts
 
 Use these interfaces as the implementation contract for Goal 4A. Names can be adjusted to match
@@ -1181,6 +1298,25 @@ Acceptance:
 - Permission-needed states work.
 - Protected apps suppress semantic capture.
 - Unsafe Events are excluded from Handoff.
+
+## Complete Goal 4 Definition Of Done
+
+The complete Background Observation Core is done only when all of these are true:
+
+- 4A, 4B, 4C, and 4D acceptance checks pass or a scoped blocker is documented for a source that is
+  intentionally left fixture-backed or gated.
+- `orbit observe status --json` reports runtime state, enabled tiers, permission status, protected
+  apps, and queue depth.
+- The desktop app can show and change observation state without requiring real OS permissions in CI.
+- A local macOS smoke test verifies Tier 1 app focus capture, pause/resume, and protected-app
+  suppression.
+- Observation Events can produce Activity Sessions without manual import.
+- Closed, sufficiently meaningful sessions can produce Knowledge drafts.
+- Memory candidates still require confirmed Knowledge or explicit user save.
+- Recommendations remain evidence-backed and side-effect-free.
+- Today and Handoff reflect observed context while excluding unsafe raw payloads.
+- No raw screen recording, OCR, audio, keystrokes, password fields, silent browser scraping, or
+  arbitrary filesystem scanning is enabled by default.
 
 ## Open Decisions
 
