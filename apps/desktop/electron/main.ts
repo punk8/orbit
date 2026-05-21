@@ -301,6 +301,11 @@ async function runRendererSmoke(window: BrowserWindow): Promise<void> {
             await click('[data-page-id="' + pageId + '"]');
             await waitFor('[data-page-id="' + pageId + '"].active');
           }
+          await waitFor(".provider-boundary");
+          await click('[data-settings-section-id="privacy"]');
+          await waitFor(".privacy-settings-panel");
+          await click('[data-settings-section-id="indexing"]');
+          await waitFor(".index-settings-panel");
           await click('[data-page-id="knowledge"]');
           const artifact = await waitFor(".knowledge-list-item");
           artifact.click();

@@ -12,7 +12,7 @@ import type {
 import { Section } from "../components/Section";
 import { useI18n } from "../i18n";
 
-type SettingsSectionId = "provider" | "runtime" | "storage" | "data";
+type SettingsSectionId = "provider" | "privacy" | "runtime" | "indexing" | "storage" | "data";
 
 export function SettingsPage({
   snapshot,
@@ -31,7 +31,7 @@ export function SettingsPage({
   onTestAIProvider(config: DesktopAIProviderTestConfig): Promise<DesktopAIProviderTestResult>;
   onSetCollectionPaused(paused: boolean): Promise<void>;
 }): ReactElement {
-  const { t } = useI18n();
+  const { t, sensitivity, sourceKind } = useI18n();
   const [activeSection, setActiveSection] = useState<SettingsSectionId>("provider");
   const [databasePath, setDatabasePath] = useState(
     snapshot.settings.configuredDatabasePath ?? snapshot.dbPath
@@ -51,6 +51,26 @@ export function SettingsPage({
   >();
   const [providerTestError, setProviderTestError] = useState<string | undefined>();
   const [isTestingProvider, setIsTestingProvider] = useState(false);
+  const aiAllowedSources = snapshot.sources.filter(
+    (source) => source.permissionScope.canUseForAI
+  ).length;
+  const rawStorageAllowedSources = snapshot.sources.filter(
+    (source) => source.permissionScope.canStoreRaw
+  ).length;
+  const agentExportAllowedSources = snapshot.sources.filter(
+    (source) => source.permissionScope.canExportToAgent
+  ).length;
+  const confirmedKnowledgeCount = snapshot.knowledgeArtifacts.filter(
+    (artifact) => artifact.status === "confirmed"
+  ).length;
+  const blockedKnowledgeCount = snapshot.knowledgeArtifacts.length - confirmedKnowledgeCount;
+  const confirmedMemoryCount = snapshot.memories.filter(
+    (memory) => memory.status === "confirmed"
+  ).length;
+  const blockedMemoryCount = snapshot.memories.length - confirmedMemoryCount;
+  const retentionPolicies = Array.from(
+    new Set(snapshot.sources.map((source) => source.permissionScope.retentionPolicyId))
+  );
   const saveAiProvider = async (): Promise<void> => {
     setProviderTestResult(undefined);
     setProviderTestError(undefined);
@@ -98,9 +118,19 @@ export function SettingsPage({
       detail: t("settingsNav.providerDetail")
     },
     {
+      id: "privacy",
+      label: t("settingsNav.privacy"),
+      detail: t("settingsNav.privacyDetail")
+    },
+    {
       id: "runtime",
       label: t("settingsNav.runtime"),
       detail: t("settingsNav.runtimeDetail")
+    },
+    {
+      id: "indexing",
+      label: t("settingsNav.indexing"),
+      detail: t("settingsNav.indexingDetail")
     },
     {
       id: "storage",
@@ -121,6 +151,7 @@ export function SettingsPage({
           <button
             aria-current={activeSection === section.id ? "page" : undefined}
             className="settings-subnav-item"
+            data-settings-section-id={section.id}
             key={section.id}
             onClick={() => setActiveSection(section.id)}
             type="button"
@@ -295,8 +326,126 @@ export function SettingsPage({
                 </div>
               ) : null}
               <p className="muted">{t("settings.aiProviderNote")}</p>
+              <div className="settings-policy-block provider-boundary">
+                <h3>{t("settings.providerTaskBoundary")}</h3>
+                <dl className="mini-grid">
+                  <DetailRow
+                    label={t("settings.providerTaskKnowledgeDrafting")}
+                    value={providerBoundaryValue(t, aiProviderKind)}
+                  />
+                  <DetailRow
+                    label={t("settings.providerTaskActivity")}
+                    value={t("settings.providerTaskLocalOnly")}
+                  />
+                  <DetailRow
+                    label={t("settings.providerTaskMemory")}
+                    value={t("settings.providerTaskReviewOnly")}
+                  />
+                  <DetailRow
+                    label={t("settings.providerTaskRecommendation")}
+                    value={t("settings.providerTaskReadOnly")}
+                  />
+                  <DetailRow
+                    label={t("settings.providerTaskEmbeddings")}
+                    value={t("settings.providerTaskFtsFallback")}
+                  />
+                  <DetailRow
+                    label={t("settings.providerTaskConnectionTest")}
+                    value={t("settings.providerTaskSyntheticTest")}
+                  />
+                </dl>
+              </div>
             </div>
           </Section>
+        ) : null}
+
+        {activeSection === "privacy" ? (
+          <div className="settings-section-stack privacy-settings-panel">
+            <Section title={t("section.privacyPermissions")}>
+              <dl className="settings-grid">
+                <DetailRow
+                  label={t("settings.localOnlyMode")}
+                  value={
+                    snapshot.settings.localOnly ? t("state.enabled") : t("app.remoteEnabled")
+                  }
+                />
+                <DetailRow
+                  label={t("settings.externalActions")}
+                  value={
+                    snapshot.settings.externalActionsEnabled
+                      ? t("state.enabled")
+                      : t("settings.externalActionsDisabledAlpha")
+                  }
+                />
+                <DetailRow
+                  label={t("settings.visualContext")}
+                  value={
+                    snapshot.settings.visualContextEnabled
+                      ? t("state.enabled")
+                      : t("settings.visualContextDisabledAlpha")
+                  }
+                />
+                <DetailRow
+                  label={t("settings.apiKeyStorage")}
+                  value={
+                    snapshot.settings.aiApiKeyConfigured
+                      ? t("settings.apiKeyEncrypted")
+                      : t("state.notConfigured")
+                  }
+                />
+                <DetailRow
+                  label={t("settings.aiAllowedSources")}
+                  value={countSummary(aiAllowedSources, snapshot.sources.length)}
+                />
+                <DetailRow
+                  label={t("settings.rawStorageAllowedSources")}
+                  value={countSummary(rawStorageAllowedSources, snapshot.sources.length)}
+                />
+                <DetailRow
+                  label={t("settings.agentExportAllowedSources")}
+                  value={countSummary(agentExportAllowedSources, snapshot.sources.length)}
+                />
+                <DetailRow
+                  label={t("settings.retentionPolicies")}
+                  value={retentionPolicies.length > 0 ? retentionPolicies.join(", ") : t("fallback.none")}
+                />
+              </dl>
+            </Section>
+            <Section title={t("section.sourcePolicyMatrix")}>
+              <div className="source-policy-list">
+                {snapshot.sources.map((source) => (
+                  <article className="source-policy-row" key={source.id}>
+                    <div>
+                      <h3>{source.displayName}</h3>
+                      <p>{`${sourceKind(source.kind)} · ${sensitivity(source.defaultSensitivity)} · ${
+                        source.permissionScope.retentionPolicyId
+                      }`}</p>
+                    </div>
+                    <div className="source-policy-badges">
+                      <span>
+                        {source.permissionScope.canUseForAI
+                          ? t("source.aiAllowed")
+                          : t("source.aiBlocked")}
+                      </span>
+                      <span>
+                        {source.permissionScope.canStoreRaw
+                          ? t("source.rawStored")
+                          : t("source.rawNotStored")}
+                      </span>
+                      <span>
+                        {source.permissionScope.canExportToAgent
+                          ? t("source.agentExportAllowed")
+                          : t("source.agentExportBlocked")}
+                      </span>
+                    </div>
+                  </article>
+                ))}
+                {snapshot.sources.length === 0 ? (
+                  <div className="empty-state compact">{t("empty.noSources")}</div>
+                ) : null}
+              </div>
+            </Section>
+          </div>
         ) : null}
 
         {activeSection === "runtime" ? (
@@ -409,6 +558,64 @@ export function SettingsPage({
           </Section>
         ) : null}
 
+        {activeSection === "indexing" ? (
+          <div className="settings-section-stack index-settings-panel">
+            <Section title={t("section.indexStatus")}>
+              <dl className="settings-grid">
+                <DetailRow label={t("settings.eventStore")} value="SQLite WAL" />
+                <DetailRow
+                  label={t("settings.knowledgeFts")}
+                  value={`${snapshot.knowledgeArtifacts.length} ${t("unit.knowledgeArtifacts")}`}
+                />
+                <DetailRow
+                  label={t("settings.memoryFts")}
+                  value={`${snapshot.memories.length} ${t("unit.memories")}`}
+                />
+                <DetailRow
+                  label={t("settings.vectorIndex")}
+                  value={t("settings.vectorIndexDisabled")}
+                />
+                <DetailRow
+                  label={t("settings.embeddingProvider")}
+                  value={t("settings.embeddingProviderDisabled")}
+                />
+                <DetailRow
+                  label={t("settings.reindexPolicy")}
+                  value={t("settings.reindexIdempotent")}
+                />
+              </dl>
+            </Section>
+            <Section title={t("section.agentInterface")}>
+              <dl className="settings-grid">
+                <DetailRow
+                  label={t("settings.agentInterfaceMode")}
+                  value={t("settings.agentInterfaceReadOnly")}
+                />
+                <DetailRow
+                  label={t("settings.defaultKnowledgeContext")}
+                  value={`${confirmedKnowledgeCount} ${t("state.enabled")} · ${blockedKnowledgeCount} ${t(
+                    "settings.blockedUntilReview"
+                  )}`}
+                />
+                <DetailRow
+                  label={t("settings.defaultMemoryContext")}
+                  value={`${confirmedMemoryCount} ${t("state.enabled")} · ${blockedMemoryCount} ${t(
+                    "settings.blockedUntilReview"
+                  )}`}
+                />
+                <DetailRow
+                  label={t("settings.handoffBoundary")}
+                  value={t("settings.handoffBoundaryConfirmedOnly")}
+                />
+                <DetailRow
+                  label={t("settings.agentContextRawData")}
+                  value={t("settings.agentContextNoRawData")}
+                />
+              </dl>
+            </Section>
+          </div>
+        ) : null}
+
         {activeSection === "storage" ? (
           <Section title={t("section.databasePath")}>
             <div className="settings-panel">
@@ -431,34 +638,70 @@ export function SettingsPage({
 
         {activeSection === "data" ? (
           <Section title={t("section.dataOperations")}>
-            <div className="action-row padded">
-              <button
-                className="secondary-button"
-                onClick={() => void onReindexLocalData()}
-                type="button"
-              >
-                {t("action.reindex")}
-              </button>
-              <button
-                className="secondary-button"
-                onClick={() => void onExportContext()}
-                type="button"
-              >
-                {t("action.exportContext")}
-              </button>
-              <button
-                className="danger-button"
-                onClick={() => void clearLocalData()}
-                type="button"
-              >
-                {t("action.clearLocalData")}
-              </button>
+            <div className="settings-operation-list">
+              <article className="settings-operation">
+                <div>
+                  <h3>{t("action.reindex")}</h3>
+                  <p>{t("settings.reindexDescription")}</p>
+                </div>
+                <button
+                  className="secondary-button"
+                  onClick={() => void onReindexLocalData()}
+                  type="button"
+                >
+                  {t("action.reindex")}
+                </button>
+              </article>
+              <article className="settings-operation">
+                <div>
+                  <h3>{t("action.exportContext")}</h3>
+                  <p>{t("settings.exportDescription")}</p>
+                </div>
+                <button
+                  className="secondary-button"
+                  onClick={() => void onExportContext()}
+                  type="button"
+                >
+                  {t("action.exportContext")}
+                </button>
+              </article>
+              <article className="settings-operation danger-operation">
+                <div>
+                  <h3>{t("action.clearLocalData")}</h3>
+                  <p>{t("settings.clearDataDescription")}</p>
+                </div>
+                <button className="danger-button" onClick={() => void clearLocalData()} type="button">
+                  {t("action.clearLocalData")}
+                </button>
+              </article>
             </div>
           </Section>
         ) : null}
       </div>
     </div>
   );
+}
+
+function DetailRow({ label, value }: { label: string; value: string }): ReactElement {
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
+  );
+}
+
+function countSummary(count: number, total: number): string {
+  return `${count}/${total}`;
+}
+
+function providerBoundaryValue(
+  t: ReturnType<typeof useI18n>["t"],
+  providerKind: DesktopAIProviderKind
+): string {
+  if (providerKind === "disabled") return t("settings.providerTaskDisabled");
+  if (providerKind === "mock") return t("settings.providerTaskMockDrafting");
+  return t("settings.providerTaskExternalDrafting");
 }
 
 function tRuntimeStatus(
