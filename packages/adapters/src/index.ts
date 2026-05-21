@@ -8,3 +8,6 @@ export * from "./localAgent/localAgentAdapter";
 export * from "./localAgent/localAgentNormalizer";
 export * from "./seatalk/seatalkAdapter";
 export * from "./seatalk/seatalkNormalizer";
+export * from "./desktop/desktopObservationAdapter";
+export * from "./desktop/mockDesktopObservationSource";
+export * from "./desktop/observationQueue";

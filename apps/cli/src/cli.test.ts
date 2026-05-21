@@ -8,6 +8,7 @@ import { ingestFixtures } from "./commands/ingestFixtures";
 import { ingestLocalAgent } from "./commands/ingestLocalAgent";
 import { runKnowledgeReviewAction, runMemoryReviewAction } from "./commands/governanceActions";
 import { getTodayHandoff, getTodayHandoffMarkdown } from "./commands/handoff";
+import { getObserveStatus, ingestMockDesktopObservations } from "./commands/observe";
 import {
   getProjectContext,
   getTodayContext,
@@ -152,5 +153,40 @@ describe("cli commands", () => {
     const status = getStatus();
     expect(status.counts.sources).toBe(2);
     expect(status.counts.events).toBe(16);
+  });
+
+  it("ingests mock desktop observations and reports observation status", async () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-observe-test-"));
+    tempDirs.push(orbitHome);
+    process.env.ORBIT_HOME = orbitHome;
+
+    const initialStatus = getObserveStatus();
+    expect(initialStatus.observation.status).toBe("not_configured");
+    expect(initialStatus.observation.queueDepth).toBe(0);
+
+    const first = await ingestMockDesktopObservations();
+    expect(first.source.inserted).toBe(7);
+    expect(first.pipeline.activitySessions.total).toBe(1);
+    expect(first.pipeline.knowledgeArtifacts.total).toBe(0);
+    expect(first.pipeline.recommendations.total).toBe(0);
+
+    const second = await ingestMockDesktopObservations();
+    expect(second.source.inserted).toBe(0);
+
+    const status = getObserveStatus();
+    expect(status.observation.status).toBe("ready");
+    expect(status.observation.enabled).toBe(true);
+    expect(status.observation.tiers.tier1.enabled).toBe(true);
+    expect(status.observation.tiers.tier1.status).toBe("ready");
+    expect(status.observation.tiers.tier1.sourceKinds).toContain("desktop");
+    expect(status.observation.protectedApps.length).toBeGreaterThan(0);
+    expect(listActivitySessions()).toHaveLength(1);
+
+    const program = buildProgram();
+    const observeHelp = program.commands
+      .find((command) => command.name() === "observe")
+      ?.helpInformation();
+    expect(observeHelp).toContain("status");
+    expect(observeHelp).toContain("ingest-mock");
   });
 });

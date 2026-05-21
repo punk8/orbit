@@ -1,0 +1,13 @@
+{
+  "count": 7,
+  "pointers": [
+    "desktop://app-focus/obs-fixture-day-1#1",
+    "desktop://window/obs-fixture-day-1#2",
+    "desktop://app-focus/obs-fixture-day-1#3",
+    "desktop://window/obs-fixture-day-1#4",
+    "desktop://state/obs-fixture-day-1#5",
+    "desktop://app-focus/obs-fixture-protected#1",
+    "desktop://app-focus/obs-fixture-protected#2"
+  ],
+  "protectedSummary": "Protected app was focused; semantic window details were not stored."
+}

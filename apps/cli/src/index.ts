@@ -31,6 +31,7 @@ import {
   getTodayHandoff,
   getTodayHandoffMarkdown
 } from "./commands/handoff";
+import { getObserveStatus, ingestMockDesktopObservations } from "./commands/observe";
 import { runSemanticPipeline } from "./commands/semanticPipeline";
 import { getStatus } from "./commands/status";
 import { buildAIProvider, isAIProviderConfigured, readAIProviderConfigFromEnv } from "@orbit/ai";
@@ -364,6 +365,25 @@ export function buildProgram(): Command {
     .action((project: string, options: { format?: string; json?: boolean }) => {
       const json = options.json ?? program.opts<{ json?: boolean }>().json;
       writeOutput(json ? getProjectHandoff(project) : getProjectHandoffMarkdown(project), { json });
+    });
+
+  const observe = program.command("observe").description("Inspect background observation state");
+  observe
+    .command("status")
+    .description("Show local background observation status")
+    .option("--json", "output JSON")
+    .action((options: { json?: boolean }) => {
+      writeOutput(getObserveStatus(), {
+        json: options.json ?? program.opts<{ json?: boolean }>().json
+      });
+    });
+  observe
+    .command("ingest-mock")
+    .description("Ingest deterministic mock desktop observation fixtures")
+    .option("--json", "output JSON")
+    .action(async (options: { json?: boolean }) => {
+      const result = await ingestMockDesktopObservations();
+      writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
     });
 
   return program;

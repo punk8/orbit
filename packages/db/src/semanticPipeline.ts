@@ -73,12 +73,14 @@ function runSemanticPipelineCore(
 
   const eventById = new Map(events.map((event) => [event.id, event]));
   const persistedSessions = activityRepository.listActivitySessions();
-  const draftInputs = persistedSessions.map((session) => ({
-    session,
-    events: session.eventIds
-      .map((eventId) => eventById.get(eventId))
-      .filter((event) => event !== undefined)
-  }));
+  const draftInputs = persistedSessions
+    .map((session) => ({
+      session,
+      events: session.eventIds
+        .map((eventId) => eventById.get(eventId))
+        .filter((event) => event !== undefined)
+    }))
+    .filter((input) => shouldGenerateKnowledgeDraft(input.session, input.events));
 
   const buildArtifact = async (input: (typeof draftInputs)[number]): Promise<KnowledgeArtifact> => {
     const fallback = draftKnowledgeArtifact(input);
@@ -173,6 +175,33 @@ function runSemanticPipelineCore(
     recommendationRepository,
     persistedSessions
   });
+}
+
+function shouldGenerateKnowledgeDraft(
+  session: ReturnType<ActivityRepository["listActivitySessions"]>[number],
+  events: Event[]
+): boolean {
+  const lowSignalObservationOnly =
+    events.length > 0 &&
+    events.every(
+      (event) =>
+        event.source.kind === "desktop" &&
+        [
+          "app_focus",
+          "window_focus",
+          "window_title_change",
+          "observation_state",
+          "permission_state"
+        ].includes(event.type)
+    );
+  if (!lowSignalObservationOnly) return true;
+  const hasSemanticWindowEvidence = events.some(
+    (event) =>
+      (event.type === "window_focus" || event.type === "window_title_change") &&
+      event.context.windowTitle &&
+      event.privacy.redactionState === "none"
+  );
+  return session.durationSeconds >= 600 && hasSemanticWindowEvidence;
 }
 
 function finishSemanticPipeline({
