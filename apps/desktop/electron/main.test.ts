@@ -7,8 +7,11 @@ describe("desktop main process runtime guards", () => {
     const smoke = readFileSync(new URL("../scripts/e2e-smoke.mjs", import.meta.url), "utf8");
 
     expect(main).toContain("ORBIT_SKIP_LOGIN_ITEM_SETTINGS");
+    expect(main).toContain("ORBIT_PACKAGED_SMOKE");
     expect(main).toContain("ORBIT_E2E_RENDERER_SMOKE");
     expect(main).toContain("runRendererSmoke");
+    expect(main).toContain("runPackagedSmoke");
+    expect(main).toContain('reviewKnowledgeForDesktop(firstArtifact.id, "confirm")');
     expect(main).toContain("orbit:getActivitySessionDetail");
     expect(main).toContain("orbit:searchKnowledge");
     expect(main).toContain("orbit:getKnowledgeArtifactDetail");

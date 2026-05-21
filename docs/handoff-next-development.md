@@ -34,10 +34,19 @@ Packaging note:
 
 ```bash
 pnpm --filter @orbit/desktop package:dir
-pnpm rebuild better-sqlite3
+pnpm --filter @orbit/desktop package:smoke -- --app apps/desktop/release/mac-arm64/Orbit.app --orbit-home "$PWD/.tmp/packaged-smoke"
+pnpm --filter @orbit/desktop native:node
 ```
 
-`package:dir` rebuilds `better-sqlite3` for Electron ABI. Run `pnpm rebuild better-sqlite3` afterward before Node/CLI tests if a `NODE_MODULE_VERSION` mismatch appears.
+`package:dir`, `package:dmg`, and `test:e2e` use `apps/desktop/scripts/rebuild-native.mjs` and
+restore the Node `better-sqlite3` ABI in a `finally` path. If one of those processes is killed
+before cleanup, run `pnpm --filter @orbit/desktop native:node` before Node/CLI tests. Native
+rebuilds are serialized by `node_modules/.cache/orbit-native-rebuild.lock`; remove that file only
+after confirming no rebuild is running.
+
+`package:smoke` launches the packaged `Orbit.app` executable directly, passes a clean `ORBIT_HOME`,
+waits for `window.orbit`, navigates to Settings/Runtime, and verifies the visible runtime path. This
+is the deterministic packaged-app smoke if Computer Use cannot attach to the Electron window.
 
 ## Latest Pushed Commits
 
@@ -141,7 +150,9 @@ Agent-facing context defaults are now conservative:
 - MCP/local HTTP server/Skill wrapper are not implemented yet.
 - No screen capture, OCR, audio transcription, active app/window accessibility capture, or calendar/mail/Jira/GitLab adapters have been implemented.
 - SeaTalk remains approved-import-only. Do not add speculative scraping.
-- Packaging is unsigned and not notarized. See `docs/alpha-release-checklist.md`.
+- Packaging is unsigned and not notarized. The local package flow now has app metadata, a development
+  icon, native ABI recovery wrappers, and deterministic packaged smoke, but signing/notarization
+  remains a later release gate. See `docs/alpha-release-checklist.md`.
 
 ## Goal 7: Agent Continuity And Perception Readiness
 
@@ -208,7 +219,7 @@ pnpm --filter @orbit/cli orbit handoff project orbit --json
 pnpm --filter @orbit/desktop build
 pnpm --filter @orbit/desktop test:e2e
 pnpm --filter @orbit/desktop package:dir
-pnpm rebuild better-sqlite3
+pnpm --filter @orbit/desktop native:node
 pnpm --filter @orbit/cli orbit status --json
 ```
 
@@ -252,11 +263,14 @@ pnpm --filter @orbit/cli orbit context today --json
 pnpm --filter @orbit/desktop build
 pnpm --filter @orbit/desktop test:e2e
 pnpm --filter @orbit/desktop package:dir
-pnpm rebuild better-sqlite3
+pnpm --filter @orbit/desktop native:node
 pnpm --filter @orbit/cli orbit status --json
 ```
 
-Latest local result: all required commands passed. Run `pnpm --filter @orbit/desktop test:e2e` separately from `pnpm --filter @orbit/desktop package:dir`; both touch the packaged app path and can race if run in parallel.
+Latest local result before Goal 0 hardening: all required commands passed. Run
+`pnpm --filter @orbit/desktop test:e2e` separately from
+`pnpm --filter @orbit/desktop package:dir`; both touch packaged app paths and should not be run in
+parallel.
 
 Functional acceptance:
 

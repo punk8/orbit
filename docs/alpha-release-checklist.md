@@ -9,8 +9,10 @@ Orbit Alpha packaging is intentionally local-first and unsigned unless signing c
 - `pnpm lint`
 - `pnpm --filter @orbit/desktop build`
 - `pnpm --filter @orbit/desktop package:dir`
+- `pnpm --filter @orbit/desktop package:smoke -- --app apps/desktop/release/mac-arm64/Orbit.app --orbit-home "$ORBIT_HOME"`
 - `pnpm --filter @orbit/desktop test:e2e`
 - `pnpm --filter @orbit/desktop package:dmg`
+- `pnpm --filter @orbit/desktop native:node`
 - `pnpm --filter @orbit/cli orbit perception status --json`
 - `pnpm --filter @orbit/cli orbit perception cleanup --dry-run --json`
 - `pnpm --filter @orbit/cli orbit perception release-gate --json`
@@ -21,7 +23,14 @@ Orbit Alpha packaging is intentionally local-first and unsigned unless signing c
 - `.tmp` private samples and fixture directories must not be packaged.
 - The DMG target is configured for local Alpha distribution.
 - Current Alpha artifacts are unsigned and not notarized: `identity: null`, `dmg.sign: false`.
-- Packaging rebuilds native modules for Electron. If Node/Vitest later reports a `better-sqlite3` ABI mismatch, run `pnpm rebuild better-sqlite3` before continuing development tests.
+- Packaging rebuilds native modules for Electron through `apps/desktop/scripts/rebuild-native.mjs`,
+  then restores the Node ABI in a `finally` path. If a package or e2e process is killed before
+  cleanup, run `pnpm --filter @orbit/desktop native:node` before continuing CLI or Vitest work.
+- Native rebuilds are serialized by `node_modules/.cache/orbit-native-rebuild.lock`; if a rebuild
+  was killed while holding the lock, remove that file only after confirming no rebuild is running.
+- Packaged smoke launches `apps/desktop/release/mac-arm64/Orbit.app` directly with a clean
+  `ORBIT_HOME`, verifies the preload API, navigates the main window to Settings/Runtime, and checks
+  that the visible runtime path matches the requested `ORBIT_HOME`.
 - Perception controls must be usable in the packaged app with every high-risk source disabled by
   default.
 - `.tmp`, private samples, fixture directories, and raw perception sidecars must not be packaged.
@@ -85,3 +94,5 @@ Before broader distribution:
   disabled by default.
 - No signed standalone native perception helper is shipped in this checkpoint. The existing Tier 1
   macOS observer source is a development helper and is not silently trusted as a packaged helper.
+- If Computer Use cannot attach to the packaged Electron window, rely on `package:smoke` as the
+  deterministic window-control baseline and record the manual attachment limitation separately.

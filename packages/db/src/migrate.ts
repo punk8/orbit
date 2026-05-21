@@ -6,34 +6,34 @@ import { migration0003 } from "./migrations/0003_source_permissions";
 const migrations = [migration0001, migration0002, migration0003];
 
 export function migrate(db: Database.Database): void {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS schema_migrations (
-      id TEXT PRIMARY KEY,
-      applied_at TEXT NOT NULL
+  const transaction = db.transaction(() => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        id TEXT PRIMARY KEY,
+        applied_at TEXT NOT NULL
+      );
+    `);
+
+    const applied = new Set(
+      db
+        .prepare("SELECT id FROM schema_migrations")
+        .all()
+        .map((row) => (row as { id: string }).id)
     );
-  `);
 
-  const applied = new Set(
-    db
-      .prepare("SELECT id FROM schema_migrations")
-      .all()
-      .map((row) => (row as { id: string }).id)
-  );
+    for (const migration of migrations) {
+      if (applied.has(migration.id)) {
+        continue;
+      }
 
-  for (const migration of migrations) {
-    if (applied.has(migration.id)) {
-      continue;
-    }
-
-    const transaction = db.transaction(() => {
       migration.up(db);
       db.prepare("INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)").run(
         migration.id,
         new Date().toISOString()
       );
-    });
-    transaction();
-  }
+    }
+  });
+  transaction();
 }
 
 export function getAppliedMigrations(db: Database.Database): string[] {

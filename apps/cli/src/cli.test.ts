@@ -304,6 +304,23 @@ describe("cli commands", () => {
     expect(aiHelp).toContain("test");
   });
 
+  it("runs baseline status smokes sequentially against a fresh Orbit home", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-baseline-smoke-test-"));
+    tempDirs.push(orbitHome);
+    process.env.ORBIT_HOME = orbitHome;
+
+    const status = getStatus();
+    const aiStatus = getAIStatus();
+    const perceptionStatus = getPerceptionStatus();
+
+    expect(status.orbitHome).toBe(orbitHome);
+    expect(aiStatus.orbitHome).toBe(orbitHome);
+    expect(perceptionStatus.orbitHome).toBe(orbitHome);
+    expect(status.counts.sources).toBe(0);
+    expect(aiStatus.providerRegistry.summary.disabled).toBeGreaterThan(0);
+    expect(perceptionStatus.perception.status).toBe("disabled");
+  });
+
   it("ingests explicit screen/OCR perception fixtures into Activity", async () => {
     const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-perception-fixture-test-"));
     tempDirs.push(orbitHome);

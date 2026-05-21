@@ -200,7 +200,9 @@ app.whenReady().then(async () => {
   applyRuntimeSettings();
   const window = await createMainWindow();
   await observationService.restoreFromSettings();
-  if (process.env.ORBIT_E2E_RENDERER_SMOKE === "1") {
+  if (process.env.ORBIT_PACKAGED_SMOKE === "1") {
+    void runPackagedSmoke(window);
+  } else if (process.env.ORBIT_E2E_RENDERER_SMOKE === "1") {
     void runRendererSmoke(window);
   } else {
     startBackgroundIngestion();
@@ -352,6 +354,10 @@ function notifySnapshotChanged(): void {
 async function runRendererSmoke(window: BrowserWindow): Promise<void> {
   try {
     await setupSourceForDesktop("fixtures");
+    const firstArtifact = readDesktopSnapshot().knowledgeArtifacts[0];
+    if (firstArtifact) {
+      reviewKnowledgeForDesktop(firstArtifact.id, "confirm");
+    }
     notifySnapshotChanged();
     await window.webContents.executeJavaScript(
       `
@@ -426,6 +432,60 @@ async function runRendererSmoke(window: BrowserWindow): Promise<void> {
   } catch (error) {
     console.error(
       `Orbit renderer smoke failed: ${error instanceof Error ? error.message : String(error)}`
+    );
+    app.exit(1);
+  }
+}
+
+async function runPackagedSmoke(window: BrowserWindow): Promise<void> {
+  try {
+    await window.webContents.executeJavaScript(
+      `
+        (async () => {
+          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+          for (let index = 0; index < 120; index += 1) {
+            if (window.orbit) break;
+            await sleep(100);
+          }
+          if (!window.orbit) {
+            throw new Error("Missing window.orbit preload API");
+          }
+          const snapshot = await window.orbit.getSnapshot();
+          const expectedHome = ${JSON.stringify(process.env.ORBIT_HOME ?? "")};
+          if (!expectedHome || snapshot.orbitHome !== expectedHome) {
+            throw new Error(
+              "Packaged smoke used unexpected ORBIT_HOME: " + snapshot.orbitHome
+            );
+          }
+          if (!document.querySelector('[data-page-id="today"]')) {
+            throw new Error("Packaged smoke missing navigation");
+          }
+          if (snapshot.sources.length !== 0) {
+            throw new Error("Packaged smoke found default sources on first launch");
+          }
+          if (Object.keys(snapshot.sourceAdapterConfigs).length !== 0) {
+            throw new Error("Packaged smoke found default source adapter configs");
+          }
+          document.querySelector('[data-page-id="settings"]')?.click();
+          for (let index = 0; index < 50; index += 1) {
+            if (document.querySelector('[data-settings-section-id="runtime"]')) break;
+            await sleep(100);
+          }
+          document.querySelector('[data-settings-section-id="runtime"]')?.click();
+          for (let index = 0; index < 50; index += 1) {
+            if (document.body.textContent?.includes(expectedHome)) return true;
+            await sleep(100);
+          }
+          throw new Error("Packaged smoke could not verify visible Settings runtime ORBIT_HOME");
+        })()
+      `,
+      true
+    );
+    console.log("ORBIT_PACKAGED_SMOKE_OK");
+    app.exit(0);
+  } catch (error) {
+    console.error(
+      `Orbit packaged smoke failed: ${error instanceof Error ? error.message : String(error)}`
     );
     app.exit(1);
   }

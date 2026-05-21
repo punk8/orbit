@@ -17,18 +17,21 @@ export interface OrbitDatabase {
   close(): void;
 }
 
+const busyTimeoutMs = 10_000;
+const activeMigrationPaths = new Set<string>();
+
 export function openOrbitDatabase(options: OpenOrbitDatabaseOptions = {}): OrbitDatabase {
   const orbitHome = resolveOrbitHome(options.orbitHome);
   const dbPath = options.dbPath ?? resolveOrbitDbPath(orbitHome);
   mkdirSync(dirname(dbPath), { recursive: true });
 
   const db = new Database(dbPath);
-  db.pragma("busy_timeout = 5000");
+  db.pragma(`busy_timeout = ${busyTimeoutMs}`);
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
 
   if (options.migrate ?? true) {
-    migrate(db);
+    migrateWithProcessGuard(dbPath, () => migrate(db));
   }
 
   return {
@@ -37,4 +40,17 @@ export function openOrbitDatabase(options: OpenOrbitDatabaseOptions = {}): Orbit
     dbPath,
     close: () => db.close()
   };
+}
+
+function migrateWithProcessGuard(dbPath: string, run: () => void): void {
+  if (activeMigrationPaths.has(dbPath)) {
+    return;
+  }
+
+  activeMigrationPaths.add(dbPath);
+  try {
+    run();
+  } finally {
+    activeMigrationPaths.delete(dbPath);
+  }
 }
