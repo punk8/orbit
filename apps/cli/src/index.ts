@@ -38,7 +38,12 @@ import {
   getObserveStatus,
   ingestMockDesktopObservations
 } from "./commands/observe";
-import { getPerceptionStatus, runScreenOcrSmoke } from "./commands/perception";
+import {
+  getPerceptionStatus,
+  runScreenOcrSmoke,
+  setPerceptionProviderRoute,
+  setPerceptionSourcePolicy
+} from "./commands/perception";
 import { runSemanticPipeline } from "./commands/semanticPipeline";
 import { getStatus } from "./commands/status";
 import { buildAIProvider, isAIProviderConfigured, readAIProviderConfigFromEnv } from "@orbit/ai";
@@ -100,9 +105,10 @@ export function buildProgram(): Command {
   ingest
     .command("perception-fixtures")
     .description("Ingest explicit screen/OCR perception fixtures")
+    .option("--vision", "also run mock vision summarization when perception policy allows it")
     .option("--json", "output JSON")
-    .action(async (options: { json?: boolean }) => {
-      const result = await ingestPerceptionFixtures();
+    .action(async (options: { vision?: boolean; json?: boolean }) => {
+      const result = await ingestPerceptionFixtures({ includeVision: options.vision ?? false });
       writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
     });
 
@@ -437,6 +443,37 @@ export function buildProgram(): Command {
       const result = await runScreenOcrSmoke(requireScreenScopeKind(options.scope));
       writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
     });
+  perception
+    .command("source-policy")
+    .description("Update a perception source policy")
+    .argument("<source>", "screen, ocr, vision, microphone_audio, system_audio, or transcript")
+    .option("--ai <value>", "true or false")
+    .option("--export <value>", "true or false")
+    .option("--raw <value>", "true or false")
+    .option("--json", "output JSON")
+    .action(
+      (source: string, options: { ai?: string; export?: string; raw?: string; json?: boolean }) => {
+        const result = setPerceptionSourcePolicy({
+          sourceKind: source,
+          patch: omitUndefined({
+            canUseForAI: parseBooleanOption(options.ai),
+            canExportToAgent: parseBooleanOption(options.export),
+            canStoreRaw: parseBooleanOption(options.raw)
+          })
+        });
+        writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
+      }
+    );
+  perception
+    .command("provider-route")
+    .description("Update a perception AI provider route")
+    .argument("<task>", "ocr, vision, or transcription")
+    .argument("<provider>", "disabled, mock, local, or openai-compatible")
+    .option("--json", "output JSON")
+    .action((task: string, provider: string, options: { json?: boolean }) => {
+      const result = setPerceptionProviderRoute({ task, provider });
+      writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
+    });
 
   return program;
 }
@@ -461,6 +498,13 @@ function requireScreenScopeKind(
   throw new Error(`Unsupported screen/OCR scope: ${value ?? ""}`);
 }
 
+function parseBooleanOption(value: string | undefined): boolean | undefined {
+  if (value === undefined) return undefined;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  throw new Error(`Expected true or false, received: ${value}`);
+}
+
 function parseListOption(value: string | undefined): string[] | undefined {
   if (!value) return undefined;
   return value
@@ -469,8 +513,12 @@ function parseListOption(value: string | undefined): string[] | undefined {
     .filter(Boolean);
 }
 
-function omitUndefined<T extends Record<string, unknown>>(value: T): Partial<T> {
-  return Object.fromEntries(
-    Object.entries(value).filter(([, item]) => item !== undefined)
-  ) as Partial<T>;
+function omitUndefined<T extends Record<string, unknown>>(
+  value: T
+): {
+  [K in keyof T]?: Exclude<T[K], undefined>;
+} {
+  return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined)) as {
+    [K in keyof T]?: Exclude<T[K], undefined>;
+  };
 }

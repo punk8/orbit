@@ -7,8 +7,12 @@ import {
   ScreenObservationAdapter,
   SCREEN_OBSERVATION_ADAPTER_ID,
   type ScreenCaptureScope,
-  screenPermission
+  screenPermission,
+  VisionSummaryAdapter,
+  VISION_SUMMARY_ADAPTER_ID,
+  visionPolicyFromPerceptionStatus
 } from "@orbit/adapters";
+import { mockVisionProvider } from "@orbit/ai";
 import {
   defaultProtectedAppRules,
   ingestEventsFromAdapter,
@@ -18,6 +22,7 @@ import {
   AuditRepository,
   EventRepository,
   openOrbitDatabase,
+  readPerceptionStatus,
   SettingsRepository,
   SourceRepository
 } from "@orbit/db";
@@ -43,7 +48,13 @@ export interface IngestPerceptionFixturesResult {
   pipeline: SemanticPipelineResult;
 }
 
-export async function ingestPerceptionFixtures(): Promise<IngestPerceptionFixturesResult> {
+export interface IngestPerceptionFixturesOptions {
+  includeVision?: boolean;
+}
+
+export async function ingestPerceptionFixtures(
+  options: IngestPerceptionFixturesOptions = {}
+): Promise<IngestPerceptionFixturesResult> {
   const config = getCliConfig();
   const database = openOrbitDatabase({ orbitHome: config.orbitHome });
   try {
@@ -100,6 +111,42 @@ export async function ingestPerceptionFixtures(): Promise<IngestPerceptionFixtur
         skipped: result.skipped,
         ...(result.nextCursor ? { nextCursor: result.nextCursor } : {}),
         warnings
+      });
+    }
+
+    if (options.includeVision) {
+      const allEvents = eventRepository.listEvents();
+      const visionAdapter = new VisionSummaryAdapter({
+        id: VISION_SUMMARY_ADAPTER_ID,
+        screenEvents: allEvents.filter(
+          (event) => event.source.adapterId === SCREEN_OBSERVATION_ADAPTER_ID
+        ),
+        ocrEvents: allEvents.filter(
+          (event) => event.source.adapterId === OCR_OBSERVATION_ADAPTER_ID
+        ),
+        provider: mockVisionProvider,
+        policy: visionPolicyFromPerceptionStatus(readPerceptionStatus(database.db))
+      });
+      sourceRepository.upsertFromAdapter(visionAdapter);
+      const cursor = sourceRepository.getCursor(visionAdapter.id);
+      const result = await ingestEventsFromAdapter(visionAdapter, eventRepository, cursor);
+      sourceRepository.setCursor(visionAdapter.id, result.nextCursor);
+      sourceRepository.recordSyncSuccess(visionAdapter.id, { lastEventAt: result.lastEventAt });
+      auditRepository.log("perception.vision_fixture_ingest", "source", visionAdapter.id, {
+        mode: "explicit_fixture_import",
+        provider: "mock",
+        read: result.read,
+        inserted: result.inserted,
+        skipped: result.skipped,
+        warnings: result.warnings
+      });
+      results.push({
+        adapterId: result.adapterId,
+        read: result.read,
+        inserted: result.inserted,
+        skipped: result.skipped,
+        ...(result.nextCursor ? { nextCursor: result.nextCursor } : {}),
+        warnings: result.warnings
       });
     }
 

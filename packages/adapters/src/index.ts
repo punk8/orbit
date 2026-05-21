@@ -24,3 +24,4 @@ export * from "./screen/screenObservationAdapter";
 export * from "./screen/screenObservationSession";
 export * from "./ocr/mockOcrEngine";
 export * from "./ocr/ocrObservationAdapter";
+export * from "./vision/visionSummaryAdapter";

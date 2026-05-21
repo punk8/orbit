@@ -16,7 +16,12 @@ import {
   ingestMockDesktopObservations
 } from "./commands/observe";
 import { getPerceptionStatus, runScreenOcrSmoke } from "./commands/perception";
-import { openOrbitDatabase, SettingsRepository } from "@orbit/db";
+import {
+  openOrbitDatabase,
+  SettingsRepository,
+  updatePerceptionProviderRoute,
+  updatePerceptionSourcePolicy
+} from "@orbit/db";
 import {
   getProjectContext,
   getTodayContext,
@@ -270,6 +275,33 @@ describe("cli commands", () => {
     expect(second.totals.inserted).toBe(0);
   });
 
+  it("feeds mock vision summaries into Events and Knowledge drafts when policy allows", async () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-vision-fixture-test-"));
+    tempDirs.push(orbitHome);
+    process.env.ORBIT_HOME = orbitHome;
+
+    const database = openOrbitDatabase({ orbitHome });
+    try {
+      updatePerceptionSourcePolicy(database.db, "screen", { canUseForAI: true });
+      updatePerceptionSourcePolicy(database.db, "vision", { canUseForAI: true });
+      updatePerceptionProviderRoute(database.db, "vision", "mock");
+    } finally {
+      database.close();
+    }
+
+    const result = await ingestPerceptionFixtures({ includeVision: true });
+    expect(
+      result.sources.find((source) => source.adapterId === "perception_vision")?.inserted
+    ).toBe(2);
+    expect(result.pipeline.activitySessions.total).toBe(1);
+    expect(result.pipeline.knowledgeArtifacts.total).toBe(1);
+
+    const artifact = listKnowledgeArtifacts()[0];
+    expect(JSON.stringify(artifact)).toContain("Vision summary");
+    expect(JSON.stringify(artifact)).not.toContain("hunter2");
+    expect(JSON.stringify(artifact)).not.toContain("sk-test");
+  });
+
   it("runs a mock screen/OCR start pause resume stop smoke", async () => {
     const smoke = await runScreenOcrSmoke("window");
     expect(smoke.scope.kind).toBe("window");
@@ -291,6 +323,8 @@ describe("cli commands", () => {
       .find((command) => command.name() === "ingest")
       ?.helpInformation();
     expect(perceptionHelp).toContain("screen-ocr-smoke");
+    expect(perceptionHelp).toContain("source-policy");
+    expect(perceptionHelp).toContain("provider-route");
     expect(ingestHelp).toContain("perception-fixtures");
   });
 });

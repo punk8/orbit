@@ -4,14 +4,32 @@ import {
   type ScreenCaptureScope,
   screenPermission
 } from "@orbit/adapters";
-import { openOrbitDatabase, readPerceptionStatus } from "@orbit/db";
+import {
+  openOrbitDatabase,
+  readPerceptionProviderKind,
+  readPerceptionProviderTask,
+  readPerceptionSourceKind,
+  readPerceptionStatus,
+  updatePerceptionProviderRoute,
+  updatePerceptionSourcePolicy
+} from "@orbit/db";
 import { getCliConfig } from "../config";
-import type { PerceptionControlPlaneStatus } from "@orbit/core";
+import type { PerceptionControlPlaneStatus, PerceptionSourcePolicyPatch } from "@orbit/core";
 
 export interface PerceptionStatusResult {
   orbitHome: string;
   dbPath: string;
   perception: PerceptionControlPlaneStatus;
+}
+
+export interface UpdatePerceptionPolicyInput {
+  sourceKind: string;
+  patch: PerceptionSourcePolicyPatch;
+}
+
+export interface UpdatePerceptionProviderRouteInput {
+  task: string;
+  provider: string;
 }
 
 export interface ScreenOcrSmokeResult {
@@ -31,6 +49,46 @@ export function getPerceptionStatus(): PerceptionStatusResult {
       orbitHome: database.orbitHome,
       dbPath: database.dbPath,
       perception: readPerceptionStatus(database.db)
+    };
+  } finally {
+    database.close();
+  }
+}
+
+export function setPerceptionSourcePolicy(
+  input: UpdatePerceptionPolicyInput
+): PerceptionStatusResult {
+  const config = getCliConfig();
+  const database = openOrbitDatabase({ orbitHome: config.orbitHome });
+  try {
+    return {
+      orbitHome: database.orbitHome,
+      dbPath: database.dbPath,
+      perception: updatePerceptionSourcePolicy(
+        database.db,
+        readPerceptionSourceKind(input.sourceKind),
+        input.patch
+      )
+    };
+  } finally {
+    database.close();
+  }
+}
+
+export function setPerceptionProviderRoute(
+  input: UpdatePerceptionProviderRouteInput
+): PerceptionStatusResult {
+  const config = getCliConfig();
+  const database = openOrbitDatabase({ orbitHome: config.orbitHome });
+  try {
+    return {
+      orbitHome: database.orbitHome,
+      dbPath: database.dbPath,
+      perception: updatePerceptionProviderRoute(
+        database.db,
+        readPerceptionProviderTask(input.task),
+        readPerceptionProviderKind(input.provider)
+      )
     };
   } finally {
     database.close();

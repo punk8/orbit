@@ -54,6 +54,7 @@ export interface Event {
     summary?: string;
     rawRef?: string;
     attachments?: AttachmentRef[];
+    metadata?: Record<string, unknown>;
   };
   classification?: {
     topics: string[];

@@ -121,6 +121,9 @@ importers:
 
   packages/adapters:
     dependencies:
+      '@orbit/ai':
+        specifier: workspace:*
+        version: link:../ai
       '@orbit/core':
         specifier: workspace:*
         version: link:../core
