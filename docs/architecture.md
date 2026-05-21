@@ -138,9 +138,23 @@ Memory should support:
 - Project and source scope.
 - Disable/delete controls.
 
-## AI Provider Abstraction
+## Hybrid AI Provider Abstraction
 
-The AI layer should expose task-oriented interfaces:
+Orbit should treat "local-first" as a data, permission, storage, audit, and deletion guarantee.
+It should not require every intelligence capability to run through a local LLM.
+
+The durable architecture is a hybrid provider model:
+
+- External frontier models can power high-quality generation, summarization, complex reasoning, and recommendation wording when the user explicitly configures them and the source policy allows it.
+- Local models and platform services should power privacy-sensitive or high-frequency foundation tasks such as VAD, transcription, OCR, embedding, local indexing, redaction, and sensitivity classification.
+- Deterministic fallbacks should remain available so Activity, Knowledge, Memory, Recommendation, Handoff, and search are useful even when no external provider is enabled.
+
+This is the main product lesson from local model component signals such as `onnxruntime`,
+`sherpa-onnx`, `model.int8.onnx`, `silero_vad.onnx`, local ONNX providers, and Ollama-style
+local endpoints: they are more valuable as task-specific local infrastructure than as proof that
+the whole product should default to a local general-purpose LLM.
+
+The AI layer should expose task-oriented interfaces, not one global "model" knob:
 
 - `summarizeActivity`
 - `draftKnowledgeArtifact`
@@ -149,13 +163,29 @@ The AI layer should expose task-oriented interfaces:
 - `embedText`
 - `rankRecommendations`
 - `redactSensitiveText`
+- `detectVoiceActivity`
+- `transcribeAudio`
+- `extractScreenText`
 
-Provider choices should be implementation details:
+Provider choices should be implementation details behind those tasks:
 
-- Local models.
+- Deterministic local rules.
+- Local ONNX providers.
+- Apple platform services such as Vision where appropriate.
+- Ollama or other local HTTP model endpoints.
 - OpenAI-compatible endpoints.
-- Claude or Codex CLI integration.
+- Claude/Gemini-style external model providers.
 - Future hosted Orbit service.
+
+Provider metadata must be visible and auditable. Generated Knowledge, Memory, Recommendation,
+Handoff Packs, indexes, and transcripts should be able to answer:
+
+- Which task produced this output.
+- Which provider and model were used.
+- Whether data left the machine.
+- Which source policies allowed the operation.
+- Which evidence IDs were included.
+- Which audit log entry records the operation.
 
 The domain layer should not import provider-specific SDKs.
 

@@ -22,6 +22,7 @@ Read in this order:
 16. [Alpha Hardening Goals](./alpha-hardening-goals.md)
 17. [Alpha Release Checklist](./alpha-release-checklist.md)
 18. [Handoff: Next AI Provider Work](./handoff-next-ai-provider.md)
+19. [Alpha UI Implementation Spec](./alpha-ui-implementation-spec.md)
 
 The design follows the project-level guidance in [AGENTS.md](../AGENTS.md):
 
