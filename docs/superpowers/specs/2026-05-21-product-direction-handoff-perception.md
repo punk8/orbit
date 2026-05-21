@@ -1,5 +1,10 @@
 # Orbit Product Direction: Handoff And Perception
 
+> Update: Goal 8 now owns opt-in screen/OCR/vision/audio implementation. This earlier direction
+> remains useful for the Handoff-first sequencing rationale, but the current perception execution
+> scope is defined in
+> [Alpha Perception And Context Completion](../../alpha-perception-and-context-completion.md).
+
 ## Purpose
 
 This spec pins down the product direction before Goal 6 implementation starts. Orbit should become a local-first work context continuity system whose first must-have output is a privacy-safe agent handoff. Screen and audio should be treated as first-class perception inputs, but not as the product's main surface or promise.

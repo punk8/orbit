@@ -218,7 +218,11 @@ Goal 7 watchouts:
 - `--format markdown` is the only non-JSON format implemented; unsupported format validation can be tightened later.
 - Desktop copy uses the user's clipboard, but there is no external send/share action.
 - Agent API is descriptor-only. MCP/local HTTP serving remains later work.
-- Screen/audio are visible as future capabilities only. Do not add ScreenCaptureKit, OCR, microphone, transcription, or raw media storage without passing the production-capture gate in `docs/perception-research-spike.md`.
+- Screen/OCR/vision/audio move from Goal 7 readiness into Goal 8 implementation. Do not add
+  ScreenCaptureKit, OCR, vision model use, microphone, transcription, or raw media storage outside the
+  8A/8B/8C/8D/8E/8F checkpoints in
+  `docs/alpha-perception-and-context-completion.md`, and do not bypass the production-capture gate in
+  `docs/perception-research-spike.md`.
 
 ## Goal 6: Source Reconfiguration And Privacy Cleanup
 

@@ -29,6 +29,7 @@ Read in this order:
 23. [Source Adapter Complete Contract](./source-adapter-complete-contract.md)
 24. [Semantic Quality And Evaluation](./semantic-quality-evaluation.md)
 25. [Release Readiness Spec](./release-readiness-spec.md)
+26. [Alpha Perception And Context Completion](./alpha-perception-and-context-completion.md)
 
 The design follows the project-level guidance in [AGENTS.md](../AGENTS.md):
 

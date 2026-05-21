@@ -26,7 +26,7 @@ Required gated sources:
 - Explicit filesystem watch.
 - Terminal/browser metadata integration.
 - Clipboard policy.
-- Screen/OCR/audio only after stronger permission and retention gates.
+- Screen/OCR/vision/audio after Goal 8 stronger permission, visibility, retention, redaction, protected-app, provider-policy, and audit gates.
 
 Required states:
 
@@ -53,8 +53,37 @@ Rules:
 
 - Do not capture keystrokes or password fields.
 - Do not capture raw screen/OCR/audio by default.
+- Do not send perception data to external AI by default.
 - Protected apps suppress semantic capture.
 - Observation Events must pass through the same Event, Activity, Knowledge, Memory, and Recommendation pipeline.
+
+### 0A. Alpha Perception Completion Loop
+
+Goal 8 makes high-risk perception a complete Alpha capability while keeping it opt-in.
+
+Required source types:
+
+- Explicit screen/window capture.
+- OCR over selected screen/window observations.
+- Vision model summarization over bounded, redacted visual observations.
+- Explicit meeting/session audio capture.
+- Transcript generation from meeting/session audio.
+
+Required actions:
+
+- Configure provider policy for OCR post-processing, vision, and transcription.
+- Start, pause, resume, stop, disable, delete, and audit each perception source.
+- Configure protected apps, excluded windows, TTL, raw sidecar storage, summary storage, AI use, and agent export.
+- Review perception-derived Activity and Knowledge evidence.
+
+Rules:
+
+- High-risk perception is disabled by default.
+- Screen/window capture requires explicit scope and Screen Recording permission.
+- Audio capture requires explicit meeting/session mode and microphone or system-audio permission.
+- Raw screenshots, raw audio, and raw transcripts are off by default and short-TTL only when enabled.
+- Failed-redaction perception data is excluded from persistence, AI use, indexing, and Handoff.
+- Default Handoff includes only redacted summaries and source pointers from export-allowed perception sources.
 
 ### 1. Source Setup Loop
 
@@ -245,6 +274,7 @@ Write audit logs for:
 Alpha is ready when:
 
 - A fresh user can install the app, configure at least one local source, ingest data, and see Today/Activity/Knowledge/Memory/Recommendation views.
+- After Goal 8, a fresh user can intentionally enable perception sources, see visible capture state, pause/stop/delete them, and verify redacted screen/OCR/vision/audio evidence in Activity and Knowledge.
 - Review actions work from UI and CLI or local API.
 - No Memory is included in default agent context until confirmed.
 - Re-indexing does not duplicate Events or derived objects.

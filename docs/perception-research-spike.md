@@ -4,7 +4,9 @@ Last updated: 2026-05-21
 
 ## Product Position
 
-Screen and audio perception are future Orbit Source Adapter inputs. They matter because many useful work signals never enter Codex, SeaTalk, Git, calendar, or documents: browser research, UI debugging, design review, window switching, meeting context, and non-text workflows.
+Screen, OCR, vision, and audio perception are first-class Orbit Source Adapter inputs for Alpha Goal 8. They matter because many useful work signals never enter Codex, SeaTalk, Git, calendar, or
+documents: browser research, UI debugging, design review, window switching, meeting context, and
+non-text workflows.
 
 They are not the center of Orbit. The product center remains:
 
@@ -14,7 +16,12 @@ Source Adapter -> Event -> Activity Session -> Knowledge Artifact -> Memory -> R
 
 Perception should feed this chain as evidence. It should not turn Orbit into a screenshot search tool, a screen recorder, an always-on microphone, or a raw media archive.
 
-Goal 7 ships only research and disabled descriptors. There is no screen capture, OCR, microphone capture, transcription, raw media storage, or agent export implementation in this goal.
+Goal 7 shipped only research and disabled descriptors. Goal 8 is the explicit implementation goal
+for opt-in screen/OCR/vision/audio capability completion. See
+[Alpha Perception And Context Completion](./alpha-perception-and-context-completion.md).
+
+This research document remains the technical reference for Goal 8, but the implementation boundary is
+now the Goal 8 checkpoint plan rather than an indefinite "future" bucket.
 
 ## macOS Accessibility Path
 
@@ -63,7 +70,7 @@ OCR output should become a `screen_observation` Event summary, not a screenshot 
 
 ## Audio Capture And Transcription
 
-Audio is a first-class future Source Adapter, but always-on microphone capture should not be Orbit's first audio implementation.
+Audio is a first-class Goal 8 Source Adapter, but always-on microphone capture should not be Orbit's first audio implementation.
 
 Possible system paths:
 
@@ -188,16 +195,20 @@ Future audio should use:
 
 The current code only adds `SourceKind` `audio` for disabled capability descriptors. It does not add an audio adapter or production audio event type.
 
-## Recommended First Implementation Sequence
+## Recommended Goal 8 Implementation Sequence
 
-1. Add desktop permission copy and disabled settings for screen/audio.
-2. Implement active app/window metadata using `NSWorkspace.frontmostApplication`.
-3. Add Accessibility text extraction for focused/visible UI elements.
-4. Map observations to `screen_observation` Events with no raw media.
-5. Add app/window exclusion UI and tests.
-6. Add sparse OCR fallback behind explicit permission.
-7. Add explicit meeting/session audio mode after screen metadata is stable.
-8. Revisit Handoff Pack rules only after perception summaries are redacted, reviewed, and source policies allow export.
+1. Goal 8A: add the perception source control plane, provider policy, audit logs, protected apps,
+   retention, and disabled-by-default settings.
+2. Goal 8B: add explicit sparse screen/window capture and OCR after Screen Recording permission,
+   scope selection, protected-app suppression, and short-retention policy are verified.
+3. Goal 8C: add vision model summarization with mock/local/provider policy, redaction before model
+   use, and no external AI by default.
+4. Goal 8D: add explicit meeting/session audio capture and transcription, not ambient always-on
+   microphone capture.
+5. Goal 8E: connect perception evidence to Activity, Knowledge, Memory candidates, Recommendations,
+   Today, and Handoff.
+6. Goal 8F: harden performance budgets, cleanup, audit review, packaging, and macOS permission smoke
+   tests before Alpha release.
 
 ## Production-Capture Gate Checklist
 

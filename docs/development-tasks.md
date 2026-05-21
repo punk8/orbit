@@ -13,6 +13,7 @@ Each task is written so a goal-mode agent can execute it without re-deciding pro
 - Keep `packages/core` independent from Electron.
 - Keep adapters thin and read-only unless a later task explicitly adds writes.
 - Do not build raw screen recording, OCR, audio transcription, cloud sync, hosted backend, or side-effect automation until a task explicitly adds the required permission, retention, redaction, protected-app, and audit gates.
+- Goal 8 is the explicit Alpha scope for screen/OCR/vision/audio perception, but those sources still remain opt-in, visible, pausable, auditable, redacted before persistence/export, and disabled by default.
 - Treat background observation as the core live input path after the local data spine and semantic pipeline are stable.
 - Do not read or depend on private local user data in tests.
 - Use synthetic fixtures for repeatable tests.
@@ -934,9 +935,350 @@ pnpm --filter @orbit/cli orbit handoff today --json
 - Observed follow-ups can produce Recommendations.
 - Today and Handoff reflect live observed context with evidence and exclusions.
 
-## Four Development Goals
+## Task 19: Perception Source Control And Policy Surface
 
-Use these four goals to execute implementation. Do not combine all tasks into one long goal unless the user explicitly asks to trade away checkpoints.
+### Goal
+
+Add the control plane for Alpha perception sources before enabling live high-risk capture.
+
+This task maps to Goal 8A in
+[Alpha Perception And Context Completion](./alpha-perception-and-context-completion.md).
+
+### Files To Create Or Modify
+
+- `docs/alpha-perception-and-context-completion.md`
+- `packages/core/src/perception/*`
+- `packages/ai/src/*`
+- `packages/db/src/repositories/settingsRepository.ts`
+- `packages/db/src/repositories/auditRepository.ts`
+- `apps/cli/src/commands/perceptionStatus.ts`
+- `apps/desktop/src/routes/SettingsPage.tsx`
+- `apps/desktop/src/routes/SourcesPage.tsx`
+- `apps/desktop/src/i18n.tsx`
+- tests for perception source policy and disabled-by-default behavior
+
+### Implementation Notes
+
+- Add configurable source entries for screen capture, OCR, vision summarization, microphone audio,
+  system audio, and transcript data.
+- Add per-source runtime state, permission state, raw storage policy, summary storage policy, AI-use
+  policy, agent-export policy, TTL, sensitivity, and protected-app exclusions.
+- Add provider task routing for `ocr`, `vision`, and `transcription` with `disabled`, `mock`, local,
+  and OpenAI-compatible provider slots.
+- Add `orbit perception status --json`.
+- Write audit logs for enable, disable, pause, resume, permission check, policy change, and delete.
+- Keep source controls independent so OCR, vision, and audio can be enabled or disabled separately.
+
+### Do Not Do
+
+- Do not capture screen frames yet.
+- Do not run OCR yet.
+- Do not capture microphone or system audio yet.
+- Do not call an external model with perception data yet.
+- Do not enable high-risk perception by default.
+
+### Acceptance Commands
+
+```bash
+pnpm test
+pnpm typecheck
+pnpm --filter @orbit/desktop test
+pnpm --filter @orbit/cli orbit perception status --json
+```
+
+### Done When
+
+- Desktop Settings and Sources expose screen, OCR, vision, audio, and transcript controls.
+- CLI can report perception capability and policy state without starting capture.
+- High-risk perception sources are disabled by default.
+- Audit logs cover control-plane changes.
+
+## Task 20: Screen/Window Capture And OCR Event Pipeline
+
+### Goal
+
+Implement explicit sparse screen/window observation and OCR as opt-in Source Adapters.
+
+This task maps to Goal 8B in
+[Alpha Perception And Context Completion](./alpha-perception-and-context-completion.md).
+
+### Files To Create Or Modify
+
+- `packages/adapters/src/screen/*`
+- `packages/adapters/src/ocr/*`
+- `packages/privacy/src/*`
+- `apps/desktop/electron/observation/*`
+- `apps/desktop/electron/native/*` or native-helper boundary
+- `apps/desktop/src/routes/SettingsPage.tsx`
+- `apps/desktop/src/routes/SourcesPage.tsx`
+- `fixtures/perception/screen-ocr/*.jsonl`
+- tests for mock capture, OCR, protected apps, redaction, and retention
+
+### Implementation Notes
+
+- Use a mockable native-helper boundary for ScreenCaptureKit or equivalent macOS capture.
+- Require Screen Recording permission before any live frame capture.
+- Let the user select display, app, window, or region scope before capture starts.
+- Enforce protected apps and excluded windows before capture and before OCR.
+- Use sparse sampling and resource budgets; do not implement continuous raw video as the default.
+- Run OCR locally where available and support Chinese and English.
+- Convert output into `screen_observation` and `ocr_text` Events.
+- Keep raw screenshots off by default; optional raw frame retention must use a short TTL and audit.
+
+### Do Not Do
+
+- Do not capture protected apps.
+- Do not store raw screenshots indefinitely.
+- Do not export raw screenshots in Handoff.
+- Do not use OCR as a bypass for denied Accessibility or protected-app policy.
+- Do not send frames to external AI in this task.
+
+### Acceptance Commands
+
+```bash
+pnpm test
+pnpm typecheck
+pnpm --filter @orbit/adapters test
+pnpm --filter @orbit/desktop test
+pnpm --filter @orbit/cli orbit perception status --json
+pnpm --filter @orbit/cli orbit activity list --json
+```
+
+### Done When
+
+- Mock and fixture capture produce redacted `screen_observation` and `ocr_text` Events.
+- Protected apps suppress frame capture and OCR.
+- Screen/OCR Events become Activity Sessions.
+- Default storage contains summaries/source pointers, not raw frame archives.
+
+## Task 21: Vision Model Summarization
+
+### Goal
+
+Use model-assisted vision summaries to turn screen-visible work into useful context.
+
+This task maps to Goal 8C in
+[Alpha Perception And Context Completion](./alpha-perception-and-context-completion.md).
+
+### Files To Create Or Modify
+
+- `packages/ai/src/provider.ts`
+- `packages/ai/src/tasks/vision.ts`
+- `packages/core/src/perception/*`
+- `packages/db/src/semanticPipeline.ts`
+- `packages/privacy/src/*`
+- `fixtures/perception/vision/*.json`
+- tests for mock vision summaries, provider policy, redaction failures, and Handoff exclusions
+
+### Implementation Notes
+
+- Add a first-class `vision` AI task separate from text summarization and embedding.
+- Support deterministic mock vision provider tests.
+- Allow local or OpenAI-compatible providers only when configured and source policy allows AI use.
+- Redact, downsample, crop, or summarize locally before external model calls when possible.
+- Persist bounded work-context summaries, model metadata, policy metadata, and evidence pointers.
+- Exclude failed-redaction or non-exportable vision Events from default Handoff.
+
+### Do Not Do
+
+- Do not call external models by default.
+- Do not store raw model image inputs in audit logs.
+- Do not turn screenshots into full transcripts.
+- Do not auto-confirm Memory from vision summaries.
+
+### Acceptance Commands
+
+```bash
+pnpm test
+pnpm typecheck
+pnpm --filter @orbit/ai test
+pnpm --filter @orbit/cli orbit context today --json
+pnpm --filter @orbit/cli orbit handoff today --json
+```
+
+### Done When
+
+- Mock vision summaries deterministically feed Events and Knowledge drafts.
+- Provider policy blocks unconfigured or disallowed external AI use.
+- Failed redaction prevents model calls and Handoff inclusion.
+
+## Task 22: Audio/Meeting Capture And Transcription
+
+### Goal
+
+Implement explicit meeting/session audio capture and transcription.
+
+This task maps to Goal 8D in
+[Alpha Perception And Context Completion](./alpha-perception-and-context-completion.md).
+
+### Files To Create Or Modify
+
+- `packages/adapters/src/audio/*`
+- `packages/adapters/src/transcript/*`
+- `packages/ai/src/tasks/transcription.ts`
+- `packages/privacy/src/*`
+- `apps/desktop/electron/observation/*`
+- `apps/desktop/src/routes/SourcesPage.tsx`
+- `fixtures/perception/audio/*.jsonl`
+- tests for mock audio segments, transcript redaction, pause/stop, and protected-app policy
+
+### Implementation Notes
+
+- Implement explicit meeting/session mode rather than ambient always-on microphone.
+- Require microphone or system-audio permission before live capture.
+- Show visible active state and current audio scope while collecting.
+- Support pause, resume, stop, and immediate buffer flush.
+- Segment audio with VAD/chunking or equivalent bounded processing.
+- Prefer local transcription; allow configured provider use only with explicit source policy.
+- Convert output into `audio_segment` and `transcript_segment` Events.
+- Keep raw audio off by default; optional raw audio TTL must be session-scoped and short.
+
+### Do Not Do
+
+- Do not enable ambient always-on audio.
+- Do not store raw audio indefinitely.
+- Do not persist transcripts when redaction fails.
+- Do not export raw audio or raw transcripts in default Handoff.
+
+### Acceptance Commands
+
+```bash
+pnpm test
+pnpm typecheck
+pnpm --filter @orbit/adapters test
+pnpm --filter @orbit/desktop test
+pnpm --filter @orbit/cli orbit activity list --json
+pnpm --filter @orbit/cli orbit context today --json
+```
+
+### Done When
+
+- Fixture/mock audio produces redacted `audio_segment` and `transcript_segment` Events.
+- Pause/stop flushes buffers and prevents delayed transcript persistence.
+- Meeting/session transcripts can contribute to Activity and Knowledge drafts.
+
+## Task 23: Daily Context Completion UX
+
+### Goal
+
+Make perception-derived evidence useful across Today, Activity, Knowledge, Recommendations, and Handoff.
+
+This task maps to Goal 8E in
+[Alpha Perception And Context Completion](./alpha-perception-and-context-completion.md).
+
+### Files To Create Or Modify
+
+- `packages/core/src/activity/*`
+- `packages/db/src/semanticPipeline.ts`
+- `packages/db/src/handoffPack.ts`
+- `apps/desktop/src/routes/TodayPage.tsx`
+- `apps/desktop/src/routes/ActivityPage.tsx`
+- `apps/desktop/src/routes/KnowledgePage.tsx`
+- `apps/desktop/src/routes/RecommendationsPage.tsx`
+- `apps/desktop/src/routes/HandoffPage.tsx`
+- `fixtures/perception/day-1/*.jsonl`
+- tests for mixed-source Activity/Knowledge/Recommendation/Handoff flows
+
+### Implementation Notes
+
+- Show perception source kind, sensitivity, redaction state, policy, and evidence pointers in Activity.
+- Generate Knowledge drafts from mixed desktop, screen/OCR, vision, audio, and transcript evidence.
+- Generate Memory candidates only from confirmed Knowledge.
+- Generate Recommendations for meeting action items, unresolved visible errors, missed follow-ups, and
+  context gaps.
+- Allow redacted, export-approved perception summaries in Handoff.
+- Keep raw screenshots, raw audio, raw transcripts, failed-redaction Events, and non-exportable sources
+  excluded from default Handoff.
+
+### Do Not Do
+
+- Do not make perception Events become Memory automatically.
+- Do not include raw media in Today or Handoff defaults.
+- Do not execute side-effect recommendations.
+
+### Acceptance Commands
+
+```bash
+pnpm test
+pnpm typecheck
+pnpm --filter @orbit/desktop test
+pnpm --filter @orbit/cli orbit ingest perception-fixtures --json
+pnpm --filter @orbit/cli orbit pipeline run --json
+pnpm --filter @orbit/cli orbit activity list --json
+pnpm --filter @orbit/cli orbit knowledge list --json
+pnpm --filter @orbit/cli orbit recommendation list --json
+pnpm --filter @orbit/cli orbit handoff today --json
+```
+
+### Done When
+
+- A clean fixture run shows perception evidence in Activity and Knowledge drafts.
+- Recommendations include perception-backed evidence and confidence.
+- Default Handoff includes summaries/source pointers only when source policy allows export.
+
+## Task 24: Alpha Perception Hardening And Release Gate
+
+### Goal
+
+Harden Goal 8 perception for Alpha users.
+
+This task maps to Goal 8F in
+[Alpha Perception And Context Completion](./alpha-perception-and-context-completion.md).
+
+### Files To Create Or Modify
+
+- `docs/alpha-release-checklist.md`
+- `docs/privacy-permissions.md`
+- `docs/release-readiness-spec.md`
+- `packages/db/src/localDataOperations.ts`
+- `packages/privacy/src/*`
+- `apps/desktop/electron/*`
+- `apps/desktop/src/routes/SettingsPage.tsx`
+- tests and manual smoke documentation for perception release gates
+
+### Implementation Notes
+
+- Add CPU, battery, storage, queue, and provider-budget limits.
+- Enforce deletion and TTL cleanup for perception sidecars.
+- Add audit review for capture start/stop, redaction failure, model call, transcription, delete, and
+  Handoff inclusion/exclusion.
+- Package and sign any native helper required for macOS Alpha distribution.
+- Document known limitations and blocked sources.
+- Verify no-default-capture behavior in packaged Alpha.
+
+### Do Not Do
+
+- Do not ship unsigned helper behavior as silently trusted.
+- Do not leave raw sidecars outside cleanup.
+- Do not let packaging include private fixture or temporary capture data.
+
+### Acceptance Commands
+
+```bash
+rm -rf .tmp/goal-8-acceptance
+export ORBIT_HOME="$PWD/.tmp/goal-8-acceptance"
+pnpm test
+pnpm typecheck
+pnpm lint
+pnpm --filter @orbit/desktop build
+pnpm --filter @orbit/desktop test:e2e
+pnpm --filter @orbit/desktop package:dir
+pnpm --filter @orbit/cli orbit perception status --json
+pnpm --filter @orbit/cli orbit context today --json
+pnpm --filter @orbit/cli orbit handoff today --json
+```
+
+### Done When
+
+- Packaged Alpha exposes perception controls without default capture.
+- Performance and storage budgets are measured and documented.
+- Privacy cleanup removes raw sidecars while preserving policy-allowed summaries and evidence pointers.
+- Manual macOS permission smoke tests are documented.
+
+## Development Goals
+
+Use these goals to execute implementation. Do not combine unrelated tasks into one long goal unless
+the user explicitly asks to trade away checkpoints.
 
 ### Goal 1: Local Data Spine
 
@@ -1221,6 +1563,98 @@ Constraints:
 - End with pnpm test, pnpm typecheck, desktop tests, available Electron smoke tests, Goal 4 acceptance commands, and a short summary of files changed.
 ```
 
+### Goal 8: Alpha Perception And Context Completion
+
+Scope: Task 19-24.
+
+Implementation guide: follow
+[Alpha Perception And Context Completion](./alpha-perception-and-context-completion.md).
+Implement Goal 8 through the 8A/8B/8C/8D/8E/8F checkpoints defined there. Each checkpoint must be
+implemented, verified, committed, and pushed independently before the next one starts.
+
+Goal 8 is the explicit Alpha scope for screen/OCR/vision/audio capability completion. It does not
+relax the global safety rules: high-risk perception remains disabled by default and must be visible,
+permissioned, pausable, protected-app aware, redacted, retained by policy, and audited.
+
+Expected deliverables:
+
+- Desktop and CLI control plane for screen, OCR, vision, audio, and transcript sources.
+- Per-source policies for raw storage, summaries, AI use, agent export, TTL, sensitivity, protected
+  apps, and deletion.
+- AI provider task routing for OCR post-processing, vision summarization, and transcription.
+- Explicit sparse screen/window capture and OCR pipeline.
+- Vision model summarization that persists bounded work-context summaries.
+- Explicit meeting/session audio capture and transcription.
+- Perception-derived Activity, Knowledge drafts, Recommendations, Today context, and Handoff output.
+- Performance, retention, cleanup, audit, native-helper packaging, and macOS permission smoke coverage.
+
+Acceptance commands:
+
+```bash
+rm -rf .tmp/goal-8-acceptance
+export ORBIT_HOME="$PWD/.tmp/goal-8-acceptance"
+pnpm test
+pnpm typecheck
+pnpm lint
+pnpm --filter @orbit/core test
+pnpm --filter @orbit/privacy test
+pnpm --filter @orbit/adapters test
+pnpm --filter @orbit/desktop test
+pnpm --filter @orbit/desktop build
+pnpm --filter @orbit/desktop test:e2e
+pnpm --filter @orbit/cli orbit observe status --json
+pnpm --filter @orbit/cli orbit perception status --json
+pnpm --filter @orbit/cli orbit context today --json
+pnpm --filter @orbit/cli orbit handoff today --json
+```
+
+Functional acceptance:
+
+- Screen/OCR, vision, and audio/transcript sources are implemented as opt-in Source Adapters.
+- A user can configure, start, pause, resume, stop, disable, delete, and audit each perception source.
+- Screen/window capture requires explicit scope and Screen Recording permission.
+- OCR supports bounded Chinese/English text extraction and protected-app suppression.
+- Vision model use requires configured provider policy and redaction success.
+- Audio capture is explicit meeting/session mode, not ambient always-on microphone.
+- Raw screenshots, raw audio, and raw transcripts are off by default and short-TTL only when enabled.
+- Perception Events feed Activity, Knowledge, Memory candidate, Recommendation, Today, and Handoff.
+- Default Handoff excludes raw media, failed-redaction Events, and non-exportable perception sources.
+- No keystroke capture, password-field capture, silent browser scraping, or arbitrary filesystem
+  scanning is added.
+
+Goal 8 prompt:
+
+```text
+Implement Orbit Task 19-24 from docs/development-tasks.md.
+
+Scope:
+- Follow docs/alpha-perception-and-context-completion.md.
+- Implement Goal 8 through 8A/8B/8C/8D/8E/8F checkpoints.
+- Add the perception control plane for screen, OCR, vision, audio, and transcript sources.
+- Add provider task routing for OCR post-processing, vision summarization, and transcription.
+- Implement explicit sparse screen/window capture and OCR after 8A gates are verified.
+- Implement vision summaries after provider policy and redaction gates are verified.
+- Implement explicit meeting/session audio capture and transcription after audio gates are verified.
+- Connect perception Events into Activity, Knowledge drafts, Memory candidates, Recommendations, Today, and Handoff.
+- Harden retention, cleanup, audit, performance budgets, native-helper packaging, and macOS permission smoke checks.
+
+Constraints:
+- Follow AGENTS.md.
+- Follow docs/background-observation-core-spec.md.
+- Follow docs/alpha-perception-and-context-completion.md.
+- Each 8A/8B/8C/8D/8E/8F checkpoint must be independently verified, committed, and pushed.
+- If a checkpoint hits a technical blocker, stop and document the blocker before continuing.
+- Do not enable raw screen recording, OCR, audio, vision, or transcription by default.
+- Do not capture keystrokes or password fields.
+- Do not scrape browsers silently.
+- Do not scan arbitrary private folders.
+- Do not send perception data to external AI by default.
+- Do not include raw screenshots, raw audio, raw transcripts, failed-redaction Events, draft Knowledge, or unconfirmed Memory in default Handoff.
+- Do not auto-confirm Memory.
+- Do not execute side effects.
+- End with Goal 8 acceptance commands, available macOS smoke evidence, and a short summary of files changed.
+```
+
 ## Goal Sequencing
 
 Recommended order:
@@ -1229,5 +1663,11 @@ Recommended order:
 2. Goal 2: Semantic Pipeline, Task 6-10.
 3. Goal 3: Product Shell And Real Sources, Task 11-13.
 4. Goal 4: Background Observation Core, Task 14-18.
+5. Goal 5-7: Alpha hardening, realistic source reliability, agent continuity, and release work as
+   tracked in the Alpha and superpowers planning documents.
+6. Goal 8: Alpha Perception And Context Completion, Task 19-24.
 
-This order keeps every goal independently verifiable and makes background observation the first live-input product goal after the local data spine, semantic pipeline, and desktop shell are stable.
+This order keeps every goal independently verifiable, makes background observation the first
+live-input product goal after the local data spine, semantic pipeline, and desktop shell are stable,
+and gives screen/OCR/vision/audio a dedicated Alpha goal instead of leaving it as indefinite future
+research.

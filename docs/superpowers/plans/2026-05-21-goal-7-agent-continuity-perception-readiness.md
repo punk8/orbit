@@ -1,5 +1,9 @@
 # Goal 7 Agent Continuity And Perception Readiness Implementation Plan
 
+> Update: this completed Goal 7 plan intentionally stopped at perception readiness. Goal 8 now owns
+> opt-in screen/OCR/vision/audio implementation through
+> [Alpha Perception And Context Completion](../../alpha-perception-and-context-completion.md).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Ship one combined Orbit development goal that delivers the first agent handoff product surface, hardens explicit-path Codex/local-agent ingestion, and records a permission-aware screen/audio perception research spike without implementing raw capture.

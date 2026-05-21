@@ -113,16 +113,61 @@ Functional acceptance:
 - Release checklist states whether the artifact is signed/notarized.
 - Packaging artifacts do not include `.tmp` private samples.
 
+## Goal 8: Alpha Perception And Context Completion
+
+Scope:
+
+- Add opt-in screen/window capture, OCR, vision summarization, audio capture, and transcription as
+  real Alpha Source Adapters.
+- Keep all high-risk perception disabled by default and independently controllable.
+- Add provider task routing for OCR post-processing, vision, and transcription.
+- Enforce protected apps, redaction, retention, raw sidecar TTL, audit, and Handoff exclusion policy.
+- Connect perception Events into Activity, Knowledge, Memory candidates, Recommendations, Today, and
+  Handoff.
+- Harden CPU, storage, deletion, native-helper packaging, and macOS permission smoke tests.
+
+Implementation guide:
+
+- [Alpha Perception And Context Completion](./alpha-perception-and-context-completion.md)
+
+Acceptance commands:
+
+```bash
+rm -rf .tmp/goal-8-acceptance
+export ORBIT_HOME="$PWD/.tmp/goal-8-acceptance"
+pnpm test
+pnpm typecheck
+pnpm lint
+pnpm --filter @orbit/desktop build
+pnpm --filter @orbit/desktop test:e2e
+pnpm --filter @orbit/cli orbit perception status --json
+pnpm --filter @orbit/cli orbit context today --json
+pnpm --filter @orbit/cli orbit handoff today --json
+```
+
+Functional acceptance:
+
+- A user can intentionally enable, pause, resume, stop, delete, and audit perception sources.
+- Screen/OCR, vision, and audio/transcript Events feed the Orbit semantic pipeline.
+- Raw screenshots, raw audio, and raw transcripts are off by default and short-TTL only when enabled.
+- Default Handoff includes only redacted summaries and source pointers from export-allowed perception
+  sources.
+- No keystroke capture, password-field capture, silent browser scraping, or arbitrary filesystem
+  scanning is added.
+
 ## Recommended Execution Order
 
 1. Goal 4: Product Closure And Governance.
 2. Goal 6: Realistic Source Reliability.
 3. Goal 5: Desktop Runtime And Alpha UX.
 4. Goal 7: Alpha Packaging And Release Gate.
+5. Goal 8: Alpha Perception And Context Completion.
 
 Reason:
 
 - Governance controls decide what data is safe to expose.
 - Realistic fixtures make UI and runtime work meaningful.
 - Desktop UX should be tested against realistic data and real review actions.
-- Packaging is last because it should ship a coherent Alpha, not just a shell.
+- Goal 7 establishes the baseline installable Alpha before high-risk perception is added.
+- Goal 8 follows the source, governance, handoff, and packaging foundation so high-risk perception can
+  be capability-complete without becoming silent capture.

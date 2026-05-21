@@ -11,6 +11,8 @@ Background Observation -> Event -> Activity Session -> Knowledge Artifact -> Mem
 For concrete engineering slices, module boundaries, macOS capture choices, event mappings, and test
 strategy, see
 [Background Observation Implementation Plan](./background-observation-implementation-plan.md).
+For the Alpha checkpoint that implements opt-in screen/OCR/vision/audio perception, see
+[Alpha Perception And Context Completion](./alpha-perception-and-context-completion.md).
 
 Orbit's core value is not only importing explicit source files. The product must run quietly in the
 background, observe authorized computer activity, and turn that activity into traceable work context.
@@ -21,7 +23,8 @@ retention by default, and let the user pause, inspect, delete, and govern everyt
 
 ## Product Boundary
 
-Background observation is first-class. Screen recording, OCR, and audio are gated high-risk inputs.
+Background observation is first-class. Screen recording, OCR, vision summarization, and audio are
+gated high-risk inputs.
 
 The complete observation stack has three tiers:
 
@@ -42,12 +45,14 @@ The complete observation stack has three tiers:
 3. **Tier 3: High-risk perception**
    - Screen frames.
    - OCR over screenshots.
+   - Vision model summaries over screen/window observations.
    - Audio capture.
    - Meeting transcription.
 
 Tier 1 and Tier 2 form the first background-observation core. Tier 3 stays disabled until the
 permission UX, visible running state, redaction, retention, app exclusions, storage budgets, and
-audit trail are complete.
+audit trail are complete. Goal 8 explicitly owns landing those gates and the first Alpha
+implementation of opt-in screen/OCR/vision/audio perception.
 
 ## Non-Goals
 
@@ -97,7 +102,7 @@ Required controls:
 - Configure allowed folders.
 - Configure clipboard capture.
 - Configure Accessibility capture.
-- Configure screen/OCR/audio gates separately.
+- Configure screen/OCR/vision/audio gates separately.
 - Run privacy cleanup.
 - Export debug bundle without raw payloads.
 - Clear local observation data with confirmation.
@@ -123,6 +128,7 @@ Tier 2:
 Tier 3:
 
 - Screen Recording is required before screen frames or OCR.
+- Vision model use over screen-derived images requires explicit source policy and redaction success.
 - Microphone/System Audio permission is required before audio capture.
 - These permissions must have separate toggles and stronger warnings than Tier 1/Tier 2.
 
@@ -232,20 +238,21 @@ recordings.
 
 Default policies:
 
-| Observation | Raw storage default | Summary storage | AI default | Agent export default |
-| --- | --- | --- | --- | --- |
-| App focus | off/not applicable | allowed | allowed | allowed |
-| Window title | off | allowed | policy-based | policy-based |
-| Accessibility text | off | allowed after redaction | blocked unless enabled | blocked unless enabled |
-| Browser URL/title | off | allowed after redaction | policy-based | policy-based |
-| Terminal command | off | allowed after redaction | policy-based | policy-based |
-| Terminal output | off | summary only | blocked by default | blocked by default |
-| Clipboard | off | summary/hash only | blocked by default | blocked by default |
-| File activity | off | metadata/summary | policy-based | policy-based |
-| Screen frame | short TTL only | allowed after OCR/redaction | blocked by default | blocked by default |
-| OCR text | off | allowed after redaction | blocked by default | blocked by default |
-| Audio | short TTL only | transcript summary | blocked by default | blocked by default |
-| Transcript | off | allowed after redaction | blocked by default | blocked by default |
+| Observation        | Raw storage default | Summary storage             | AI default             | Agent export default   |
+| ------------------ | ------------------- | --------------------------- | ---------------------- | ---------------------- |
+| App focus          | off/not applicable  | allowed                     | allowed                | allowed                |
+| Window title       | off                 | allowed                     | policy-based           | policy-based           |
+| Accessibility text | off                 | allowed after redaction     | blocked unless enabled | blocked unless enabled |
+| Browser URL/title  | off                 | allowed after redaction     | policy-based           | policy-based           |
+| Terminal command   | off                 | allowed after redaction     | policy-based           | policy-based           |
+| Terminal output    | off                 | summary only                | blocked by default     | blocked by default     |
+| Clipboard          | off                 | summary/hash only           | blocked by default     | blocked by default     |
+| File activity      | off                 | metadata/summary            | policy-based           | policy-based           |
+| Screen frame       | short TTL only      | allowed after OCR/redaction | blocked by default     | blocked by default     |
+| OCR text           | off                 | allowed after redaction     | blocked by default     | blocked by default     |
+| Vision summary     | off/not applicable  | allowed after redaction     | blocked unless enabled | blocked by default     |
+| Audio              | short TTL only      | transcript summary          | blocked by default     | blocked by default     |
+| Transcript         | off                 | allowed after redaction     | blocked by default     | blocked by default     |
 
 Protected app behavior:
 
@@ -414,3 +421,5 @@ Recommended phases:
 5. Incremental session builder and scheduler.
 6. Protected apps, redaction, retention, and audit hardening.
 7. Tier 3 screen/OCR/audio gates only after the above is stable.
+8. Goal 8 Alpha perception: opt-in screen/OCR/vision/audio implementation after the gates are
+   complete and independently verified.

@@ -63,7 +63,12 @@ Orbit should also treat **Handoff Pack** as a first-class product output.
 
 See [Handoff Pack](./handoff-pack.md) for the product shape and default inclusion rules.
 
-Screen and audio perception should support Handoff Pack later by contributing redacted, traceable Events. Handoff Pack must not depend on perception capture and must block raw screenshots, recordings, audio, transcripts, failed-redaction data, and non-exportable sources by default. See [Perception Research Spike](./perception-research-spike.md).
+Screen, OCR, vision, and audio perception should support Handoff Pack by contributing redacted,
+traceable Events. Goal 8 makes these real Alpha capabilities behind explicit permission and policy
+controls. Handoff Pack must not depend on perception capture and must block raw screenshots,
+recordings, audio, transcripts, failed-redaction data, and non-exportable sources by default. See
+[Alpha Perception And Context Completion](./alpha-perception-and-context-completion.md) and
+[Perception Research Spike](./perception-research-spike.md).
 
 Background desktop observation is specified in
 [Background Observation Core Spec](./background-observation-core-spec.md). It is the product path

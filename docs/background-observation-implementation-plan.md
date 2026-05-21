@@ -110,8 +110,9 @@ Implement before real capture is exposed in the desktop app:
 - Add protected-app configuration and a default protected bundle list.
 - Write audit logs for runtime transitions, permission changes, source enablement, protected-app
   changes, and clear-data operations.
-- Keep screen/OCR/audio controls visible only as disabled or gated future capabilities until their
-  stronger safety gates exist.
+- Keep screen/OCR/vision/audio controls visible only as disabled or gated capabilities during Goal 4.
+  Goal 8 may implement them after the stronger safety gates in
+  `docs/alpha-perception-and-context-completion.md` exist.
 
 ### 4. Goal 4B Real Tier 1 Capture
 
@@ -368,15 +369,46 @@ Each JSONL line is an `ObservationInput` with stable timestamps and sequence num
 Example:
 
 ```json
-{"type":"app_focus","tier":"tier1","sourceKind":"desktop","occurredAt":"2026-05-21T09:00:00.000Z","runtimeSessionId":"obs-fixture-day-1","sequence":1,"app":{"name":"Terminal","bundleId":"com.apple.Terminal","pid":101}}
+{
+  "type": "app_focus",
+  "tier": "tier1",
+  "sourceKind": "desktop",
+  "occurredAt": "2026-05-21T09:00:00.000Z",
+  "runtimeSessionId": "obs-fixture-day-1",
+  "sequence": 1,
+  "app": { "name": "Terminal", "bundleId": "com.apple.Terminal", "pid": 101 }
+}
 ```
 
 ```json
-{"type":"window_focus","tier":"tier1","sourceKind":"desktop","occurredAt":"2026-05-21T09:00:03.000Z","runtimeSessionId":"obs-fixture-day-1","sequence":2,"app":{"name":"Terminal","bundleId":"com.apple.Terminal","pid":101},"window":{"title":"orbit - zsh"}}
+{
+  "type": "window_focus",
+  "tier": "tier1",
+  "sourceKind": "desktop",
+  "occurredAt": "2026-05-21T09:00:03.000Z",
+  "runtimeSessionId": "obs-fixture-day-1",
+  "sequence": 2,
+  "app": { "name": "Terminal", "bundleId": "com.apple.Terminal", "pid": 101 },
+  "window": { "title": "orbit - zsh" }
+}
 ```
 
 ```json
-{"type":"app_focus","tier":"tier1","sourceKind":"desktop","occurredAt":"2026-05-21T09:05:00.000Z","runtimeSessionId":"obs-fixture-protected","sequence":1,"app":{"name":"1Password","bundleId":"com.1password.1password","pid":202,"isProtected":true},"window":{"title":"Private vault"}}
+{
+  "type": "app_focus",
+  "tier": "tier1",
+  "sourceKind": "desktop",
+  "occurredAt": "2026-05-21T09:05:00.000Z",
+  "runtimeSessionId": "obs-fixture-protected",
+  "sequence": 1,
+  "app": {
+    "name": "1Password",
+    "bundleId": "com.1password.1password",
+    "pid": 202,
+    "isProtected": true
+  },
+  "window": { "title": "Private vault" }
+}
 ```
 
 Mock observer behavior:
@@ -707,28 +739,28 @@ observation.idleThresholdMs
 
 Every normalized observation Event must include these canonical fields:
 
-| Field | Rule |
-| --- | --- |
-| `id` | Stable ID from adapter ID, source pointer, type, occurredAt, and dedup key. |
-| `schemaVersion` | `1` until the core Event schema changes. |
-| `source.kind` | One of `desktop`, `accessibility`, `browser`, `filesystem`, or the matching observation source kind. |
-| `source.adapterId` | Stable configured source ID, usually `desktop_observation`. |
-| `source.externalId` | Optional; use source-native ID only when stable. |
-| `source.pointer` | Generated from the pointer schemes in this document. |
-| `occurredAt` | Source observation timestamp. |
-| `observedAt` | Ingestion timestamp; default to `occurredAt` for fixtures. |
-| `context.app` | Required for app/window/accessibility/browser/clipboard observations when known. |
-| `context.windowTitle` | Only when allowed, redacted, and not protected. |
-| `context.url` | Only origin/path policy allows; strip query/fragment by default. |
-| `type` | Matching Event type from the observation input. |
-| `content.title` | Short user-readable label. |
-| `content.summary` | Bounded, redacted summary. Required when raw text is dropped. |
-| `content.text` | Only when source policy explicitly allows raw text. |
-| `content.rawRef` | Only for policy-allowed sidecars; not used in Goal 4A. |
-| `privacy.sensitivity` | `internal` for metadata, `confidential` for semantic text unless policy says otherwise. |
-| `privacy.retentionPolicyId` | Source permission scope retention ID, default `default`. |
-| `privacy.redactionState` | `none`, `redacted`, or `failed`. |
-| `hash` | Deterministic hash of normalized source pointer, type, occurredAt, content summary/title, and context. |
+| Field                       | Rule                                                                                                   |
+| --------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `id`                        | Stable ID from adapter ID, source pointer, type, occurredAt, and dedup key.                            |
+| `schemaVersion`             | `1` until the core Event schema changes.                                                               |
+| `source.kind`               | One of `desktop`, `accessibility`, `browser`, `filesystem`, or the matching observation source kind.   |
+| `source.adapterId`          | Stable configured source ID, usually `desktop_observation`.                                            |
+| `source.externalId`         | Optional; use source-native ID only when stable.                                                       |
+| `source.pointer`            | Generated from the pointer schemes in this document.                                                   |
+| `occurredAt`                | Source observation timestamp.                                                                          |
+| `observedAt`                | Ingestion timestamp; default to `occurredAt` for fixtures.                                             |
+| `context.app`               | Required for app/window/accessibility/browser/clipboard observations when known.                       |
+| `context.windowTitle`       | Only when allowed, redacted, and not protected.                                                        |
+| `context.url`               | Only origin/path policy allows; strip query/fragment by default.                                       |
+| `type`                      | Matching Event type from the observation input.                                                        |
+| `content.title`             | Short user-readable label.                                                                             |
+| `content.summary`           | Bounded, redacted summary. Required when raw text is dropped.                                          |
+| `content.text`              | Only when source policy explicitly allows raw text.                                                    |
+| `content.rawRef`            | Only for policy-allowed sidecars; not used in Goal 4A.                                                 |
+| `privacy.sensitivity`       | `internal` for metadata, `confidential` for semantic text unless policy says otherwise.                |
+| `privacy.retentionPolicyId` | Source permission scope retention ID, default `default`.                                               |
+| `privacy.redactionState`    | `none`, `redacted`, or `failed`.                                                                       |
+| `hash`                      | Deterministic hash of normalized source pointer, type, occurredAt, content summary/title, and context. |
 
 If a field is blocked by protected-app or redaction policy, omit the field rather than storing a
 placeholder that leaks sensitive detail.
