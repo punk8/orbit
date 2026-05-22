@@ -13,6 +13,8 @@ describe("HandoffPage", () => {
     expect(source).toContain("handoff.evidence");
     expect(source).toContain("handoff.excluded");
     expect(source).toContain("handoffExclusionReasonLabel");
+    expect(source).toContain("handoffExclusionDescription");
+    expect(source).toContain("handoff.exclusion.reason");
     expect(source).toContain("handoffExclusionNextAction");
     expect(source).toContain("handoff.exclusion.nextAction");
     expect(source).toContain("handoff.empty");

@@ -386,6 +386,21 @@ const translations = {
     "handoff.exclusion.secretContent": "Secret content",
     "handoff.exclusion.failedRedaction": "Redaction failed",
     "handoff.exclusion.sourceExportBlocked": "Source export blocked",
+    "handoff.exclusion.reason": "Reason",
+    "handoff.exclusion.description.draftKnowledge":
+      "Draft or needs-review Knowledge is not treated as agent-ready context.",
+    "handoff.exclusion.description.memoryNotConfirmed":
+      "Candidate, rejected, or archived Memory is excluded from default agent context.",
+    "handoff.exclusion.description.recommendationTerminal":
+      "Dismissed or resolved Recommendations are not suggested to the next agent.",
+    "handoff.exclusion.description.missingEvidence":
+      "Orbit could not attach a traceable source pointer for this object.",
+    "handoff.exclusion.description.secretContent":
+      "Secret-classified evidence is blocked from Handoff by default.",
+    "handoff.exclusion.description.failedRedaction":
+      "Evidence with failed redaction is excluded from persistence-sensitive exports.",
+    "handoff.exclusion.description.sourceExportBlocked":
+      "The source policy does not allow this evidence to be exported to agents.",
     "handoff.exclusion.nextAction": "Next action",
     "handoff.exclusion.nextAction.reviewKnowledge": "Review and confirm this Knowledge Artifact.",
     "handoff.exclusion.nextAction.confirmMemory": "Confirm the Memory candidate if it is durable.",
@@ -1037,6 +1052,21 @@ const translations = {
     "handoff.exclusion.secretContent": "包含 secret 内容",
     "handoff.exclusion.failedRedaction": "脱敏失败",
     "handoff.exclusion.sourceExportBlocked": "来源禁止导出",
+    "handoff.exclusion.reason": "原因",
+    "handoff.exclusion.description.draftKnowledge":
+      "草稿或待审阅的知识不会被视为可交给 Agent 的上下文。",
+    "handoff.exclusion.description.memoryNotConfirmed":
+      "候选、已拒绝或已归档的记忆默认不会进入 Agent 上下文。",
+    "handoff.exclusion.description.recommendationTerminal":
+      "已忽略或已解决的建议不会继续推荐给下一个 Agent。",
+    "handoff.exclusion.description.missingEvidence":
+      "Orbit 没有为这个对象附上可追溯的来源指针。",
+    "handoff.exclusion.description.secretContent":
+      "被标记为 secret 的证据默认会被 Handoff 阻止。",
+    "handoff.exclusion.description.failedRedaction":
+      "脱敏失败的证据不会进入需要长期保存或导出的上下文。",
+    "handoff.exclusion.description.sourceExportBlocked":
+      "该来源策略不允许把这条证据导出给 Agent。",
     "handoff.exclusion.nextAction": "下一步",
     "handoff.exclusion.nextAction.reviewKnowledge": "审阅并确认这条知识。",
     "handoff.exclusion.nextAction.confirmMemory": "如果这条候选记忆值得长期保留，请确认它。",

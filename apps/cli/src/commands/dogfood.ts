@@ -55,6 +55,7 @@ export interface DogfoodReadiness {
         reason: HandoffExclusionReason;
         count: number;
         title: string;
+        description: string;
         nextAction: string;
       }>;
     };
@@ -133,6 +134,7 @@ export function getDogfoodReadiness(options: { date: string }): DogfoodReadiness
             reason: reason as HandoffExclusionReason,
             count,
             title: explanation.title,
+            description: explanation.description,
             nextAction: explanation.nextAction
           };
         })

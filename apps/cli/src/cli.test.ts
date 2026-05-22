@@ -668,6 +668,7 @@ describe("cli commands", () => {
       expect.arrayContaining([
         expect.objectContaining({
           reason: "source_export_blocked",
+          description: "The source policy does not allow this evidence to be exported to agents.",
           nextAction: "Enable agent export for that source after confirming the scope is safe."
         })
       ])

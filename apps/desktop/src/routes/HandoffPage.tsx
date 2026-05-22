@@ -112,6 +112,10 @@ export function HandoffPage({
                     excluded.reason
                   )}`}</h3>
                   <p>{excluded.objectId}</p>
+                  <p className="muted">{`${t("handoff.exclusion.reason")}: ${handoffExclusionDescription(
+                    t,
+                    excluded.reason
+                  )}`}</p>
                   <p className="muted">{`${t("handoff.exclusion.nextAction")}: ${handoffExclusionNextAction(
                     t,
                     excluded.reason
@@ -181,6 +185,23 @@ function handoffExclusionReasonLabel(
   if (reason === "secret_content") return t("handoff.exclusion.secretContent");
   if (reason === "failed_redaction") return t("handoff.exclusion.failedRedaction");
   return t("handoff.exclusion.sourceExportBlocked");
+}
+
+function handoffExclusionDescription(
+  t: ReturnType<typeof useI18n>["t"],
+  reason: HandoffExclusionReason
+): string {
+  if (reason === "draft_knowledge") return t("handoff.exclusion.description.draftKnowledge");
+  if (reason === "memory_not_confirmed") {
+    return t("handoff.exclusion.description.memoryNotConfirmed");
+  }
+  if (reason === "recommendation_terminal") {
+    return t("handoff.exclusion.description.recommendationTerminal");
+  }
+  if (reason === "missing_evidence") return t("handoff.exclusion.description.missingEvidence");
+  if (reason === "secret_content") return t("handoff.exclusion.description.secretContent");
+  if (reason === "failed_redaction") return t("handoff.exclusion.description.failedRedaction");
+  return t("handoff.exclusion.description.sourceExportBlocked");
 }
 
 function handoffExclusionNextAction(
