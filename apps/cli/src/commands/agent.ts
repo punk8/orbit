@@ -7,6 +7,7 @@ import {
 import type { TodayContext } from "@orbit/core";
 import { getCliConfig } from "../config";
 import { getTodayContext } from "./readModels";
+import { getStatus, type StatusResult } from "./status";
 
 export interface AgentReadOptions {
   date?: string;
@@ -15,6 +16,12 @@ export interface AgentReadOptions {
 
 export interface AgentContextResourceDescriptor {
   uri: "orbit://context/today";
+  mimeType: "application/json";
+  readOnly: true;
+}
+
+export interface AgentStatusResourceDescriptor {
+  uri: "orbit://status";
   mimeType: "application/json";
   readOnly: true;
 }
@@ -33,11 +40,19 @@ export interface AgentTodayContextResource {
   context: TodayContext;
 }
 
+export interface AgentStatusResource {
+  descriptor: AgentStatusResourceDescriptor;
+  content: string;
+  readyForAgent: boolean;
+  status: StatusResult;
+}
+
 export type AgentResourceDescriptor =
   | AgentHandoffResourceDescriptor
-  | AgentContextResourceDescriptor;
+  | AgentContextResourceDescriptor
+  | AgentStatusResourceDescriptor;
 
-export type AgentResource = AgentHandoffResource | AgentTodayContextResource;
+export type AgentResource = AgentHandoffResource | AgentTodayContextResource | AgentStatusResource;
 
 export function listAgentResources(): AgentResourceDescriptor[] {
   return [
@@ -47,11 +62,29 @@ export function listAgentResources(): AgentResourceDescriptor[] {
       uri: "orbit://context/today",
       mimeType: "application/json",
       readOnly: true
+    },
+    {
+      uri: "orbit://status",
+      mimeType: "application/json",
+      readOnly: true
     }
   ];
 }
 
 export function readAgentResource(uri: string, options: AgentReadOptions = {}): AgentResource {
+  if (uri === "orbit://status") {
+    const status = getStatus();
+    return {
+      descriptor: {
+        uri: "orbit://status",
+        mimeType: "application/json",
+        readOnly: true
+      },
+      content: JSON.stringify(status, null, 2),
+      readyForAgent: status.counts.activitySessions > 0 && status.counts.knowledgeArtifacts > 0,
+      status
+    };
+  }
   if (uri === "orbit://context/today") {
     const context = getTodayContext(options.date);
     return {
