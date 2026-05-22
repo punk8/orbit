@@ -1,6 +1,7 @@
 import {
   audioPermission,
   CapturedTextOcrEngine,
+  captureScreenBurst,
   MacScreenOcrCaptureHelper,
   MockScreenCaptureNativeHelper,
   MockOcrEngine,
@@ -12,6 +13,7 @@ import {
   ScreenObservationAdapter,
   ScreenObservationSession,
   type ScreenOcrCaptureHelper,
+  type ScreenCaptureFrame,
   type ScreenCaptureScope,
   screenPermission,
   TRANSCRIPT_OBSERVATION_ADAPTER_ID,
@@ -90,7 +92,7 @@ export interface ScreenOcrSmokeResult {
 export interface CaptureScreenOcrCommandResult {
   orbitHome: string;
   dbPath: string;
-  mode: "manual_live_screen_ocr";
+  mode: "manual_live_screen_ocr" | "manual_mock_screen_burst";
   sources: Array<{
     adapterId: string;
     read: number;
@@ -106,6 +108,28 @@ export interface CaptureScreenOcrCommandResult {
   };
   warnings: string[];
   pipeline: SemanticPipelineResult;
+}
+
+export interface CaptureScreenOcrBurstNowOptions {
+  mock?: boolean;
+}
+
+export interface CaptureScreenOcrBurstNowResult extends CaptureScreenOcrCommandResult {
+  mode: "manual_mock_screen_burst";
+  burst: {
+    id: string;
+    status: string;
+    skipReason?: string;
+    frames: Array<{
+      id: string;
+      frameIndex: number;
+      capturedAt: string;
+      frameHash: string;
+      sourcePointer: string;
+    }>;
+    rawStored: boolean;
+    auditOperations: string[];
+  };
 }
 
 export interface CaptureScreenOcrOptions {
@@ -458,6 +482,127 @@ export async function captureScreenOcrOnce(
   }
 }
 
+export async function captureScreenOcrBurstNow(
+  options: CaptureScreenOcrBurstNowOptions = {}
+): Promise<CaptureScreenOcrBurstNowResult> {
+  if (options.mock !== true) {
+    throw new Error("Only --mock capture bursts are available before the native helper is packaged.");
+  }
+  const config = getCliConfig();
+  const database = openOrbitDatabase({ orbitHome: config.orbitHome });
+  try {
+    const sourceRepository = new SourceRepository(database.db);
+    const eventRepository = new EventRepository(database.db);
+    const auditRepository = new AuditRepository(database.db);
+    const perception = readPerceptionStatus(database.db);
+    const scope = smokeScope("display");
+    const runtimeSessionId = `manual-mock-screen-burst-${Date.now()}`;
+    const helper = new MockScreenCaptureNativeHelper({
+      permission: screenPermission("granted"),
+      frames: makeMockBurstFrames(scope, runtimeSessionId, perception.samplingPolicy.framesPerBurst)
+    });
+    const burst = await captureScreenBurst({
+      helper,
+      scope,
+      runtimeSessionId,
+      trigger: "manual",
+      frameCount: perception.samplingPolicy.framesPerBurst,
+      frameSpacingMs: perception.samplingPolicy.frameSpacingMs,
+      protectedApps: perception.protectedApps
+    });
+    for (const entry of burst.audit) {
+      auditRepository.log(entry.operation, "capture_burst", burst.id, {
+        mode: "manual_mock_screen_burst",
+        runtimeSessionId,
+        policySnapshotId: perception.policySnapshot.id,
+        reason: entry.reason,
+        frameId: entry.frameId,
+        frameIndex: entry.frameIndex
+      });
+    }
+
+    const frames = burst.frames.map((candidate) => candidate.frame);
+    const results: CaptureScreenOcrCommandResult["sources"] = [];
+    if (frames.length > 0) {
+      const screenAdapter = new ScreenObservationAdapter({
+        id: SCREEN_OBSERVATION_ADAPTER_ID,
+        frames,
+        scope,
+        permission: screenPermission("granted"),
+        protectedApps: perception.protectedApps,
+        allowRawFrameStorage: false,
+        canUseForAI:
+          perception.sources.find((source) => source.sourceKind === "screen")?.policy.canUseForAI ===
+          true,
+        canExportToAgent:
+          perception.sources.find((source) => source.sourceKind === "screen")?.policy
+            .canExportToAgent === true
+      });
+      const ocrAdapter = new OcrObservationAdapter({
+        id: OCR_OBSERVATION_ADAPTER_ID,
+        frames,
+        scope,
+        engine: new MockOcrEngine(),
+        permission: screenPermission("granted"),
+        protectedApps: perception.protectedApps,
+        canUseForAI:
+          perception.sources.find((source) => source.sourceKind === "ocr")?.policy.canUseForAI ===
+          true,
+        canExportToAgent:
+          perception.sources.find((source) => source.sourceKind === "ocr")?.policy
+            .canExportToAgent === true
+      });
+
+      for (const adapter of [screenAdapter, ocrAdapter]) {
+        sourceRepository.upsertFromAdapter(adapter);
+        const cursor = sourceRepository.getCursor(adapter.id);
+        const result = await ingestEventsFromAdapter(adapter, eventRepository, cursor);
+        sourceRepository.setCursor(adapter.id, result.nextCursor);
+        sourceRepository.recordSyncSuccess(adapter.id, { lastEventAt: result.lastEventAt });
+        results.push({
+          adapterId: result.adapterId,
+          read: result.read,
+          inserted: result.inserted,
+          skipped: result.skipped,
+          ...(result.nextCursor ? { nextCursor: result.nextCursor } : {}),
+          warnings: result.warnings
+        });
+      }
+    }
+
+    const pipeline = runSemanticPipeline(database);
+    return {
+      orbitHome: database.orbitHome,
+      dbPath: database.dbPath,
+      mode: "manual_mock_screen_burst",
+      sources: results,
+      totals: {
+        read: results.reduce((total, result) => total + result.read, 0),
+        inserted: results.reduce((total, result) => total + result.inserted, 0),
+        skipped: results.reduce((total, result) => total + result.skipped, 0)
+      },
+      warnings: burst.skipReason ? [burst.skipReason] : [],
+      pipeline,
+      burst: {
+        id: burst.id,
+        status: burst.status,
+        ...(burst.skipReason ? { skipReason: burst.skipReason } : {}),
+        frames: burst.frames.map((candidate) => ({
+          id: candidate.frame.id,
+          frameIndex: candidate.frameIndex,
+          capturedAt: candidate.frame.capturedAt,
+          frameHash: candidate.frame.frameHash,
+          sourcePointer: `screen://burst/${runtimeSessionId}/${burst.id}#frame-${candidate.frameIndex}`
+        })),
+        rawStored: burst.frames.some((candidate) => candidate.rawStored),
+        auditOperations: burst.audit.map((entry) => entry.operation)
+      }
+    };
+  } finally {
+    database.close();
+  }
+}
+
 export function cleanupPerceptionRawSidecars(
   options: {
     dryRun?: boolean;
@@ -761,6 +906,32 @@ function smokeScope(kind: ScreenCaptureScope["kind"]): ScreenCaptureScope {
     label: "Fixture Display",
     displayId: "fixture-display"
   };
+}
+
+function makeMockBurstFrames(
+  scope: ScreenCaptureScope,
+  runtimeSessionId: string,
+  count: number
+): ScreenCaptureFrame[] {
+  return Array.from({ length: count }, (_, index) => ({
+    id: `mock_burst_frame_${index + 1}`,
+    capturedAt: new Date(Date.UTC(2026, 4, 21, 2, 0, index)).toISOString(),
+    runtimeSessionId,
+    sequence: index + 1,
+    scope,
+    app: {
+      name: "Orbit",
+      bundleId: "app.orbit.local"
+    },
+    window: {
+      title: "Orbit Screen/OCR Burst"
+    },
+    width: 1280,
+    height: 720,
+    frameHash: `mock_burst_frame_hash_${index + 1}`,
+    redactedSummary: `Mock Screen/OCR burst frame ${index + 1}.`,
+    ocrText: `Mock Screen/OCR burst frame ${index + 1} 支持中文 and English.`
+  }));
 }
 
 function readSamplingPreset(value: string): PerceptionSamplingPresetName {

@@ -4,6 +4,7 @@ import { defaultProtectedAppRules, ingestEventsFromAdapter } from "@orbit/core";
 import { MockOcrEngine } from "./ocr/mockOcrEngine";
 import { OcrObservationAdapter } from "./ocr/ocrObservationAdapter";
 import { MockScreenCaptureNativeHelper } from "./screen/mockScreenCaptureNativeHelper";
+import { captureScreenBurst } from "./screen/screenCaptureBurst";
 import { ScreenObservationAdapter } from "./screen/screenObservationAdapter";
 import { ScreenObservationSession } from "./screen/screenObservationSession";
 import type { ScreenCaptureFrame, ScreenCaptureScope } from "./screen/screenCaptureTypes";
@@ -129,6 +130,80 @@ describe("screen/OCR perception adapters", () => {
     expect(session.resume().status).toBe("collecting");
     expect(await session.captureOnce()).toHaveLength(1);
     expect(session.stop().status).toBe("stopped");
+  });
+
+  it("captures bounded multi-frame bursts with frame indexes and no raw storage by default", async () => {
+    const frames = [
+      frame("burst_frame_1", { sequence: 1 }),
+      frame("burst_frame_2", {
+        capturedAt: "2026-05-21T02:00:01.000Z",
+        sequence: 2,
+        frameHash: "burst_frame_hash_2"
+      }),
+      frame("burst_frame_3", {
+        capturedAt: "2026-05-21T02:00:02.000Z",
+        sequence: 3,
+        frameHash: "burst_frame_hash_3"
+      })
+    ];
+    const helper = new MockScreenCaptureNativeHelper({
+      frames,
+      permission: screenPermission("granted")
+    });
+
+    const burst = await captureScreenBurst({
+      helper,
+      scope: displayScope,
+      runtimeSessionId: "screen-runtime",
+      trigger: "manual",
+      frameCount: 3,
+      frameSpacingMs: 1000,
+      protectedApps: defaultProtectedAppRules()
+    });
+
+    expect(burst.status).toBe("completed");
+    expect(burst.frames).toHaveLength(3);
+    expect(burst.frames.map((candidate) => candidate.frameIndex)).toEqual([0, 1, 2]);
+    expect(burst.frames.every((candidate) => candidate.rawStored === false)).toBe(true);
+    expect(burst.audit.map((entry) => entry.operation)).toEqual([
+      "perception.burst_started",
+      "perception.frame_captured",
+      "perception.frame_captured",
+      "perception.frame_captured",
+      "perception.burst_completed"
+    ]);
+  });
+
+  it("skips protected app scopes before invoking native capture", async () => {
+    const protectedScope: ScreenCaptureScope = {
+      kind: "app",
+      label: "1Password",
+      appBundleId: "com.1password.1password",
+      appName: "1Password"
+    };
+    const helper = new MockScreenCaptureNativeHelper({
+      frames: [frame("secret_frame", { scope: protectedScope })],
+      permission: screenPermission("granted"),
+      scopes: [protectedScope]
+    });
+
+    const burst = await captureScreenBurst({
+      helper,
+      scope: protectedScope,
+      runtimeSessionId: "screen-runtime",
+      trigger: "manual",
+      frameCount: 3,
+      frameSpacingMs: 1000,
+      protectedApps: defaultProtectedAppRules()
+    });
+
+    expect(burst.status).toBe("skipped");
+    expect(burst.skipReason).toBe("protected_app");
+    expect(helper.captureCalls).toBe(0);
+    expect(burst.frames).toHaveLength(0);
+    expect(burst.audit.map((entry) => entry.operation)).toEqual([
+      "perception.burst_skipped"
+    ]);
   });
 });
 

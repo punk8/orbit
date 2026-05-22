@@ -18,6 +18,7 @@ import {
 } from "./commands/observe";
 import {
   cleanupPerceptionRawSidecars,
+  captureScreenOcrBurstNow,
   captureScreenOcrOnce,
   getPerceptionReleaseGate,
   getPerceptionStatus,
@@ -356,6 +357,35 @@ describe("cli commands", () => {
     const perceptionCommand = program.commands.find((command) => command.name() === "perception");
     const screenCommand = perceptionCommand?.commands.find((command) => command.name() === "screen");
     expect(screenCommand?.helpInformation()).toContain("cleanup");
+  });
+
+  it("runs one mock Screen/OCR capture burst from the nested screen command", async () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-perception-capture-now-test-"));
+    tempDirs.push(orbitHome);
+    process.env.ORBIT_HOME = orbitHome;
+
+    const result = await captureScreenOcrBurstNow({ mock: true });
+
+    expect(result.mode).toBe("manual_mock_screen_burst");
+    expect(result.burst.status).toBe("completed");
+    expect(result.burst.frames).toHaveLength(3);
+    expect(result.burst.rawStored).toBe(false);
+    expect(result.burst.auditOperations).toEqual([
+      "perception.burst_started",
+      "perception.frame_captured",
+      "perception.frame_captured",
+      "perception.frame_captured",
+      "perception.burst_completed"
+    ]);
+    expect(result.sources.find((source) => source.adapterId === "perception_screen")?.inserted).toBe(
+      3
+    );
+    expect(result.totals.inserted).toBeGreaterThanOrEqual(3);
+
+    const program = buildProgram();
+    const perceptionCommand = program.commands.find((command) => command.name() === "perception");
+    const screenCommand = perceptionCommand?.commands.find((command) => command.name() === "screen");
+    expect(screenCommand?.helpInformation()).toContain("capture-now");
   });
 
   it("reports Goal 9A AI provider runtime routing without running capture", async () => {

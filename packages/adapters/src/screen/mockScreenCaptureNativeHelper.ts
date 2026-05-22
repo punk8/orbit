@@ -16,6 +16,7 @@ export interface MockScreenCaptureNativeHelperOptions {
 export class MockScreenCaptureNativeHelper implements ScreenCaptureNativeHelper {
   private readonly permission: ObservationPermissionStatus;
   private readonly scopes: ScreenCaptureScope[];
+  captureCalls = 0;
 
   constructor(private readonly options: MockScreenCaptureNativeHelperOptions) {
     this.permission = options.permission ?? screenPermission("granted");
@@ -34,6 +35,7 @@ export class MockScreenCaptureNativeHelper implements ScreenCaptureNativeHelper 
     scope: ScreenCaptureScope,
     budget: ScreenCaptureBudget
   ): Promise<ScreenCaptureFrame[]> {
+    this.captureCalls += 1;
     const matching = this.options.frames
       .filter((frame) => scopesMatch(frame.scope, scope))
       .sort((a, b) => a.capturedAt.localeCompare(b.capturedAt))

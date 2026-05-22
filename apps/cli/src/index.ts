@@ -42,6 +42,7 @@ import {
 } from "./commands/observe";
 import {
   cleanupPerceptionRawSidecars,
+  captureScreenOcrBurstNow,
   captureScreenOcrOnce,
   getPerceptionReleaseGate,
   getPerceptionStatus,
@@ -537,6 +538,15 @@ export function buildProgram(): Command {
   const perceptionScreen = perception
     .command("screen")
     .description("Screen/OCR source controls that do not start capture unless explicit");
+  perceptionScreen
+    .command("capture-now")
+    .description("Run one explicit eligible Screen/OCR burst")
+    .option("--mock", "use the mock native helper instead of real capture")
+    .option("--json", "output JSON")
+    .action(async (options: { mock?: boolean; json?: boolean }) => {
+      const result = await captureScreenOcrBurstNow({ mock: options.mock === true });
+      writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
+    });
   perceptionScreen
     .command("cleanup")
     .description("Remove expired or policy-blocked raw screen sidecars")
