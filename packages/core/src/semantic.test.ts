@@ -61,6 +61,50 @@ describe("semantic pipeline", () => {
     expect(split[1]?.localState.closed).toBe(true);
   });
 
+  it("merges continuous app and window focus events into one desktop Activity with evidence", () => {
+    const events = [
+      makeObservationEvent("app_cursor", "2026-05-21T09:00:00.000Z", "Cursor", {
+        type: "app_focus",
+        pointer: "desktop://app-focus/runtime#1",
+        title: "Focused Cursor",
+        summary: "Frontmost app changed to Cursor."
+      }),
+      makeObservationEvent("window_cursor", "2026-05-21T09:00:02.000Z", "Cursor", {
+        type: "window_focus",
+        pointer: "desktop://window/runtime#2",
+        windowTitle: "orbit - Goal 2",
+        title: "Focused window in Cursor",
+        summary: "Window focus observed in Cursor: orbit - Goal 2"
+      }),
+      makeObservationEvent("app_terminal", "2026-05-21T09:07:00.000Z", "Terminal", {
+        type: "app_focus",
+        pointer: "desktop://app-focus/runtime#3",
+        title: "Focused Terminal",
+        summary: "Frontmost app changed to Terminal."
+      })
+    ];
+
+    const sessions = buildActivitySessions(events, {
+      now: new Date("2026-05-21T09:08:00.000Z")
+    });
+
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]).toEqual(
+      expect.objectContaining({
+        sourceKinds: ["desktop"],
+        apps: ["Cursor", "Terminal"],
+        eventCount: 3,
+        eventIds: events.map((event) => event.id)
+      })
+    );
+    expect(sessions[0]?.evidence.map((ref) => ref.sourcePointer)).toEqual([
+      "desktop://app-focus/runtime#1",
+      "desktop://window/runtime#2",
+      "desktop://app-focus/runtime#3"
+    ]);
+    expect(sessions[0]?.summary).toContain("Window focus observed in Cursor: orbit - Goal 2");
+  });
+
   it("turns perception follow-ups and visible risks into review-only recommendations", () => {
     const events = [
       makePerceptionEvent(
@@ -128,7 +172,18 @@ function makeEvent(id: string, type: Event["type"]): Event {
   };
 }
 
-function makeObservationEvent(id: string, occurredAt: string, app: string): Event {
+function makeObservationEvent(
+  id: string,
+  occurredAt: string,
+  app: string,
+  overrides: {
+    type?: "app_focus" | "window_focus";
+    pointer?: string;
+    title?: string;
+    summary?: string;
+    windowTitle?: string;
+  } = {}
+): Event {
   return {
     id: `obs_event_${id}`,
     schemaVersion: 1,
@@ -136,18 +191,18 @@ function makeObservationEvent(id: string, occurredAt: string, app: string): Even
       kind: "desktop",
       adapterId: "desktop_observation",
       externalId: id,
-      pointer: `desktop://app-focus/test#${id}`
+      pointer: overrides.pointer ?? `desktop://app-focus/test#${id}`
     },
     occurredAt,
     observedAt: occurredAt,
     context: {
       app,
-      windowTitle: `${app} window`
+      windowTitle: overrides.windowTitle ?? `${app} window`
     },
-    type: "window_focus",
+    type: overrides.type ?? "window_focus",
     content: {
-      title: `Focused ${app}`,
-      summary: `Window focus observed in ${app}.`
+      title: overrides.title ?? `Focused ${app}`,
+      summary: overrides.summary ?? `Window focus observed in ${app}.`
     },
     privacy: {
       sensitivity: "confidential",

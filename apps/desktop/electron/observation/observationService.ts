@@ -28,9 +28,7 @@ export interface DesktopObservationServiceOptions {
 
 export class DesktopObservationService {
   private observer: Tier1MacObserver | undefined;
-  private queue = new InProcessObservationQueue({
-    adapterId: DESKTOP_OBSERVATION_ADAPTER_ID
-  });
+  private queue = createObservationQueue();
   private draining = false;
 
   constructor(private readonly options: DesktopObservationServiceOptions) {}
@@ -51,9 +49,7 @@ export class DesktopObservationService {
     upsertDesktopObservationSourceForDesktop();
     const startedAt = new Date().toISOString();
     const runtimeSessionId = createStableId("obs_runtime", { startedAt });
-    this.queue = new InProcessObservationQueue({
-      adapterId: DESKTOP_OBSERVATION_ADAPTER_ID
-    });
+    this.queue = createObservationQueue(readProtectedAppsForObservation());
     writeObservationStatusForDesktop("collecting", {
       enabled: true,
       paused: false,
@@ -234,4 +230,27 @@ export class DesktopObservationService {
 
 function formatUnknownError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function createObservationQueue(
+  protectedApps: ObservationStatus["protectedApps"] = defaultProtectedAppRules()
+): InProcessObservationQueue {
+  return new InProcessObservationQueue({
+    adapterId: DESKTOP_OBSERVATION_ADAPTER_ID,
+    protectedApps,
+    dedupeWindowMs: 30_000
+  });
+}
+
+function readProtectedAppsForObservation(): ObservationStatus["protectedApps"] {
+  const database = openOrbitDatabase();
+  try {
+    return (
+      new SettingsRepository(database.db).get<ObservationStatus["protectedApps"]>(
+        "observation.protectedApps"
+      ) ?? defaultProtectedAppRules()
+    );
+  } finally {
+    database.close();
+  }
 }

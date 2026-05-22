@@ -24,4 +24,5 @@ export * from "./observation/observationTypes";
 export * from "./observation/observationPolicy";
 export * from "./observation/normalizeObservation";
 export * from "./observation/observationState";
+export * from "./observation/observationDeduper";
 export * from "./runtime/backgroundRuntime";

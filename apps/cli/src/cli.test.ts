@@ -262,7 +262,10 @@ describe("cli commands", () => {
     );
 
     const first = await ingestMockDesktopObservations();
-    expect(first.source.inserted).toBe(7);
+    expect(first.source.inserted).toBe(6);
+    expect(first.source.warnings).toEqual(
+      expect.arrayContaining([expect.stringMatching(/^Deduped desktop /)])
+    );
     expect(first.pipeline.activitySessions.total).toBe(2);
     expect(first.pipeline.knowledgeArtifacts.total).toBe(0);
     expect(first.pipeline.recommendations.total).toBe(0);

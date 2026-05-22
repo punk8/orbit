@@ -2,21 +2,28 @@ import type {
   EventWriter,
   ObservationDrainResult,
   ObservationInput,
+  ObservationInputDeduperOptions,
   ProtectedAppRule
 } from "@orbit/core";
-import { DESKTOP_OBSERVATION_ADAPTER_ID, ingestEventsFromAdapter } from "@orbit/core";
+import {
+  DESKTOP_OBSERVATION_ADAPTER_ID,
+  ingestEventsFromAdapter,
+  ObservationInputDeduper
+} from "@orbit/core";
 import { DesktopObservationAdapter } from "./desktopObservationAdapter";
 
 export interface InProcessObservationQueueOptions {
   adapterId?: string;
   maxItems?: number;
   protectedApps?: ProtectedAppRule[];
+  dedupeWindowMs?: number;
 }
 
 export class InProcessObservationQueue {
   private readonly maxItems: number;
   private readonly adapterId: string;
   private readonly protectedApps: ProtectedAppRule[] | undefined;
+  private readonly deduper: ObservationInputDeduper;
   private items: ObservationInput[] = [];
   private dropped = 0;
   private warnings: string[] = [];
@@ -26,6 +33,14 @@ export class InProcessObservationQueue {
     this.maxItems = options.maxItems ?? 1000;
     this.adapterId = options.adapterId ?? DESKTOP_OBSERVATION_ADAPTER_ID;
     this.protectedApps = options.protectedApps;
+    const deduperOptions: ObservationInputDeduperOptions = {};
+    if (options.dedupeWindowMs !== undefined) {
+      deduperOptions.dedupeWindowMs = options.dedupeWindowMs;
+    }
+    if (options.protectedApps !== undefined) {
+      deduperOptions.protectedApps = options.protectedApps;
+    }
+    this.deduper = new ObservationInputDeduper(deduperOptions);
   }
 
   get depth(): number {
@@ -34,6 +49,14 @@ export class InProcessObservationQueue {
 
   enqueue(input: ObservationInput): void {
     if (this.paused) return;
+    const accepted = this.deduper.accept(input);
+    if (!accepted.accepted) {
+      this.warnings.push(`Deduped desktop ${input.type} observation.`);
+      return;
+    }
+    if (accepted.suppressed) {
+      this.warnings.push(`Suppressed protected desktop ${input.type} observation.`);
+    }
     if (this.items.length >= this.maxItems) {
       this.dropRawPayloads();
     }
@@ -42,7 +65,7 @@ export class InProcessObservationQueue {
       this.warnings.push(`Observation queue is full; dropped ${input.type}#${input.sequence}.`);
       return;
     }
-    this.items.push(stripTransientRaw(input));
+    this.items.push(stripTransientRaw(accepted.input));
   }
 
   pause(): void {
@@ -57,6 +80,7 @@ export class InProcessObservationQueue {
     this.items = [];
     this.dropped = 0;
     this.warnings = [];
+    this.deduper.reset();
   }
 
   async drain(writer: EventWriter, maxItems = 50): Promise<ObservationDrainResult> {

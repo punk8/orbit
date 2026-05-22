@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   assertObservationStatusTransition,
   normalizeObservationInput,
+  ObservationInputDeduper,
   observationSourcePointer
 } from "../index";
 import type { ObservationInput } from "../index";
@@ -62,6 +63,66 @@ describe("observation normalization", () => {
     expect(JSON.stringify(event)).not.toContain("Private vault");
     expect(JSON.stringify(event)).not.toContain("API token");
     expect(event.privacy.redactionState).toBe("redacted");
+  });
+
+  it("sanitizes protected app observations before queueing and dedupes high-frequency repeats", () => {
+    const deduper = new ObservationInputDeduper({
+      dedupeWindowMs: 60_000,
+      protectedApps: [
+        {
+          id: "protected_test_password",
+          match: { kind: "bundle_id", value: "com.1password.1password" },
+          reason: "default_sensitive_app",
+          enabled: true
+        }
+      ]
+    });
+    const first = deduper.accept({
+      type: "window_focus",
+      tier: "tier1",
+      sourceKind: "desktop",
+      occurredAt: "2026-05-21T01:05:02.000Z",
+      runtimeSessionId: "obs-protected",
+      sequence: 2,
+      app: {
+        name: "1Password",
+        bundleId: "com.1password.1password"
+      },
+      window: {
+        title: "Private vault - API token"
+      },
+      raw: {
+        text: "Private vault - API token"
+      }
+    });
+    const duplicate = deduper.accept({
+      type: "window_focus",
+      tier: "tier1",
+      sourceKind: "desktop",
+      occurredAt: "2026-05-21T01:05:15.000Z",
+      runtimeSessionId: "obs-protected",
+      sequence: 3,
+      app: {
+        name: "1Password",
+        bundleId: "com.1password.1password"
+      },
+      window: {
+        title: "Private vault - API token"
+      }
+    });
+
+    expect(first.accepted).toBe(true);
+    if (!first.accepted) throw new Error("Expected first protected observation to be accepted.");
+    expect(first.suppressed).toBe(true);
+    expect(first.input.type).toBe("app_focus");
+    expect(first.input.app?.isProtected).toBe(true);
+    expect(first.input.window).toBeUndefined();
+    expect(first.input.raw).toBeUndefined();
+    expect(JSON.stringify(first.input)).not.toContain("Private vault");
+    expect(JSON.stringify(first.input)).not.toContain("API token");
+    expect(duplicate.accepted).toBe(false);
+    if (duplicate.accepted) throw new Error("Expected duplicate protected observation to be rejected.");
+    expect(duplicate.reason).toBe("duplicate");
   });
 
   it("generates canonical pointers for observation inputs", () => {

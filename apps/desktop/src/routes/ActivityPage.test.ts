@@ -16,6 +16,16 @@ describe("ActivityPage evidence workbench", () => {
     expect(source).toContain("activity.providerBoundary");
   });
 
+  it("surfaces real desktop app/window metadata and source pointers in the event stream", () => {
+    const source = readFileSync(new URL("./ActivityPage.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("event.source.pointer");
+    expect(source).toContain("event.context.app");
+    expect(source).toContain("event.context.windowTitle");
+    expect(source).toContain("formatTimeRange(session.startAt, session.endAt)");
+    expect(source).toContain("EvidenceList evidence={session.evidence}");
+  });
+
   it("renders a Yansu-like playback shell with timeline, recording viewer, scrubber, and honest raw-frame state", () => {
     const source = readFileSync(new URL("./ActivityPage.tsx", import.meta.url), "utf8");
 

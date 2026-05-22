@@ -393,6 +393,7 @@ function ActivityDetail({
                     <span>{sourceKind(event.source.kind)}</span>
                     <code>{event.source.pointer}</code>
                     <span>{event.context.app ?? t("fallback.unknownApp")}</span>
+                    {event.context.windowTitle ? <span>{event.context.windowTitle}</span> : null}
                     <span>{t(`redaction.${event.privacy.redactionState}`)}</span>
                   </div>
                 </div>

@@ -254,6 +254,64 @@ describe("handoff pack", () => {
     expect(markdown).not.toContain("RAW_EVENT_TEXT");
   });
 
+  it("exports desktop observation summaries and source pointers without raw window payloads", () => {
+    const pack = buildHandoffPack({
+      kind: "today",
+      objective: "Continue Orbit development",
+      date: "2026-05-21",
+      generatedAt: baseTime,
+      activitySessions: [
+        makeActivity({
+          id: "act_desktop",
+          eventIds: ["evt_desktop"],
+          sourceKinds: ["desktop"],
+          apps: ["Cursor"],
+          summary: "Window focus observed in Cursor while working on Goal 2.",
+          evidence: [
+            {
+              ...makeEvidence("evt_desktop", "desktop"),
+              sourcePointer: "desktop://window/runtime#2",
+              excerpt: "RAW_PRIVATE_WINDOW_TITLE: orbit - secret token"
+            }
+          ]
+        })
+      ],
+      knowledgeArtifacts: [],
+      memories: [],
+      recommendations: [],
+      eventSafety: new Map([
+        [
+          "evt_desktop",
+          makeEventSafety({
+            eventId: "evt_desktop",
+            sourceAdapterId: "desktop_observation",
+            sourceKind: "desktop",
+            sourcePointer: "desktop://window/runtime#2",
+            sensitivity: "confidential",
+            redactionState: "none",
+            canExportToAgent: true
+          })
+        ]
+      ])
+    });
+
+    expect(pack.recentActivity).toEqual([
+      expect.objectContaining({
+        sourceKinds: ["desktop"],
+        apps: ["Cursor"],
+        summary: "Window focus observed in Cursor while working on Goal 2."
+      })
+    ]);
+    expect(pack.evidenceIndex).toEqual([
+      expect.objectContaining({
+        sourceKind: "desktop",
+        sourcePointer: "desktop://window/runtime#2"
+      })
+    ]);
+    expect(JSON.stringify(pack)).not.toContain("RAW_PRIVATE_WINDOW_TITLE");
+    expect(formatHandoffMarkdown(pack)).not.toContain("secret token");
+  });
+
   it("explains exclusion reasons and includes next actions in markdown", () => {
     const pack = buildHandoffPack({
       kind: "today",
