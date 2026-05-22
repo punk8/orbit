@@ -43,13 +43,18 @@ import {
   readPerceptionStatus,
   SourceRepository,
   updatePerceptionProviderRoute,
+  updatePerceptionSamplingPreset,
   updatePerceptionSourcePolicy
 } from "@orbit/db";
 import { evaluatePerceptionReleaseGate } from "@orbit/privacy";
 import { getCliConfig } from "../config";
 import { runSemanticPipeline, type SemanticPipelineResult } from "./semanticPipeline";
 import { join } from "node:path";
-import type { PerceptionControlPlaneStatus, PerceptionSourcePolicyPatch } from "@orbit/core";
+import type {
+  PerceptionControlPlaneStatus,
+  PerceptionSamplingPresetName,
+  PerceptionSourcePolicyPatch
+} from "@orbit/core";
 
 export interface PerceptionStatusResult {
   orbitHome: string;
@@ -65,6 +70,10 @@ export interface UpdatePerceptionPolicyInput {
 export interface UpdatePerceptionProviderRouteInput {
   task: string;
   provider: string;
+}
+
+export interface UpdatePerceptionSamplingPresetInput {
+  preset: string;
 }
 
 export interface ScreenOcrSmokeResult {
@@ -193,6 +202,22 @@ export function setPerceptionProviderRoute(
         readPerceptionProviderTask(input.task),
         readPerceptionProviderKind(input.provider)
       )
+    };
+  } finally {
+    database.close();
+  }
+}
+
+export function setPerceptionSamplingPreset(
+  input: UpdatePerceptionSamplingPresetInput
+): PerceptionStatusResult {
+  const config = getCliConfig();
+  const database = openOrbitDatabase({ orbitHome: config.orbitHome });
+  try {
+    return {
+      orbitHome: database.orbitHome,
+      dbPath: database.dbPath,
+      perception: updatePerceptionSamplingPreset(database.db, readSamplingPreset(input.preset))
     };
   } finally {
     database.close();
@@ -736,4 +761,9 @@ function smokeScope(kind: ScreenCaptureScope["kind"]): ScreenCaptureScope {
     label: "Fixture Display",
     displayId: "fixture-display"
   };
+}
+
+function readSamplingPreset(value: string): PerceptionSamplingPresetName {
+  if (value === "conservative" || value === "balanced" || value === "intensive") return value;
+  throw new Error(`Unsupported perception sampling preset: ${value}`);
 }

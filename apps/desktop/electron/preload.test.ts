@@ -27,5 +27,6 @@ describe("desktop preload API", () => {
     expect(source).toContain("updatePerceptionSourceRuntime");
     expect(source).toContain("updatePerceptionSourcePolicy");
     expect(source).toContain("updatePerceptionProviderRoute");
+    expect(source).toContain("updatePerceptionSamplingPreset");
   });
 });

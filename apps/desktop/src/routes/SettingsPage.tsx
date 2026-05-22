@@ -12,6 +12,7 @@ import type {
 import type {
   PerceptionProviderKind,
   PerceptionProviderTask,
+  PerceptionSamplingPresetName,
   PerceptionSourceKind,
   PerceptionSourcePolicyPatch
 } from "@orbit/core";
@@ -33,7 +34,8 @@ export function SettingsPage({
   onResumeObservation,
   onStopObservation,
   onUpdatePerceptionSourcePolicy,
-  onUpdatePerceptionProviderRoute
+  onUpdatePerceptionProviderRoute,
+  onUpdatePerceptionSamplingPreset
 }: {
   snapshot: DesktopSnapshot;
   onUpdateSetting(key: DesktopSettingKey, value: unknown): Promise<void>;
@@ -54,6 +56,7 @@ export function SettingsPage({
     task: PerceptionProviderTask,
     provider: PerceptionProviderKind
   ): Promise<void>;
+  onUpdatePerceptionSamplingPreset(preset: PerceptionSamplingPresetName): Promise<void>;
 }): ReactElement {
   const { t, sensitivity, sourceKind } = useI18n();
   const [activeSection, setActiveSection] = useState<SettingsSectionId>("provider");
@@ -576,6 +579,54 @@ export function SettingsPage({
             <Section title={t("section.perceptionBudgets")}>
               <dl className="settings-grid">
                 <DetailRow
+                  label={t("settings.screenRecordingPermission")}
+                  value={readPermissionStatus(snapshot, "screen")}
+                />
+                <div>
+                  <dt>{t("settings.samplingPreset")}</dt>
+                  <dd>
+                    <select
+                      className="select-input compact-select"
+                      onChange={(event) =>
+                        void onUpdatePerceptionSamplingPreset(
+                          event.currentTarget.value as PerceptionSamplingPresetName
+                        )
+                      }
+                      value={snapshot.perception.samplingPreset.name}
+                    >
+                      <option value="conservative">{t("perception.sampling.conservative")}</option>
+                      <option value="balanced">{t("perception.sampling.balanced")}</option>
+                      <option value="intensive">{t("perception.sampling.intensive")}</option>
+                    </select>
+                  </dd>
+                </div>
+                <DetailRow
+                  label={t("settings.framesPerBurst")}
+                  value={String(snapshot.perception.samplingPolicy.framesPerBurst)}
+                />
+                <DetailRow
+                  label={t("settings.burstInterval")}
+                  value={`${snapshot.perception.samplingPolicy.minimumBurstIntervalSeconds}s`}
+                />
+                <DetailRow
+                  label={t("settings.rawRetention")}
+                  value={
+                    snapshot.perception.samplingPolicy.rawFrameRetention === "disabled"
+                      ? t("state.disabled")
+                      : `${snapshot.perception.samplingPolicy.rawFrameTtlIfEnabledMinutes}m`
+                  }
+                />
+                <DetailRow
+                  label={t("settings.protectedApps")}
+                  value={String(
+                    snapshot.perception.protectedApps.filter((rule) => rule.enabled).length
+                  )}
+                />
+                <DetailRow
+                  label={t("settings.policySnapshot")}
+                  value={snapshot.perception.policySnapshot.id}
+                />
+                <DetailRow
                   label={t("settings.perceptionCpuBudget")}
                   value={`${snapshot.perception.resourcePolicy.cpu.maxCaptureDutyCyclePercent}% / ${snapshot.perception.resourcePolicy.cpu.minScreenCaptureIntervalMs}ms`}
                 />
@@ -994,6 +1045,16 @@ function PolicyToggle({
 
 function countSummary(count: number, total: number): string {
   return `${count}/${total}`;
+}
+
+function readPermissionStatus(
+  snapshot: DesktopSnapshot,
+  kind: "screen" | "microphone" | "system_audio"
+): string {
+  const gate = snapshot.perception.sources
+    .flatMap((source) => source.permissionGates)
+    .find((permission) => permission.kind === kind);
+  return gate?.status ?? "not_required";
 }
 
 function formatDuration(ms: number): string {

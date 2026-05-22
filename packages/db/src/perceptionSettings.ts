@@ -9,6 +9,7 @@ import {
   type PerceptionProviderKind,
   type PerceptionProviderRoute,
   type PerceptionProviderTask,
+  type PerceptionSamplingPresetName,
   type PerceptionSourceControl,
   type PerceptionSourceKind,
   type PerceptionSourcePolicyPatch,
@@ -21,13 +22,16 @@ import { SourceRepository } from "./repositories/sourceRepository";
 
 export const PERCEPTION_SOURCES_SETTING_KEY = "perception.sources";
 export const PERCEPTION_PROVIDER_ROUTES_SETTING_KEY = "perception.providerRoutes";
+export const PERCEPTION_SAMPLING_SETTING_KEY = "perception.sampling";
 
 export function readPerceptionStatusFromSettings(
   settings: SettingsRepository
 ): PerceptionControlPlaneStatus {
   return createDefaultPerceptionStatus(
     readStoredSources(settings),
-    readStoredProviderRoutes(settings)
+    readStoredProviderRoutes(settings),
+    undefined,
+    readStoredSamplingPolicy(settings)
   );
 }
 
@@ -75,12 +79,14 @@ export function updatePerceptionSourceRuntime(
   writeStoredSources(settings, nextStoredSources);
   const next = readPerceptionStatusFromSettings(settings);
   const nextSource = requirePerceptionSource(next, sourceKind);
-  audit.log(`perception.${action}`, "perception_source", sourceKind, {
+  audit.log(perceptionRuntimeAuditOperation(action), "perception_source", sourceKind, {
+    policySnapshotId: next.policySnapshot.id,
     previous: summarizePerceptionSource(previousSource),
     next: summarizePerceptionSource(nextSource)
   });
   if (action === "enable" || action === "resume") {
-    audit.log("perception.permission_check", "perception_source", sourceKind, {
+    audit.log("perception.permission_checked", "perception_source", sourceKind, {
+      policySnapshotId: next.policySnapshot.id,
       permissions: nextSource.permissionGates
     });
   }
@@ -109,7 +115,8 @@ export function updatePerceptionSourcePolicy(
   const next = readPerceptionStatusFromSettings(settings);
   const nextSource = requirePerceptionSource(next, sourceKind);
   syncPerceptionSourceRecordPolicy(db, nextSource);
-  audit.log("perception.policy_change", "perception_source", sourceKind, {
+  audit.log("perception.policy_changed", "perception_source", sourceKind, {
+    policySnapshotId: next.policySnapshot.id,
     previous: previousSource.policy,
     next: nextSource.policy
   });
@@ -137,11 +144,37 @@ export function updatePerceptionProviderRoute(
   routes.push(nextRoute);
   writeStoredProviderRoutes(settings, routes);
   const next = readPerceptionStatusFromSettings(settings);
-  audit.log("perception.provider_route.update", "perception_provider_route", task, {
+  audit.log("perception.policy_changed", "perception_provider_route", task, {
+    policySnapshotId: next.policySnapshot.id,
     previous: previousRoute,
     next: requireProviderRoute(next, task)
   });
   return next;
+}
+
+export function updatePerceptionSamplingPreset(
+  db: Database.Database,
+  preset: PerceptionSamplingPresetName
+): PerceptionControlPlaneStatus {
+  const settings = new SettingsRepository(db);
+  const audit = new AuditRepository(db);
+  const previous = readPerceptionStatusFromSettings(settings);
+  settings.set(PERCEPTION_SAMPLING_SETTING_KEY, { preset });
+  const next = readPerceptionStatusFromSettings(settings);
+  audit.log("perception.policy_changed", "perception_sampling", preset, {
+    policySnapshotId: next.policySnapshot.id,
+    previous: previous.samplingPolicy,
+    next: next.samplingPolicy
+  });
+  return next;
+}
+
+function perceptionRuntimeAuditOperation(action: PerceptionSourceRuntimeAction): string {
+  if (action === "enable") return "perception.source_enabled";
+  if (action === "disable") return "perception.source_disabled";
+  if (action === "pause") return "perception.runtime_paused";
+  if (action === "resume") return "perception.runtime_resumed";
+  return "perception.source_disabled";
 }
 
 export function readPerceptionSourceKind(value: unknown): PerceptionSourceKind {
@@ -188,6 +221,20 @@ function writeStoredProviderRoutes(
   routes: PerceptionProviderRoute[]
 ): void {
   settings.set(PERCEPTION_PROVIDER_ROUTES_SETTING_KEY, routes);
+}
+
+function readStoredSamplingPolicy(
+  settings: SettingsRepository
+): { preset?: PerceptionSamplingPresetName } {
+  const stored = settings.get<{ preset?: unknown }>(PERCEPTION_SAMPLING_SETTING_KEY);
+  if (
+    stored?.preset === "conservative" ||
+    stored?.preset === "balanced" ||
+    stored?.preset === "intensive"
+  ) {
+    return { preset: stored.preset };
+  }
+  return {};
 }
 
 function upsertStoredSource(

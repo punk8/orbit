@@ -23,6 +23,7 @@ import {
   reviewMemoryForDesktop,
   reviewRecommendationForDesktop,
   updatePerceptionProviderRouteForDesktop,
+  updatePerceptionSamplingPresetForDesktop,
   updatePerceptionSourcePolicyForDesktop,
   updatePerceptionSourceRuntimeForDesktop,
   runBackgroundIngestionForDesktop,
@@ -39,6 +40,7 @@ import {
   readPerceptionProviderTask,
   readPerceptionSourceKind
 } from "@orbit/db";
+import type { PerceptionSamplingPresetName } from "@orbit/core";
 import { DesktopObservationService } from "./observation/observationService";
 
 const currentDir = __dirname;
@@ -156,6 +158,9 @@ ipcMain.handle("orbit:updatePerceptionProviderRoute", (_event, task: string, pro
     readPerceptionProviderTask(task),
     readPerceptionProviderKind(provider)
   )
+);
+ipcMain.handle("orbit:updatePerceptionSamplingPreset", (_event, preset: string) =>
+  updatePerceptionSamplingPresetForDesktop(requireSamplingPreset(preset))
 );
 ipcMain.handle("orbit:setupSource", (_event, kind: string, path?: string) =>
   setupSourceForDesktop(requireSourceSetupKind(kind), path)
@@ -606,4 +611,9 @@ function requirePerceptionRuntimeAction(
     return action;
   }
   throw new Error(`Unsupported perception runtime action: ${action}`);
+}
+
+function requireSamplingPreset(value: string): PerceptionSamplingPresetName {
+  if (value === "conservative" || value === "balanced" || value === "intensive") return value;
+  throw new Error(`Unsupported perception sampling preset: ${value}`);
 }

@@ -9,6 +9,7 @@ import type { SourceRecord } from "@orbit/core";
 import {
   readPerceptionStatus,
   updatePerceptionProviderRoute,
+  updatePerceptionSamplingPreset,
   updatePerceptionSourcePolicy,
   updatePerceptionSourceRuntime
 } from "./perceptionSettings";
@@ -75,10 +76,10 @@ describe("perception control-plane settings", () => {
 
       const operations = new AuditRepository(db).listAuditLogs().map((log) => log.operation);
       expect(operations).toEqual([
-        "perception.enable",
-        "perception.permission_check",
-        "perception.policy_change",
-        "perception.disable"
+        "perception.source_enabled",
+        "perception.permission_checked",
+        "perception.policy_changed",
+        "perception.source_disabled"
       ]);
     } finally {
       close();
@@ -98,8 +99,52 @@ describe("perception control-plane settings", () => {
       expect(status.enabled).toBe(false);
       expect(status.sources.every((source) => source.status === "disabled")).toBe(true);
       expect(new AuditRepository(db).listAuditLogs().map((log) => log.operation)).toContain(
-        "perception.provider_route.update"
+        "perception.policy_changed"
       );
+    } finally {
+      close();
+    }
+  });
+
+  it("persists sampling preset settings and updates the policy snapshot", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-perception-sampling-test-"));
+    tempDirs.push(orbitHome);
+    const { db, close } = openOrbitDatabase({ orbitHome });
+    try {
+      const updated = updatePerceptionSamplingPreset(db, "balanced");
+      expect(updated.samplingPreset.name).toBe("balanced");
+      expect(updated.samplingPolicy.minimumBurstIntervalSeconds).toBe(60);
+      expect(updated.samplingPolicy.framesPerBurst).toBe(4);
+
+      const reread = readPerceptionStatus(db);
+      expect(reread.samplingPreset.name).toBe("balanced");
+      expect(reread.policySnapshot.id).toBe(updated.policySnapshot.id);
+      expect(new AuditRepository(db).listAuditLogs().map((log) => log.operation)).toContain(
+        "perception.policy_changed"
+      );
+    } finally {
+      close();
+    }
+  });
+
+  it("stores policy snapshot ids on runtime and policy audit decisions", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-perception-policy-snapshot-test-"));
+    tempDirs.push(orbitHome);
+    const { db, close } = openOrbitDatabase({ orbitHome });
+    try {
+      updatePerceptionSourceRuntime(db, "screen", "enable");
+      updatePerceptionSourcePolicy(db, "screen", {
+        canStoreRaw: true,
+        rawRetentionTtlMinutes: 60
+      });
+
+      const logs = new AuditRepository(db).listAuditLogs();
+      const sourceEnabled = logs.find((log) => log.operation === "perception.source_enabled");
+      const policyChanged = logs.find((log) => log.operation === "perception.policy_changed");
+
+      expect(JSON.stringify(sourceEnabled?.details)).toContain("policySnapshotId");
+      expect(JSON.stringify(policyChanged?.details)).toContain("policySnapshotId");
+      expect(JSON.stringify(policyChanged?.details)).toContain("perception_policy_");
     } finally {
       close();
     }

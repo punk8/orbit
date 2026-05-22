@@ -1,6 +1,7 @@
 import type { Sensitivity } from "../types/common";
 import type { ObservationRuntimeStatus, ProtectedAppRule } from "../observation/observationTypes";
 import { defaultProtectedAppRules } from "../observation/observationPolicy";
+import { hashObject } from "../hash";
 
 export type PerceptionSourceKind =
   | "screen"
@@ -47,6 +48,31 @@ export interface PerceptionSourcePolicy {
   rawRetentionTtlMinutes: number | null;
   protectedAppsEnabled: boolean;
   deleteRawOnDisable: boolean;
+}
+
+export type PerceptionSamplingPresetName = "conservative" | "balanced" | "intensive";
+
+export interface PerceptionSamplingPreset {
+  name: PerceptionSamplingPresetName;
+  minimumBurstIntervalSeconds: number;
+  framesPerBurst: number;
+  frameSpacingMs: number;
+  maxOcrFramesPerMinute: number;
+  rawSidecars: "off" | "short_ttl";
+  intendedUse: string;
+}
+
+export interface PerceptionSamplingPolicy {
+  preset: PerceptionSamplingPresetName;
+  minimumBurstIntervalSeconds: number;
+  framesPerBurst: number;
+  frameSpacingMs: number;
+  maxOcrFramesPerMinute: number;
+  maxCaptureDutyCyclePercent: number;
+  rawFrameRetention: "disabled" | "short_ttl";
+  rawFrameTtlIfEnabledMinutes: number;
+  protectedAppAction: "skip_capture";
+  externalAiUse: "disabled";
 }
 
 export interface PerceptionPermissionGate {
@@ -116,7 +142,10 @@ export interface PerceptionControlPlaneStatus {
   sources: PerceptionSourceControl[];
   providerRoutes: PerceptionProviderRoute[];
   protectedApps: ProtectedAppRule[];
+  samplingPreset: PerceptionSamplingPreset;
+  samplingPolicy: PerceptionSamplingPolicy;
   resourcePolicy: PerceptionResourcePolicy;
+  policySnapshot: PerceptionPolicySnapshot;
 }
 
 export type PerceptionSourcePolicyPatch = Partial<PerceptionSourcePolicy>;
@@ -133,6 +162,65 @@ export interface StoredPerceptionSourceControl {
   lastPolicyChangedAt?: string;
   lastPermissionCheckedAt?: string;
 }
+
+export interface StoredPerceptionSamplingPolicy {
+  preset?: PerceptionSamplingPresetName;
+}
+
+export interface PerceptionPolicySnapshotSource {
+  sourceKind: PerceptionSourceKind;
+  enabled: boolean;
+  paused: boolean;
+  status: ObservationRuntimeStatus;
+  sensitivity: Sensitivity;
+  canStoreRaw: boolean;
+  canStoreSummary: boolean;
+  canUseForAI: boolean;
+  canExportToAgent: boolean;
+  retentionPolicyId: string;
+  rawRetentionTtlMinutes: number | null;
+  protectedAppsEnabled: boolean;
+  deleteRawOnDisable: boolean;
+}
+
+export interface PerceptionPolicySnapshot {
+  id: string;
+  samplingPolicy: PerceptionSamplingPolicy;
+  sourcePolicies: PerceptionPolicySnapshotSource[];
+  providerRoutes: PerceptionProviderRoute[];
+  protectedAppRuleCount: number;
+  resourcePolicy: PerceptionResourcePolicy;
+}
+
+export const perceptionSamplingPresets: readonly PerceptionSamplingPreset[] = [
+  {
+    name: "conservative",
+    minimumBurstIntervalSeconds: 120,
+    framesPerBurst: 3,
+    frameSpacingMs: 1000,
+    maxOcrFramesPerMinute: 3,
+    rawSidecars: "off",
+    intendedUse: "Default Alpha trust and battery mode."
+  },
+  {
+    name: "balanced",
+    minimumBurstIntervalSeconds: 60,
+    framesPerBurst: 4,
+    frameSpacingMs: 1000,
+    maxOcrFramesPerMinute: 6,
+    rawSidecars: "off",
+    intendedUse: "User-selected dogfood mode."
+  },
+  {
+    name: "intensive",
+    minimumBurstIntervalSeconds: 30,
+    framesPerBurst: 6,
+    frameSpacingMs: 500,
+    maxOcrFramesPerMinute: 12,
+    rawSidecars: "short_ttl",
+    intendedUse: "Visible debugging and demo mode."
+  }
+];
 
 export const perceptionCapabilityDescriptors: readonly PerceptionCapabilityDescriptor[] = [
   {
@@ -247,11 +335,17 @@ export function defaultPerceptionSourcePolicy(
 }
 
 export function defaultPerceptionResourcePolicy(): PerceptionResourcePolicy {
+  return perceptionResourcePolicyForSampling(defaultPerceptionSamplingPolicy());
+}
+
+export function perceptionResourcePolicyForSampling(
+  samplingPolicy: PerceptionSamplingPolicy
+): PerceptionResourcePolicy {
   return {
     cpu: {
       maxCaptureDutyCyclePercent: 10,
-      minScreenCaptureIntervalMs: 30_000,
-      maxOcrFramesPerMinute: 6
+      minScreenCaptureIntervalMs: samplingPolicy.minimumBurstIntervalSeconds * 1000,
+      maxOcrFramesPerMinute: samplingPolicy.maxOcrFramesPerMinute
     },
     battery: {
       pauseOnLowPowerMode: true,
@@ -276,10 +370,43 @@ export function defaultPerceptionResourcePolicy(): PerceptionResourcePolicy {
   };
 }
 
+export function defaultPerceptionSamplingPreset(): PerceptionSamplingPreset {
+  return { ...perceptionSamplingPresets[0]! };
+}
+
+export function defaultPerceptionSamplingPolicy(): PerceptionSamplingPolicy {
+  return makePerceptionSamplingPolicy(defaultPerceptionSamplingPreset());
+}
+
+export function readPerceptionSamplingPreset(
+  value: unknown = "conservative"
+): PerceptionSamplingPreset {
+  const preset = perceptionSamplingPresets.find((candidate) => candidate.name === value);
+  return { ...(preset ?? perceptionSamplingPresets[0]!) };
+}
+
+function makePerceptionSamplingPolicy(
+  preset: PerceptionSamplingPreset
+): PerceptionSamplingPolicy {
+  return {
+    preset: preset.name,
+    minimumBurstIntervalSeconds: preset.minimumBurstIntervalSeconds,
+    framesPerBurst: preset.framesPerBurst,
+    frameSpacingMs: preset.frameSpacingMs,
+    maxOcrFramesPerMinute: preset.maxOcrFramesPerMinute,
+    maxCaptureDutyCyclePercent: 10,
+    rawFrameRetention: "disabled",
+    rawFrameTtlIfEnabledMinutes: 60,
+    protectedAppAction: "skip_capture",
+    externalAiUse: "disabled"
+  };
+}
+
 export function createDefaultPerceptionStatus(
   storedSources: StoredPerceptionSourceControl[] = [],
   storedProviderRoutes: PerceptionProviderRoute[] = [],
-  protectedApps: ProtectedAppRule[] = defaultProtectedAppRules()
+  protectedApps: ProtectedAppRule[] = defaultProtectedAppRules(),
+  storedSamplingPolicy: StoredPerceptionSamplingPolicy = {}
 ): PerceptionControlPlaneStatus {
   const storedByKind = new Map(storedSources.map((source) => [source.sourceKind, source]));
   const sources = perceptionCapabilityDescriptors.map((descriptor) =>
@@ -289,14 +416,53 @@ export function createDefaultPerceptionStatus(
   const providerRoutes = defaultPerceptionProviderRoutes.map((route) =>
     normalizeProviderRoute(routeByTask.get(route.task) ?? route)
   );
-  return {
+  const samplingPreset = readPerceptionSamplingPreset(storedSamplingPolicy.preset);
+  const samplingPolicy = makePerceptionSamplingPolicy(samplingPreset);
+  const resourcePolicy = perceptionResourcePolicyForSampling(samplingPolicy);
+  const status = {
     status: summarizePerceptionStatus(sources),
     enabled: sources.some((source) => source.enabled),
     paused: sources.some((source) => source.enabled && source.paused),
     sources,
     providerRoutes,
     protectedApps,
-    resourcePolicy: defaultPerceptionResourcePolicy()
+    samplingPreset,
+    samplingPolicy,
+    resourcePolicy
+  };
+  return {
+    ...status,
+    policySnapshot: createPerceptionPolicySnapshot(status)
+  };
+}
+
+export function createPerceptionPolicySnapshot(
+  status: Omit<PerceptionControlPlaneStatus, "policySnapshot"> | PerceptionControlPlaneStatus
+): PerceptionPolicySnapshot {
+  const snapshotBody = {
+    samplingPolicy: status.samplingPolicy,
+    sourcePolicies: status.sources.map((source) => ({
+      sourceKind: source.sourceKind,
+      enabled: source.enabled,
+      paused: source.paused,
+      status: source.status,
+      sensitivity: source.policy.sensitivity,
+      canStoreRaw: source.policy.canStoreRaw,
+      canStoreSummary: source.policy.canStoreSummary,
+      canUseForAI: source.policy.canUseForAI,
+      canExportToAgent: source.policy.canExportToAgent,
+      retentionPolicyId: source.policy.retentionPolicyId,
+      rawRetentionTtlMinutes: source.policy.rawRetentionTtlMinutes,
+      protectedAppsEnabled: source.policy.protectedAppsEnabled,
+      deleteRawOnDisable: source.policy.deleteRawOnDisable
+    })),
+    providerRoutes: status.providerRoutes.map((route) => ({ ...route })),
+    protectedAppRuleCount: status.protectedApps.filter((rule) => rule.enabled).length,
+    resourcePolicy: status.resourcePolicy
+  };
+  return {
+    id: `perception_policy_${hashObject(snapshotBody).slice(0, 16)}`,
+    ...snapshotBody
   };
 }
 

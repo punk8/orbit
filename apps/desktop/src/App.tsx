@@ -24,6 +24,7 @@ import type {
 import type {
   PerceptionProviderKind,
   PerceptionProviderTask,
+  PerceptionSamplingPresetName,
   PerceptionSourceKind,
   PerceptionSourcePolicyPatch,
   PerceptionSourceRuntimeAction
@@ -164,6 +165,15 @@ export function App(): ReactElement {
   ): Promise<void> {
     await runReviewAction(
       () => window.orbit.updatePerceptionProviderRoute(task, provider),
+      t("error.perception")
+    );
+  }
+
+  async function updatePerceptionSamplingPreset(
+    preset: PerceptionSamplingPresetName
+  ): Promise<void> {
+    await runReviewAction(
+      () => window.orbit.updatePerceptionSamplingPreset(preset),
       t("error.perception")
     );
   }
@@ -378,6 +388,7 @@ export function App(): ReactElement {
                 updatePerceptionSourceRuntime,
                 updatePerceptionSourcePolicy,
                 updatePerceptionProviderRoute,
+                updatePerceptionSamplingPreset,
                 setupSource,
                 reconfigureSource,
                 deleteSource,
@@ -437,6 +448,7 @@ interface PageActions {
     task: PerceptionProviderTask,
     provider: PerceptionProviderKind
   ): Promise<void>;
+  updatePerceptionSamplingPreset(preset: PerceptionSamplingPresetName): Promise<void>;
   setupSource(kind: SourceSetupKind, path?: string): Promise<void>;
   reconfigureSource(sourceId: string, kind: SourceSetupKind, path?: string): Promise<void>;
   deleteSource(sourceId: string): Promise<void>;
@@ -527,6 +539,7 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
           onUpdateSetting={actions.updateSetting}
           onUpdatePerceptionSourcePolicy={actions.updatePerceptionSourcePolicy}
           onUpdatePerceptionProviderRoute={actions.updatePerceptionProviderRoute}
+          onUpdatePerceptionSamplingPreset={actions.updatePerceptionSamplingPreset}
         />
       );
   }

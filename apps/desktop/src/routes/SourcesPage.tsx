@@ -192,6 +192,21 @@ export function SourcesPage({
       </Section>
       <Section title={t("section.perceptionSources")}>
         <div className="item-list perception-source-list">
+          <article className="list-item perception-control-summary">
+            <div>
+              <h3>{t("perception.policySnapshot")}</h3>
+              <div className="meta-line">
+                <span>{snapshot.perception.policySnapshot.id}</span>
+                <span>{`${t("perception.samplingPreset")} ${snapshot.perception.samplingPreset.name}`}</span>
+                <span>{`${t("perception.rawRetention")} ${
+                  snapshot.perception.samplingPolicy.rawFrameRetention
+                }`}</span>
+                <span>{`${t("perception.protectedApps")} ${
+                  snapshot.perception.protectedApps.filter((rule) => rule.enabled).length
+                }`}</span>
+              </div>
+            </div>
+          </article>
           {snapshot.perception.sources.map((source) => (
             <article className="list-item" key={source.sourceKind}>
               <div>

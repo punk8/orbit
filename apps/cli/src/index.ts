@@ -46,6 +46,7 @@ import {
   getPerceptionReleaseGate,
   getPerceptionStatus,
   runScreenOcrSmoke,
+  setPerceptionSamplingPreset,
   setPerceptionProviderRoute,
   setPerceptionSourcePolicy,
   summarizeVisionFixture,
@@ -533,6 +534,18 @@ export function buildProgram(): Command {
       );
       writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
     });
+  const perceptionScreen = perception
+    .command("screen")
+    .description("Screen/OCR source controls that do not start capture unless explicit");
+  perceptionScreen
+    .command("cleanup")
+    .description("Remove expired or policy-blocked raw screen sidecars")
+    .option("--dry-run", "report cleanup without modifying events or files")
+    .option("--json", "output JSON")
+    .action((options: { dryRun?: boolean; json?: boolean }) => {
+      const result = cleanupPerceptionRawSidecars({ dryRun: options.dryRun === true });
+      writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
+    });
   perception
     .command("source-policy")
     .description("Update a perception source policy")
@@ -565,6 +578,15 @@ export function buildProgram(): Command {
         writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
       }
     );
+  perception
+    .command("sampling-preset")
+    .description("Set the screen/OCR sampling preset without starting capture")
+    .argument("<preset>", "conservative, balanced, or intensive")
+    .option("--json", "output JSON")
+    .action((preset: string, options: { json?: boolean }) => {
+      const result = setPerceptionSamplingPreset({ preset });
+      writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
+    });
   perception
     .command("provider-route")
     .description("Update a perception AI provider route")

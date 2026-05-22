@@ -15,6 +15,10 @@ describe("SourcesPage source governance controls", () => {
     expect(source).toContain("section.perceptionSources");
     expect(source).toContain("onUpdatePerceptionSourceRuntime");
     expect(source).toContain("perception.permissions");
+    expect(source).toContain("perception.policySnapshot");
+    expect(source).toContain("perception.protectedApps");
+    expect(source).toContain("perception.samplingPreset");
+    expect(source).toContain("perception.rawRetention");
     expect(source).toContain("source.runtimeNextRun");
     expect(source).toContain("source.runtimeBackoff");
     expect(source).toContain("source.runtimeInterval");

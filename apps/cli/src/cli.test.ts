@@ -22,6 +22,7 @@ import {
   getPerceptionReleaseGate,
   getPerceptionStatus,
   runScreenOcrSmoke,
+  setPerceptionSamplingPreset,
   summarizeVisionFixture,
   transcribeAudioFixture
 } from "./commands/perception";
@@ -311,6 +312,10 @@ describe("cli commands", () => {
     expect(status.perception.sources.every((source) => source.enabled === false)).toBe(true);
     expect(status.perception.resourcePolicy.provider.allowExternalByDefault).toBe(false);
     expect(status.perception.resourcePolicy.queue.dropRawPayloadsFirst).toBe(true);
+    expect(status.perception.samplingPreset.name).toBe("conservative");
+    expect(status.perception.samplingPolicy.framesPerBurst).toBe(3);
+    expect(status.perception.samplingPolicy.minimumBurstIntervalSeconds).toBe(120);
+    expect(status.perception.policySnapshot.id).toContain("perception_policy_");
     expect(status.perception.providerRoutes.map((route) => route.task)).toEqual([
       "ocr",
       "vision",
@@ -322,6 +327,35 @@ describe("cli commands", () => {
       .find((command) => command.name() === "perception")
       ?.helpInformation();
     expect(perceptionHelp).toContain("status");
+    expect(perceptionHelp).toContain("screen");
+    expect(perceptionHelp).toContain("sampling-preset");
+  });
+
+  it("updates Screen/OCR sampling presets without starting capture", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-perception-sampling-test-"));
+    tempDirs.push(orbitHome);
+    process.env.ORBIT_HOME = orbitHome;
+
+    const updated = setPerceptionSamplingPreset({ preset: "balanced" });
+    expect(updated.perception.status).toBe("disabled");
+    expect(updated.perception.samplingPreset.name).toBe("balanced");
+    expect(updated.perception.samplingPolicy.framesPerBurst).toBe(4);
+    expect(getPerceptionStatus().perception.samplingPreset.name).toBe("balanced");
+  });
+
+  it("supports the Screen/OCR-first nested screen cleanup command without starting capture", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-perception-screen-cleanup-test-"));
+    tempDirs.push(orbitHome);
+    process.env.ORBIT_HOME = orbitHome;
+
+    const cleanup = cleanupPerceptionRawSidecars({ dryRun: true });
+    expect(cleanup.cleanup.dryRun).toBe(true);
+    expect(cleanup.cleanup.cleanedEvents).toBe(0);
+
+    const program = buildProgram();
+    const perceptionCommand = program.commands.find((command) => command.name() === "perception");
+    const screenCommand = perceptionCommand?.commands.find((command) => command.name() === "screen");
+    expect(screenCommand?.helpInformation()).toContain("cleanup");
   });
 
   it("reports Goal 9A AI provider runtime routing without running capture", async () => {

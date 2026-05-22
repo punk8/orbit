@@ -20,6 +20,7 @@ import {
   type ObservationStatus,
   type PerceptionProviderKind,
   type PerceptionProviderTask,
+  type PerceptionSamplingPresetName,
   type PerceptionSourceKind,
   type PerceptionSourcePolicyPatch,
   type PerceptionSourceRuntimeAction,
@@ -81,6 +82,7 @@ import {
   reviewMemory,
   reviewRecommendation,
   updatePerceptionProviderRoute,
+  updatePerceptionSamplingPreset,
   updatePerceptionSourcePolicy,
   updatePerceptionSourceRuntime,
   writeBackgroundSourceRuntimeStates,
@@ -1020,6 +1022,18 @@ export function updatePerceptionProviderRouteForDesktop(
   const database = openOrbitDatabase();
   try {
     updatePerceptionProviderRoute(database.db, task, provider);
+  } finally {
+    database.close();
+  }
+  return readDesktopSnapshot();
+}
+
+export function updatePerceptionSamplingPresetForDesktop(
+  preset: PerceptionSamplingPresetName
+): DesktopSnapshot {
+  const database = openOrbitDatabase();
+  try {
+    updatePerceptionSamplingPreset(database.db, preset);
   } finally {
     database.close();
   }

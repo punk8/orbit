@@ -9,6 +9,7 @@ import type {
   PerceptionControlPlaneStatus,
   PerceptionProviderKind,
   PerceptionProviderTask,
+  PerceptionSamplingPresetName,
   PerceptionSourceKind,
   PerceptionSourcePolicyPatch,
   PerceptionSourceRuntimeAction,
@@ -224,6 +225,7 @@ export interface OrbitDesktopApi {
     task: PerceptionProviderTask,
     provider: PerceptionProviderKind
   ): Promise<DesktopSnapshot>;
+  updatePerceptionSamplingPreset(preset: PerceptionSamplingPresetName): Promise<DesktopSnapshot>;
   setupSource(kind: SourceSetupKind, path?: string): Promise<DesktopActionResult>;
   reconfigureSource(
     sourceId: string,
