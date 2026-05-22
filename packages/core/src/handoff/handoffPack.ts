@@ -141,6 +141,12 @@ export interface HandoffExclusion {
   reason: HandoffExclusionReason;
 }
 
+export interface HandoffExclusionExplanation {
+  title: string;
+  description: string;
+  nextAction: string;
+}
+
 export interface BuildHandoffPackInput {
   kind: HandoffKind;
   objective: string;
@@ -360,6 +366,58 @@ export function buildHandoffPack(input: BuildHandoffPackInput): HandoffPack {
   if (input.date) pack.date = input.date;
   if (input.project) pack.project = input.project;
   return pack;
+}
+
+export function explainHandoffExclusion(
+  reason: HandoffExclusionReason
+): HandoffExclusionExplanation {
+  if (reason === "draft_knowledge") {
+    return {
+      title: "Knowledge still needs review",
+      description: "Draft or needs-review Knowledge is not treated as agent-ready context.",
+      nextAction: "Review, edit if needed, then confirm the Knowledge Artifact."
+    };
+  }
+  if (reason === "memory_not_confirmed") {
+    return {
+      title: "Memory is not confirmed",
+      description: "Candidate, rejected, or archived Memory is excluded from default agent context.",
+      nextAction: "Confirm the Memory candidate if it is durable and useful."
+    };
+  }
+  if (reason === "recommendation_terminal") {
+    return {
+      title: "Recommendation is already closed",
+      description: "Dismissed or resolved Recommendations are not suggested to the next agent.",
+      nextAction: "Reopen or create a new Recommendation only if follow-up is still needed."
+    };
+  }
+  if (reason === "missing_evidence") {
+    return {
+      title: "Evidence is missing",
+      description: "Orbit could not attach a traceable source pointer for this object.",
+      nextAction: "Rebuild the pipeline or inspect the source event before exporting it."
+    };
+  }
+  if (reason === "secret_content") {
+    return {
+      title: "Secret content was detected",
+      description: "Secret-classified evidence is blocked from Handoff by default.",
+      nextAction: "Remove or redact the secret content, then regenerate derived context."
+    };
+  }
+  if (reason === "failed_redaction") {
+    return {
+      title: "Redaction failed",
+      description: "Evidence with failed redaction is excluded from persistence-sensitive exports.",
+      nextAction: "Fix the source data or redaction result before allowing export."
+    };
+  }
+  return {
+    title: "Source export is blocked",
+    description: "The source policy does not allow this evidence to be exported to agents.",
+    nextAction: "Enable agent export for that source after confirming the scope is safe."
+  };
 }
 
 function buildEvidenceIds(input: {

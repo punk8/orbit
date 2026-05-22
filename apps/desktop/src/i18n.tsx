@@ -386,6 +386,18 @@ const translations = {
     "handoff.exclusion.secretContent": "Secret content",
     "handoff.exclusion.failedRedaction": "Redaction failed",
     "handoff.exclusion.sourceExportBlocked": "Source export blocked",
+    "handoff.exclusion.nextAction": "Next action",
+    "handoff.exclusion.nextAction.reviewKnowledge": "Review and confirm this Knowledge Artifact.",
+    "handoff.exclusion.nextAction.confirmMemory": "Confirm the Memory candidate if it is durable.",
+    "handoff.exclusion.nextAction.reopenRecommendation":
+      "Reopen or create a new Recommendation only if follow-up is still needed.",
+    "handoff.exclusion.nextAction.rebuildEvidence":
+      "Rebuild the pipeline or inspect the source event.",
+    "handoff.exclusion.nextAction.redactSecret":
+      "Remove or redact the secret content before export.",
+    "handoff.exclusion.nextAction.fixRedaction": "Fix redaction before allowing export.",
+    "handoff.exclusion.nextAction.allowExport":
+      "Enable agent export for this source after confirming the scope is safe.",
     "handoff.empty": "No handoff generated yet",
     "handoff.error": "Handoff generation failed",
     "source.fixtures": "Fixtures",
@@ -1025,6 +1037,15 @@ const translations = {
     "handoff.exclusion.secretContent": "包含 secret 内容",
     "handoff.exclusion.failedRedaction": "脱敏失败",
     "handoff.exclusion.sourceExportBlocked": "来源禁止导出",
+    "handoff.exclusion.nextAction": "下一步",
+    "handoff.exclusion.nextAction.reviewKnowledge": "审阅并确认这条知识。",
+    "handoff.exclusion.nextAction.confirmMemory": "如果这条候选记忆值得长期保留，请确认它。",
+    "handoff.exclusion.nextAction.reopenRecommendation":
+      "只有仍需跟进时，才重新打开或创建新的建议。",
+    "handoff.exclusion.nextAction.rebuildEvidence": "重建流水线，或检查来源事件证据。",
+    "handoff.exclusion.nextAction.redactSecret": "先删除或脱敏 secret 内容，再允许导出。",
+    "handoff.exclusion.nextAction.fixRedaction": "先修复脱敏结果，再允许导出。",
+    "handoff.exclusion.nextAction.allowExport": "确认范围安全后，为该来源开启 Agent 导出。",
     "handoff.empty": "尚未生成交接包",
     "handoff.error": "交接包生成失败",
     "source.fixtures": "示例数据",

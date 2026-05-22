@@ -7,7 +7,7 @@ import type {
   Recommendation,
   ReviewStatus
 } from "../index";
-import { buildHandoffPack, formatHandoffMarkdown } from "../index";
+import { buildHandoffPack, explainHandoffExclusion, formatHandoffMarkdown } from "../index";
 import type { HandoffEventSafety } from "./handoffPack";
 
 const baseTime = "2026-05-21T08:00:00.000Z";
@@ -165,6 +165,36 @@ describe("handoff pack", () => {
     expect(markdown).toContain("## Recommended Next Actions");
     expect(markdown).toContain("## Safety Boundaries");
     expect(markdown).toContain("## Evidence Index");
+    expect(markdown).not.toContain("RAW_EVENT_TEXT");
+  });
+
+  it("explains exclusion reasons and includes next actions in markdown", () => {
+    const pack = buildHandoffPack({
+      kind: "today",
+      objective: "Continue Orbit development",
+      date: "2026-05-21",
+      generatedAt: baseTime,
+      activitySessions: [makeActivity({ id: "act_blocked", eventIds: ["evt_blocked"] })],
+      knowledgeArtifacts: [makeKnowledge({ status: "draft", eventId: "evt_ok" })],
+      memories: [makeMemory({ status: "needs_review", eventId: "evt_ok" })],
+      recommendations: [],
+      eventSafety: new Map([
+        ["evt_ok", makeEventSafety({ eventId: "evt_ok" })],
+        ["evt_blocked", makeEventSafety({ eventId: "evt_blocked", canExportToAgent: false })]
+      ])
+    });
+
+    expect(explainHandoffExclusion("draft_knowledge")).toEqual({
+      title: "Knowledge still needs review",
+      description: "Draft or needs-review Knowledge is not treated as agent-ready context.",
+      nextAction: "Review, edit if needed, then confirm the Knowledge Artifact."
+    });
+
+    const markdown = formatHandoffMarkdown(pack);
+    expect(markdown).toContain("## Excluded From Handoff");
+    expect(markdown).toContain("Knowledge still needs review");
+    expect(markdown).toContain("Review, edit if needed, then confirm the Knowledge Artifact.");
+    expect(markdown).toContain("Source export is blocked");
     expect(markdown).not.toContain("RAW_EVENT_TEXT");
   });
 });

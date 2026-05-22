@@ -24,6 +24,7 @@ import {
   summarizeVisionFixture,
   transcribeAudioFixture
 } from "./commands/perception";
+import { getDogfoodReadiness } from "./commands/dogfood";
 import {
   openOrbitDatabase,
   SettingsRepository,
@@ -646,6 +647,81 @@ describe("cli commands", () => {
       .find((command) => command.name() === "perception")
       ?.helpInformation();
     expect(perceptionHelp).toContain("capture-screen-ocr");
+  });
+
+  it("reports dogfood readiness for the daily Activity to Handoff loop", async () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-dogfood-test-"));
+    tempDirs.push(orbitHome);
+    process.env.ORBIT_HOME = orbitHome;
+
+    await ingestPerceptionFixtures();
+
+    const beforeReview = getDogfoodReadiness({ date: "2026-05-21" });
+    expect(beforeReview.loop.activity.generated).toBe(true);
+    expect(beforeReview.loop.knowledge.reviewable).toBe(true);
+    expect(beforeReview.loop.knowledge.draft).toBeGreaterThan(0);
+    expect(beforeReview.loop.memory.confirmed).toBe(false);
+    expect(beforeReview.handoff.readyForAgent).toBe(false);
+    expect(beforeReview.handoff.excluded.byReason.draft_knowledge).toBeGreaterThan(0);
+    expect(beforeReview.handoff.excluded.byReason.source_export_blocked).toBeGreaterThan(0);
+    expect(beforeReview.handoff.excluded.explanations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          reason: "source_export_blocked",
+          nextAction: "Enable agent export for that source after confirming the scope is safe."
+        })
+      ])
+    );
+    expect(beforeReview.nextActions).toEqual(
+      expect.arrayContaining(["review_knowledge", "confirm_memory", "allow_source_export"])
+    );
+    expect(JSON.stringify(beforeReview)).not.toContain("hunter2");
+    expect(JSON.stringify(beforeReview)).not.toContain("sk-test");
+
+    const artifact = listKnowledgeArtifacts()[0]!;
+    const review = runKnowledgeReviewAction(artifact.id, "confirm");
+    runMemoryReviewAction(review.generatedMemories[0]!.id, "confirm");
+    const database = openOrbitDatabase({ orbitHome });
+    try {
+      updatePerceptionSourcePolicy(database.db, "screen", { canExportToAgent: true });
+      updatePerceptionSourcePolicy(database.db, "ocr", { canExportToAgent: true });
+    } finally {
+      database.close();
+    }
+
+    const afterReview = getDogfoodReadiness({ date: "2026-05-21" });
+    expect(afterReview.handoff.readyForAgent).toBe(true);
+    expect(afterReview.handoff.included.activity).toBeGreaterThan(0);
+    expect(afterReview.handoff.included.knowledge).toBeGreaterThan(0);
+    expect(afterReview.handoff.included.memory).toBeGreaterThan(0);
+    expect(afterReview.nextActions).toContain("copy_handoff");
+
+    const program = buildProgram();
+    const contextHelp = program.commands
+      .find((command) => command.name() === "context")
+      ?.helpInformation();
+    expect(contextHelp).toContain("dogfood");
+  });
+
+  it("explains when dogfood readiness is requested for a date without local activity", async () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-dogfood-date-gap-test-"));
+    tempDirs.push(orbitHome);
+    process.env.ORBIT_HOME = orbitHome;
+
+    await ingestPerceptionFixtures();
+
+    const readiness = getDogfoodReadiness({ date: "2026-05-22" });
+    expect(readiness.loop.activity.generated).toBe(false);
+    expect(readiness.localDataCoverage).toEqual({
+      hasAnyActivity: true,
+      latestActivityDate: "2026-05-21",
+      requestedDateHasActivity: false,
+      explanation:
+        "No Activity Sessions exist for 2026-05-22. Latest local Activity is on 2026-05-21; run dogfood for that date or ingest today's authorized sources."
+    });
+    expect(readiness.nextActions).toEqual(
+      expect.arrayContaining(["capture_or_ingest_source", "review_latest_activity_date"])
+    );
   });
 
   it("evaluates Goal 8F perception cleanup and release gates without starting capture", () => {

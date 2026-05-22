@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { fileURLToPath } from "node:url";
 import { getDbPath } from "./commands/dbPath";
+import { getDogfoodReadiness } from "./commands/dogfood";
 import {
   runKnowledgeEdit,
   runKnowledgeReviewAction,
@@ -53,6 +54,7 @@ import { runSemanticPipeline } from "./commands/semanticPipeline";
 import { getStatus } from "./commands/status";
 import { getAIStatus, testAITask } from "./commands/ai";
 import { buildAIProvider, isAIProviderConfigured, readAIProviderConfigFromEnv } from "@orbit/ai";
+import { getLocalDateKey } from "@orbit/core";
 import { openOrbitDatabase } from "@orbit/db";
 import { runSemanticPipelineWithProvider } from "@orbit/db";
 import { getCliConfig } from "./config";
@@ -390,6 +392,16 @@ export function buildProgram(): Command {
         json: options.json ?? program.opts<{ json?: boolean }>().json
       });
     });
+  context
+    .command("dogfood")
+    .description("Show whether today's Activity, Knowledge, Memory, and Handoff loop is agent-ready")
+    .option("--date <date>", "YYYY-MM-DD date override")
+    .option("--json", "output JSON")
+    .action((options: { date?: string; json?: boolean }) => {
+      writeOutput(getDogfoodReadiness({ date: options.date ?? getLocalDateOptionDefault() }), {
+        json: options.json ?? program.opts<{ json?: boolean }>().json
+      });
+    });
 
   const handoff = program.command("handoff").description("Generate agent handoff packs");
   handoff
@@ -602,6 +614,10 @@ function parseListOption(value: string | undefined): string[] | undefined {
     .split("|")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function getLocalDateOptionDefault(): string {
+  return getLocalDateKey();
 }
 
 function omitUndefined<T extends Record<string, unknown>>(

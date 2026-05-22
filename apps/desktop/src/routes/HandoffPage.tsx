@@ -110,6 +110,10 @@ export function HandoffPage({
                     excluded.reason
                   )}`}</h3>
                   <p>{excluded.objectId}</p>
+                  <p className="muted">{`${t("handoff.exclusion.nextAction")}: ${handoffExclusionNextAction(
+                    t,
+                    excluded.reason
+                  )}`}</p>
                 </article>
               ))}
             </div>
@@ -175,4 +179,19 @@ function handoffExclusionReasonLabel(
   if (reason === "secret_content") return t("handoff.exclusion.secretContent");
   if (reason === "failed_redaction") return t("handoff.exclusion.failedRedaction");
   return t("handoff.exclusion.sourceExportBlocked");
+}
+
+function handoffExclusionNextAction(
+  t: ReturnType<typeof useI18n>["t"],
+  reason: HandoffExclusionReason
+): string {
+  if (reason === "draft_knowledge") return t("handoff.exclusion.nextAction.reviewKnowledge");
+  if (reason === "memory_not_confirmed") return t("handoff.exclusion.nextAction.confirmMemory");
+  if (reason === "recommendation_terminal") {
+    return t("handoff.exclusion.nextAction.reopenRecommendation");
+  }
+  if (reason === "missing_evidence") return t("handoff.exclusion.nextAction.rebuildEvidence");
+  if (reason === "secret_content") return t("handoff.exclusion.nextAction.redactSecret");
+  if (reason === "failed_redaction") return t("handoff.exclusion.nextAction.fixRedaction");
+  return t("handoff.exclusion.nextAction.allowExport");
 }

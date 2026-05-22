@@ -1,3 +1,4 @@
+import { explainHandoffExclusion } from "./handoffPack";
 import type {
   HandoffActivityItem,
   HandoffDecisionItem,
@@ -42,7 +43,10 @@ export function formatHandoffMarkdown(pack: HandoffPack): string {
     formatSafety(pack.safetyBoundaries),
     "",
     "## Evidence Index",
-    formatEvidence(pack.evidenceIndex)
+    formatEvidence(pack.evidenceIndex),
+    "",
+    "## Excluded From Handoff",
+    formatExclusions(pack.excluded)
   ].join("\n");
 }
 
@@ -105,6 +109,16 @@ function formatEvidence(items: HandoffEvidenceItem[]): string {
   if (items.length === 0) return "- None";
   return items
     .map((item) => `- ${item.id}: ${item.sourceKind} ${item.sourcePointer} (${item.timestamp})`)
+    .join("\n");
+}
+
+function formatExclusions(items: HandoffPack["excluded"]): string {
+  if (items.length === 0) return "- None";
+  return items
+    .map((item) => {
+      const explanation = explainHandoffExclusion(item.reason);
+      return `- ${item.objectType} ${item.objectId}: ${explanation.title}. ${explanation.description} Next: ${explanation.nextAction}`;
+    })
     .join("\n");
 }
 
