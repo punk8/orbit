@@ -262,7 +262,18 @@ function ensureTray(): void {
   const observation = snapshot.observation;
   const paused = runtime.collectionPaused;
   const status = runtime.status;
-  tray.setToolTip(`Orbit: ${status}; observation: ${observation.status}`);
+  const activeSources = snapshot.sources
+    .filter((source) => source.enabled && !source.paused)
+    .map((source) => source.displayName);
+  const lastEventAt = observation.lastEventAt ?? snapshot.sources.find((source) => source.lastEventAt)?.lastEventAt;
+  tray.setToolTip(
+    [
+      `Orbit: ${status}`,
+      `observation: ${observation.status}`,
+      `last event: ${lastEventAt ?? "none"}`,
+      `sources: ${activeSources.length > 0 ? activeSources.join(", ") : "none"}`
+    ].join("; ")
+  );
   if (process.platform === "darwin") {
     tray.setTitle(paused ? "Orbit Paused" : "Orbit");
   }

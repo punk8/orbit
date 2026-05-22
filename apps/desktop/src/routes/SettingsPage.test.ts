@@ -21,6 +21,10 @@ describe("SettingsPage privacy and provider hardening", () => {
     expect(source).toContain("settings.agentInterfaceReadOnly");
     expect(source).toContain("settings.blockedUntilReview");
     expect(source).toContain("settings.reindexIdempotent");
+    expect(source).toContain("settings.backgroundScheduler");
+    expect(source).toContain("settings.backgroundSourceBudget");
+    expect(source).toContain("settings.backgroundResourceLimits");
+    expect(source).toContain("snapshot.runtime.background.policy");
     expect(source).toContain("confirm.clearLocalData");
   });
 

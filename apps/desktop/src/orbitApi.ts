@@ -19,6 +19,7 @@ import type {
 } from "@orbit/core";
 import type { AIProviderRuntimeRegistry } from "@orbit/ai";
 import type {
+  BackgroundRuntimeSnapshot,
   KnowledgeReviewAction,
   MemoryEditInput,
   MemoryReviewAction,
@@ -49,6 +50,7 @@ export interface DesktopSnapshot {
   runtime: {
     status: DesktopRuntimeStatus;
     collectionPaused: boolean;
+    background: BackgroundRuntimeSnapshot;
     lastRunAt?: string;
     lastCompletedAt?: string;
     lastError?: string;

@@ -34,6 +34,9 @@ export function SourcesPage({
   const [codexPath, setCodexPath] = useState("");
   const [localAgentPath, setLocalAgentPath] = useState("");
   const [seatalkPath, setSeatalkPath] = useState("");
+  const runtimeSourceById = new Map(
+    snapshot.runtime.background.sources.map((source) => [source.sourceId, source])
+  );
 
   return (
     <div className="page-grid">
@@ -44,124 +47,144 @@ export function SourcesPage({
       </div>
       <Section title={t("section.sourceStatus")}>
         <div className="item-list">
-          {snapshot.sources.map((source) => (
-            <article className="list-item" key={source.id}>
-              <div>
-                <h3>{source.displayName}</h3>
-                <div className="meta-line">
-                  {sourceKind(source.kind)}
-                  <span>{sensitivity(source.defaultSensitivity)}</span>
-                  <span>{sourceStatusLabel(t, source)}</span>
-                  {source.lastSyncAt ? (
-                    <span>{`${t("source.lastSync")} ${source.lastSyncAt}`}</span>
-                  ) : null}
-                  {source.lastEventAt ? (
-                    <span>{`${t("source.lastEvent")} ${source.lastEventAt}`}</span>
-                  ) : null}
-                </div>
-                <div className="meta-line permission-line">
-                  <span>{`${t("source.retention")} ${source.permissionScope.retentionPolicyId}`}</span>
-                  <span>
-                    {source.permissionScope.canUseForAI
-                      ? t("source.aiAllowed")
-                      : t("source.aiBlocked")}
-                  </span>
-                  <span>
-                    {source.permissionScope.canStoreRaw
-                      ? t("source.rawStored")
-                      : t("source.rawNotStored")}
-                  </span>
-                  <span>
-                    {source.permissionScope.canExportToAgent
-                      ? t("source.agentExportAllowed")
-                      : t("source.agentExportBlocked")}
-                  </span>
-                </div>
-                <div className="meta-line permission-line">
-                  <span>{`${t("source.readableFields")} ${source.permissionScope.readableFields.join(", ")}`}</span>
-                </div>
-                <div className="meta-line permission-line">
-                  <span>{`${t("source.interface")} ${
-                    snapshot.sourceAdapterConfigs[source.id]?.setupKind ?? source.id
-                  }`}</span>
-                  <span>
-                    {snapshot.sourceCursors[source.id]
-                      ? t("source.cursorPresent")
-                      : t("source.cursorEmpty")}
-                  </span>
-                  {snapshot.sourceAdapterConfigs[source.id]?.path ? (
-                    <span>{`${t("source.path")} ${snapshot.sourceAdapterConfigs[source.id]?.path}`}</span>
-                  ) : null}
-                  {snapshot.sourceAdapterConfigs[source.id]?.fixturesRoot ? (
-                    <span>{`${t("source.fixturesRoot")} ${
-                      snapshot.sourceAdapterConfigs[source.id]?.fixturesRoot
+          {snapshot.sources.map((source) => {
+            const runtimeSource = runtimeSourceById.get(source.id);
+            return (
+              <article className="list-item" key={source.id}>
+                <div>
+                  <h3>{source.displayName}</h3>
+                  <div className="meta-line">
+                    {sourceKind(source.kind)}
+                    <span>{sensitivity(source.defaultSensitivity)}</span>
+                    <span>{sourceStatusLabel(t, source)}</span>
+                    {source.lastSyncAt ? (
+                      <span>{`${t("source.lastSync")} ${source.lastSyncAt}`}</span>
+                    ) : null}
+                    {source.lastEventAt ? (
+                      <span>{`${t("source.lastEvent")} ${source.lastEventAt}`}</span>
+                    ) : null}
+                  </div>
+                  <div className="meta-line permission-line">
+                    <span>{`${t("source.retention")} ${source.permissionScope.retentionPolicyId}`}</span>
+                    <span>
+                      {source.permissionScope.canUseForAI
+                        ? t("source.aiAllowed")
+                        : t("source.aiBlocked")}
+                    </span>
+                    <span>
+                      {source.permissionScope.canStoreRaw
+                        ? t("source.rawStored")
+                        : t("source.rawNotStored")}
+                    </span>
+                    <span>
+                      {source.permissionScope.canExportToAgent
+                        ? t("source.agentExportAllowed")
+                        : t("source.agentExportBlocked")}
+                    </span>
+                  </div>
+                  <div className="meta-line permission-line">
+                    <span>{`${t("source.readableFields")} ${source.permissionScope.readableFields.join(", ")}`}</span>
+                  </div>
+                  <div className="meta-line permission-line">
+                    <span>{`${t("source.interface")} ${
+                      snapshot.sourceAdapterConfigs[source.id]?.setupKind ?? source.id
                     }`}</span>
+                    <span>
+                      {snapshot.sourceCursors[source.id]
+                        ? t("source.cursorPresent")
+                        : t("source.cursorEmpty")}
+                    </span>
+                    {snapshot.sourceAdapterConfigs[source.id]?.path ? (
+                      <span>{`${t("source.path")} ${snapshot.sourceAdapterConfigs[source.id]?.path}`}</span>
+                    ) : null}
+                    {snapshot.sourceAdapterConfigs[source.id]?.fixturesRoot ? (
+                      <span>{`${t("source.fixturesRoot")} ${
+                        snapshot.sourceAdapterConfigs[source.id]?.fixturesRoot
+                      }`}</span>
+                    ) : null}
+                  </div>
+                  {runtimeSource ? (
+                    <div className="meta-line permission-line runtime-source-line">
+                      <span>{`${t("source.runtimeInterval")} ${formatDuration(runtimeSource.intervalMs)}`}</span>
+                      <span>{`${t("source.runtimeNextRun")} ${
+                        runtimeSource.nextRunAt ?? t("fallback.none")
+                      }`}</span>
+                      {runtimeSource.backoffUntil ? (
+                        <span>{`${t("source.runtimeBackoff")} ${runtimeSource.backoffUntil}`}</span>
+                      ) : null}
+                      {runtimeSource.lastSkipReason ? (
+                        <span>{`${t("source.runtimeLastSkip")} ${runtimeSource.lastSkipReason}`}</span>
+                      ) : null}
+                    </div>
                   ) : null}
+                  {source.lastError ? <p className="error-text">{source.lastError}</p> : null}
                 </div>
-                {source.lastError ? <p className="error-text">{source.lastError}</p> : null}
-              </div>
-              <div className="source-actions">
-                {readReconfigurableSetupKind(
-                  snapshot.sourceAdapterConfigs[source.id]?.setupKind,
-                  source.kind
-                ) ? (
+                <div className="source-actions">
+                  {readReconfigurableSetupKind(
+                    snapshot.sourceAdapterConfigs[source.id]?.setupKind,
+                    source.kind
+                  ) ? (
+                    <button
+                      className="secondary-button"
+                      onClick={() => {
+                        const config = snapshot.sourceAdapterConfigs[source.id];
+                        const setupKind = readReconfigurableSetupKind(
+                          config?.setupKind,
+                          source.kind
+                        );
+                        if (!setupKind) return;
+                        const nextPath = window.prompt(t("prompt.sourcePath"), config?.path ?? "");
+                        if (!nextPath) return;
+                        void onReconfigureSource(source.id, setupKind, nextPath);
+                      }}
+                      type="button"
+                    >
+                      {t("action.reconfigure")}
+                    </button>
+                  ) : null}
                   <button
                     className="secondary-button"
                     onClick={() => {
-                      const config = snapshot.sourceAdapterConfigs[source.id];
-                      const setupKind = readReconfigurableSetupKind(config?.setupKind, source.kind);
-                      if (!setupKind) return;
-                      const nextPath = window.prompt(t("prompt.sourcePath"), config?.path ?? "");
-                      if (!nextPath) return;
-                      void onReconfigureSource(source.id, setupKind, nextPath);
+                      if (!window.confirm(t("confirm.resetSourceCursor"))) return;
+                      void onResetSourceCursor(source.id);
                     }}
                     type="button"
                   >
-                    {t("action.reconfigure")}
+                    {t("action.resetCursor")}
                   </button>
-                ) : null}
-                <button
-                  className="secondary-button"
-                  onClick={() => {
-                    if (!window.confirm(t("confirm.resetSourceCursor"))) return;
-                    void onResetSourceCursor(source.id);
-                  }}
-                  type="button"
-                >
-                  {t("action.resetCursor")}
-                </button>
-                <button
-                  className="secondary-button"
-                  disabled={!source.enabled}
-                  onClick={() =>
-                    void onUpdateSourceRuntime(source.id, source.paused ? "resume" : "pause")
-                  }
-                  type="button"
-                >
-                  {source.paused ? t("action.resume") : t("action.pause")}
-                </button>
-                <button
-                  className="secondary-button"
-                  onClick={() =>
-                    void onUpdateSourceRuntime(source.id, source.enabled ? "disable" : "enable")
-                  }
-                  type="button"
-                >
-                  {source.enabled ? t("action.disable") : t("action.enable")}
-                </button>
-                <button
-                  className="secondary-button danger-button"
-                  onClick={() => {
-                    if (!window.confirm(t("confirm.deleteSource"))) return;
-                    void onDeleteSource(source.id);
-                  }}
-                  type="button"
-                >
-                  {t("action.deleteSource")}
-                </button>
-              </div>
-            </article>
-          ))}
+                  <button
+                    className="secondary-button"
+                    disabled={!source.enabled}
+                    onClick={() =>
+                      void onUpdateSourceRuntime(source.id, source.paused ? "resume" : "pause")
+                    }
+                    type="button"
+                  >
+                    {source.paused ? t("action.resume") : t("action.pause")}
+                  </button>
+                  <button
+                    className="secondary-button"
+                    onClick={() =>
+                      void onUpdateSourceRuntime(source.id, source.enabled ? "disable" : "enable")
+                    }
+                    type="button"
+                  >
+                    {source.enabled ? t("action.disable") : t("action.enable")}
+                  </button>
+                  <button
+                    className="secondary-button danger-button"
+                    onClick={() => {
+                      if (!window.confirm(t("confirm.deleteSource"))) return;
+                      void onDeleteSource(source.id);
+                    }}
+                    type="button"
+                  >
+                    {t("action.deleteSource")}
+                  </button>
+                </div>
+              </article>
+            );
+          })}
           {snapshot.sources.length === 0 ? (
             <div className="empty-state">{t("empty.noSources")}</div>
           ) : null}
@@ -342,6 +365,11 @@ export function SourcesPage({
       </Section>
     </div>
   );
+}
+
+function formatDuration(ms: number): string {
+  if (ms < 60_000) return `${Math.round(ms / 1000)}s`;
+  return `${Math.round(ms / 60_000)}m`;
 }
 
 function tPerceptionStatus(

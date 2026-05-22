@@ -778,6 +778,59 @@ export function SettingsPage({
               </div>
               <p className="muted">{t("settings.observationNote")}</p>
             </div>
+            <div className="settings-policy-block background-runtime-panel">
+              <h3>{t("settings.backgroundScheduler")}</h3>
+              <dl className="mini-grid">
+                <DetailRow
+                  label={t("settings.backgroundSourceBudget")}
+                  value={String(snapshot.runtime.background.policy.maxSourcesPerCycle)}
+                />
+                <DetailRow
+                  label={t("settings.backgroundResourceLimits")}
+                  value={
+                    snapshot.runtime.background.policy.resourceLimits.lowPowerMode
+                      ? t("runtime.resourceLimited")
+                      : t("runtime.resourceNormal")
+                  }
+                />
+                <DetailRow
+                  label={t("settings.backgroundQueueBudget")}
+                  value={`${snapshot.runtime.background.policy.resourceLimits.maxReadPerCycle} / ${snapshot.runtime.background.policy.resourceLimits.maxInsertedPerCycle}`}
+                />
+                <DetailRow
+                  label={t("settings.backgroundSourceStates")}
+                  value={String(snapshot.runtime.background.sources.length)}
+                />
+              </dl>
+              <div className="source-policy-list runtime-source-state-list">
+                {snapshot.runtime.background.sources.map((source) => (
+                  <article className="source-policy-row" key={source.sourceId}>
+                    <div>
+                      <h3>{source.displayName}</h3>
+                      <p>{`${sourceKind(source.sourceKind)} · ${runtimeSourceStatusLabel(
+                        t,
+                        source.status
+                      )}`}</p>
+                    </div>
+                    <div className="source-policy-badges">
+                      <span>{`${t("source.runtimeInterval")} ${formatDuration(
+                        source.intervalMs
+                      )}`}</span>
+                      <span>{`${t("source.runtimeNextRun")} ${
+                        source.nextRunAt ?? t("fallback.none")
+                      }`}</span>
+                      {source.backoffUntil ? (
+                        <span>{`${t("source.runtimeBackoff")} ${source.backoffUntil}`}</span>
+                      ) : null}
+                      {source.lastError ? <span>{source.lastError}</span> : null}
+                    </div>
+                  </article>
+                ))}
+                {snapshot.runtime.background.sources.length === 0 ? (
+                  <div className="empty-state compact">{t("empty.noSources")}</div>
+                ) : null}
+              </div>
+            </div>
           </Section>
         ) : null}
 
@@ -943,6 +996,11 @@ function countSummary(count: number, total: number): string {
   return `${count}/${total}`;
 }
 
+function formatDuration(ms: number): string {
+  if (ms < 60_000) return `${Math.round(ms / 1000)}s`;
+  return `${Math.round(ms / 60_000)}m`;
+}
+
 function providerBoundaryValue(
   t: ReturnType<typeof useI18n>["t"],
   providerKind: DesktopAIProviderKind
@@ -991,6 +1049,17 @@ function providerKindLabel(
   if (providerKind === "local") return t("provider.local");
   if (providerKind === "openai-compatible") return t("provider.openaiCompatible");
   return t("provider.disabled");
+}
+
+function runtimeSourceStatusLabel(
+  t: ReturnType<typeof useI18n>["t"],
+  status: DesktopSnapshot["runtime"]["background"]["sources"][number]["status"]
+): string {
+  if (status === "disabled") return t("state.disabled");
+  if (status === "paused") return t("runtime.paused");
+  if (status === "backoff") return t("runtime.backoff");
+  if (status === "error") return t("runtime.error");
+  return t("runtime.scheduled");
 }
 
 function tPerceptionStatus(

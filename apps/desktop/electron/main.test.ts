@@ -46,6 +46,10 @@ describe("desktop main process runtime guards", () => {
     const data = readFileSync(new URL("./data.ts", import.meta.url), "utf8");
 
     expect(data).toContain("isGenericBackgroundSource");
-    expect(data).toContain("if (!isGenericBackgroundSource(source.kind)) continue;");
+    expect(data).toContain("supportedBackgroundSourceKinds");
+    expect(data).toContain("supportedSourceKinds: supportedBackgroundSourceKinds");
+    expect(data).toContain("sourceKind === \"codex\"");
+    expect(data).toContain("sourceKind === \"local_agent\"");
+    expect(data).toContain("sourceKind === \"seatalk\"");
   });
 });

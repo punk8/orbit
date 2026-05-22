@@ -2,12 +2,16 @@ import {
   buildTodayContext,
   createDefaultObservationStatus,
   defaultProtectedAppRules,
+  planBackgroundRuntimeCycle,
   DESKTOP_OBSERVATION_ADAPTER_ID,
   formatHandoffMarkdown,
   getLocalDateKey,
   ingestEventsFromAdapter,
   normalizeObservationInput,
+  recordBackgroundSourceFailure,
+  recordBackgroundSourceSuccess,
   type AllowedFolderRule,
+  type BackgroundRuntimeDecision,
   type EvidenceRef,
   type KnowledgeArtifact,
   type Memory,
@@ -70,12 +74,16 @@ import {
   SourceRepository,
   editKnowledgeArtifact,
   editMemory,
+  readBackgroundRuntimePolicy,
+  readBackgroundRuntimeSnapshot,
+  readBackgroundSourceRuntimeStates,
   reviewKnowledgeArtifact,
   reviewMemory,
   reviewRecommendation,
   updatePerceptionProviderRoute,
   updatePerceptionSourcePolicy,
   updatePerceptionSourceRuntime,
+  writeBackgroundSourceRuntimeStates,
   writeOrbitRuntimeConfig
 } from "@orbit/db";
 import { safeStorage } from "electron";
@@ -194,7 +202,7 @@ export function readDesktopSnapshot(date = getLocalDateKey()): DesktopSnapshot {
       memories,
       recommendations,
       today,
-      runtime: readRuntime(settingsRepository),
+      runtime: readRuntime(settingsRepository, database.db),
       observation: readObservationStatus(settingsRepository),
       perception,
       aiProviderRuntime: buildAIProviderRuntimeRegistry({
@@ -1021,7 +1029,10 @@ export function updatePerceptionProviderRouteForDesktop(
 export interface BackgroundIngestionResult {
   status: DesktopRuntimeStatus;
   sourceCount: number;
+  scheduled: number;
   attempted: number;
+  skippedSources: number;
+  policyBlocks: number;
   read: number;
   inserted: number;
   skipped: number;
@@ -1037,10 +1048,21 @@ export async function runBackgroundIngestionForDesktop(): Promise<BackgroundInge
     const auditRepository = new AuditRepository(database.db);
     if (settings.get<boolean>(SETTING_KEYS.runtimeCollectionPaused) ?? false) {
       writeRuntimeStatus(settings, "paused");
+      const pausedSourceCount = sourceRepository.countSources();
+      auditRepository.log("background.ingest_cycle", "runtime", undefined, {
+        status: "paused",
+        sourceCount: pausedSourceCount,
+        attempted: 0,
+        skippedSources: pausedSourceCount,
+        reason: "runtime_paused"
+      });
       return {
         status: "paused",
-        sourceCount: sourceRepository.countSources(),
+        sourceCount: pausedSourceCount,
+        scheduled: 0,
         attempted: 0,
+        skippedSources: pausedSourceCount,
+        policyBlocks: 0,
         read: 0,
         inserted: 0,
         skipped: 0,
@@ -1050,6 +1072,19 @@ export async function runBackgroundIngestionForDesktop(): Promise<BackgroundInge
 
     const sources = sourceRepository.listSources();
     const startedAt = new Date().toISOString();
+    const policy = readBackgroundRuntimePolicy(database.db);
+    const sourceStates = readBackgroundSourceRuntimeStates(database.db);
+    const supportedBackgroundSourceKinds = (
+      ["codex", "local_agent", "seatalk"] as SourceKind[]
+    ).filter(isGenericBackgroundSource);
+    const cycle = planBackgroundRuntimeCycle({
+      sources,
+      states: sourceStates,
+      policy,
+      now: startedAt,
+      supportedSourceKinds: supportedBackgroundSourceKinds
+    });
+    const nextSourceStates = { ...cycle.sourceStates };
     writeRuntimeStatus(settings, "collecting", { lastRunAt: startedAt });
     let attempted = 0;
     let read = 0;
@@ -1057,17 +1092,33 @@ export async function runBackgroundIngestionForDesktop(): Promise<BackgroundInge
     let skipped = 0;
     const errors: string[] = [];
 
-    for (const source of sources) {
-      if (source.kind === "desktop") continue;
-      if (!isGenericBackgroundSource(source.kind)) continue;
-      if (!source.enabled || source.paused) continue;
+    for (const decision of cycle.skipped) {
+      auditBackgroundSkip(auditRepository, decision);
+    }
+
+    const sourceById = new Map(sources.map((source) => [source.id, source]));
+    for (const decision of cycle.runnable) {
+      const source = sourceById.get(decision.sourceId);
+      if (!source) continue;
       attempted += 1;
       try {
         const adapter = buildBackgroundAdapter(source.id, source.kind, settings);
         const cursor = sourceRepository.getCursor(adapter.id);
+        const previousState = nextSourceStates[source.id];
         const result = await ingestEventsFromAdapter(adapter, eventRepository, cursor);
         sourceRepository.setCursor(adapter.id, result.nextCursor);
         sourceRepository.recordSyncSuccess(adapter.id, { lastEventAt: result.lastEventAt });
+        nextSourceStates[source.id] = recordBackgroundSourceSuccess(nextSourceStates[source.id], {
+          now: new Date().toISOString(),
+          intervalMs: decision.intervalMs
+        });
+        if (previousState?.lastError) {
+          auditRepository.log("source.recovered", "source", adapter.id, {
+            mode: "background",
+            previousError: previousState.lastError,
+            backoffUntil: previousState.backoffUntil
+          });
+        }
         read += result.read;
         inserted += result.inserted;
         skipped += result.skipped;
@@ -1083,12 +1134,20 @@ export async function runBackgroundIngestionForDesktop(): Promise<BackgroundInge
         const message = formatUnknownError(error);
         errors.push(`${source.displayName}: ${message}`);
         sourceRepository.recordSyncError(source.id, message);
+        nextSourceStates[source.id] = recordBackgroundSourceFailure(nextSourceStates[source.id], {
+          now: new Date().toISOString(),
+          error: message,
+          policy
+        });
         auditRepository.log("source.ingest_failed", "source", source.id, {
           mode: "background",
-          message
+          message,
+          consecutiveFailures: nextSourceStates[source.id]?.consecutiveFailures,
+          backoffUntil: nextSourceStates[source.id]?.backoffUntil
         });
       }
     }
+    writeBackgroundSourceRuntimeStates(database.db, nextSourceStates);
 
     if (inserted > 0) {
       const pipeline = (await reindexLocalDataWithProvider(database, BACKGROUND_PIPELINE_OPTIONS))
@@ -1110,13 +1169,31 @@ export async function runBackgroundIngestionForDesktop(): Promise<BackgroundInge
       startedAt,
       completedAt,
       sourceCount: sources.length,
+      scheduled: cycle.runnable.length,
       attempted,
+      skippedSources: cycle.skipped.length,
+      policyBlocks: cycle.skipped.filter((decision) => isPolicyBlock(decision)).length,
+      read,
+      inserted,
+      skipped,
+      errors,
+      policy: {
+        maxSourcesPerCycle: policy.maxSourcesPerCycle,
+        resourceLimits: policy.resourceLimits
+      }
+    });
+    return {
+      status,
+      sourceCount: sources.length,
+      scheduled: cycle.runnable.length,
+      attempted,
+      skippedSources: cycle.skipped.length,
+      policyBlocks: cycle.skipped.filter((decision) => isPolicyBlock(decision)).length,
       read,
       inserted,
       skipped,
       errors
-    });
-    return { status, sourceCount: sources.length, attempted, read, inserted, skipped, errors };
+    };
   } finally {
     database.close();
   }
@@ -1243,11 +1320,15 @@ function readSettings(settings: SettingsRepository): DesktopSnapshot["settings"]
   return snapshotSettings;
 }
 
-function readRuntime(settings: SettingsRepository): DesktopSnapshot["runtime"] {
+function readRuntime(
+  settings: SettingsRepository,
+  db: Parameters<typeof readBackgroundRuntimeSnapshot>[0]
+): DesktopSnapshot["runtime"] {
   const paused = settings.get<boolean>(SETTING_KEYS.runtimeCollectionPaused) ?? false;
   const runtime: DesktopSnapshot["runtime"] = {
     status: paused ? "paused" : readRuntimeStatus(settings.get<string>(SETTING_KEYS.runtimeStatus)),
-    collectionPaused: paused
+    collectionPaused: paused,
+    background: readBackgroundRuntimeSnapshot(db)
   };
   const lastRunAt = settings.get<string>(SETTING_KEYS.runtimeLastRunAt);
   const lastCompletedAt = settings.get<string>(SETTING_KEYS.runtimeLastCompletedAt);
@@ -1451,6 +1532,34 @@ function buildDesktopPipelineOptions(settings: SettingsRepository): { aiProvider
 function readAIProviderKind(value: string | undefined): "disabled" | "openai-compatible" {
   if (value === "openai-compatible") return value;
   return "disabled";
+}
+
+function auditBackgroundSkip(
+  auditRepository: AuditRepository,
+  decision: BackgroundRuntimeDecision
+): void {
+  auditRepository.log(
+    isPolicyBlock(decision) ? "background.policy_block" : "source.skip",
+    "source",
+    decision.sourceId,
+    {
+      mode: "background",
+      reason: decision.reason,
+      sourceKind: decision.sourceKind,
+      intervalMs: decision.intervalMs,
+      lastRunAt: decision.lastRunAt,
+      lastSuccessAt: decision.lastSuccessAt,
+      lastError: decision.lastError,
+      backoffUntil: decision.backoffUntil,
+      nextRunAt: decision.nextRunAt
+    }
+  );
+}
+
+function isPolicyBlock(decision: BackgroundRuntimeDecision): boolean {
+  return (
+    decision.reason === "cycle_budget_exhausted" || decision.reason === "resource_limited"
+  );
 }
 
 function buildDesktopAIProviderConfig(

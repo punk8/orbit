@@ -15,6 +15,10 @@ describe("SourcesPage source governance controls", () => {
     expect(source).toContain("section.perceptionSources");
     expect(source).toContain("onUpdatePerceptionSourceRuntime");
     expect(source).toContain("perception.permissions");
+    expect(source).toContain("source.runtimeNextRun");
+    expect(source).toContain("source.runtimeBackoff");
+    expect(source).toContain("source.runtimeInterval");
+    expect(source).toContain("runtimeSourceById");
   });
 
   it("does not expose bundled fixtures as a first-run product setup path", () => {
