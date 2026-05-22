@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import { fileURLToPath } from "node:url";
+import { listAgentResources, readAgentResource } from "./commands/agent";
 import { getDbPath } from "./commands/dbPath";
 import { getDogfoodReadiness } from "./commands/dogfood";
 import {
@@ -81,6 +82,31 @@ export function buildProgram(): Command {
       const path = getDbPath();
       const json = options.json ?? program.opts<{ json?: boolean }>().json;
       writeOutput(json ? { dbPath: path } : path, { json });
+    });
+
+  const agent = program.command("agent").description("Read-only Agent Interface resources");
+  agent
+    .command("resources")
+    .description("List read-only Orbit resources available to local agents")
+    .option("--json", "output JSON")
+    .action((options: { json?: boolean }) => {
+      writeOutput(listAgentResources(), {
+        json: options.json ?? program.opts<{ json?: boolean }>().json
+      });
+    });
+  agent
+    .command("read")
+    .description("Read a read-only Orbit agent resource")
+    .argument("<uri>", "Resource URI, for example orbit://handoff/today")
+    .option("--date <date>", "YYYY-MM-DD date override for today handoff")
+    .option("--json", "output JSON")
+    .action((uri: string, options: { date?: string; json?: boolean }) => {
+      const resource = readAgentResource(
+        uri,
+        options.date === undefined ? {} : { date: options.date }
+      );
+      const json = options.json ?? program.opts<{ json?: boolean }>().json;
+      writeOutput(json ? resource : resource.content, { json });
     });
 
   const ingest = program.command("ingest").description("Ingest source data");

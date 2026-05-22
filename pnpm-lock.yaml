@@ -57,6 +57,9 @@ importers:
       '@orbit/adapters':
         specifier: workspace:*
         version: link:../../packages/adapters
+      '@orbit/agent-api':
+        specifier: workspace:*
+        version: link:../../packages/agent-api
       '@orbit/ai':
         specifier: workspace:*
         version: link:../../packages/ai

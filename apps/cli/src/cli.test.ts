@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildProgram } from "./index";
+import { listAgentResources, readAgentResource } from "./commands/agent";
 import { ingestCodex } from "./commands/ingestCodex";
 import { ingestFixtures } from "./commands/ingestFixtures";
 import { ingestLocalAgent } from "./commands/ingestLocalAgent";
@@ -139,6 +140,37 @@ describe("cli commands", () => {
     expect(help).toContain("handoff");
     expect(handoffHelp).toContain("today");
     expect(handoffHelp).toContain("project");
+  });
+
+  it("exposes read-only agent resources for safe handoff reads", async () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-agent-resource-test-"));
+    tempDirs.push(orbitHome);
+    process.env.ORBIT_HOME = orbitHome;
+
+    await ingestFixtures();
+    const artifacts = listKnowledgeArtifacts();
+    const review = runKnowledgeReviewAction(artifacts[0]!.id, "confirm");
+    runMemoryReviewAction(review.generatedMemories[0]!.id, "confirm");
+
+    const resources = listAgentResources();
+    expect(resources.map((resource) => resource.uri)).toEqual(
+      expect.arrayContaining(["orbit://handoff/today"])
+    );
+    expect(resources.every((resource) => resource.readOnly)).toBe(true);
+
+    const resource = readAgentResource("orbit://handoff/today", {
+      date: "2026-05-20",
+      generatedAt: "2026-05-21T08:00:00.000Z"
+    });
+    expect(resource.descriptor.uri).toBe("orbit://handoff/today");
+    expect(resource.readyForAgent).toBe(true);
+    expect(resource.content).toContain("# Orbit Handoff");
+    expect(JSON.stringify(resource)).not.toContain("RAW_EVENT_TEXT");
+
+    const program = buildProgram();
+    const agentHelp = program.commands.find((command) => command.name() === "agent")?.helpInformation();
+    expect(agentHelp).toContain("resources");
+    expect(agentHelp).toContain("read");
   });
 
   it("ingests sanitized Codex sessions from an explicit path", async () => {
