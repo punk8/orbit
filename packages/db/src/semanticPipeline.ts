@@ -207,6 +207,9 @@ function shouldGenerateKnowledgeDraft(
   events: Event[]
 ): boolean {
   if (session.localState.closed === false) return false;
+  if (session.localState.qualitySignals?.isLowQuality === true && isPerceptionSession(events)) {
+    return false;
+  }
   const lowSignalObservationOnly =
     events.length > 0 &&
     events.every(
@@ -228,6 +231,12 @@ function shouldGenerateKnowledgeDraft(
       event.privacy.redactionState === "none"
   );
   return session.durationSeconds >= 600 && hasSemanticWindowEvidence;
+}
+
+function isPerceptionSession(events: Event[]): boolean {
+  return events.some((event) =>
+    ["screen", "ocr", "audio", "transcript"].includes(event.source.kind)
+  );
 }
 
 function finishSemanticPipeline({

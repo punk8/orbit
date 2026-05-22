@@ -61,6 +61,35 @@ describe("semantic pipeline", () => {
     expect(split[1]?.localState.closed).toBe(true);
   });
 
+  it("stores explainable close reasons and quality signals for perception sessions", () => {
+    const events = [
+      makePerceptionFrameEvent("frame_1", "screen", "2026-05-21T10:00:00.000Z"),
+      makePerceptionFrameEvent("ocr_1", "ocr", "2026-05-21T10:00:00.000Z", {
+        summary:
+          "Orbit Goal E screen OCR shows follow up work, visible error context, and enough Chinese/English evidence for a high quality Activity session."
+      }),
+      makeProtectedObservationEvent("protected", "2026-05-21T10:04:00.000Z"),
+      makePerceptionFrameEvent("frame_2", "screen", "2026-05-21T10:07:00.000Z")
+    ];
+
+    const sessions = buildActivitySessions(events, {
+      now: new Date("2026-05-21T10:30:00.000Z")
+    });
+
+    expect(sessions).toHaveLength(2);
+    expect(sessions[0]?.localState.closeReason).toBe("protected_app_gap");
+    expect(sessions[0]?.localState.qualityScore).toBeGreaterThanOrEqual(0.35);
+    expect(sessions[0]?.localState.qualitySignals).toMatchObject({
+      frameCount: 1,
+      ocrTextChars: expect.any(Number),
+      hasFollowUpOrRisk: true,
+      redactionSafe: true,
+      isLowQuality: false
+    });
+    expect(sessions[1]?.localState.closeReason).toBe("idle_timeout");
+    expect(sessions[1]?.localState.qualitySignals?.isLowQuality).toBe(true);
+  });
+
   it("merges continuous app and window focus events into one desktop Activity with evidence", () => {
     const events = [
       makeObservationEvent("app_cursor", "2026-05-21T09:00:00.000Z", "Cursor", {
@@ -249,5 +278,77 @@ function makePerceptionEvent(
       redactionState: "redacted"
     },
     hash: `perception_hash_${id}`
+  };
+}
+
+function makePerceptionFrameEvent(
+  id: string,
+  sourceKind: "screen" | "ocr",
+  occurredAt: string,
+  contentOverrides: Partial<Event["content"]> = {}
+): Event {
+  const frameHash = id.replace("ocr", "frame");
+  return {
+    id: `perception_frame_event_${id}`,
+    schemaVersion: 1,
+    source: {
+      kind: sourceKind,
+      adapterId: `perception_${sourceKind}`,
+      pointer:
+        sourceKind === "screen"
+          ? `screen://capture/test/${frameHash}`
+          : `ocr://capture/test/${frameHash}`
+    },
+    occurredAt,
+    observedAt: occurredAt,
+    context: {
+      app: "Cursor",
+      threadId: "perception-quality"
+    },
+    type: sourceKind === "screen" ? "screen_observation" : "ocr_text",
+    content: {
+      title: sourceKind === "screen" ? "Screen frame" : "OCR text",
+      summary: sourceKind === "screen" ? "Screen frame observed." : "OCR text observed.",
+      metadata:
+        sourceKind === "screen"
+          ? { frameHash, rawFrameStored: false }
+          : { sourceFrameHash: frameHash, rawTextStored: false },
+      ...contentOverrides
+    },
+    privacy: {
+      sensitivity: "confidential",
+      retentionPolicyId: "perception_summary_only",
+      redactionState: "none"
+    },
+    hash: `perception_frame_hash_${id}`
+  };
+}
+
+function makeProtectedObservationEvent(id: string, occurredAt: string): Event {
+  return {
+    id: `protected_event_${id}`,
+    schemaVersion: 1,
+    source: {
+      kind: "desktop",
+      adapterId: "desktop_observation",
+      pointer: `desktop://app-focus/protected#${id}`
+    },
+    occurredAt,
+    observedAt: occurredAt,
+    context: {
+      app: "1Password",
+      threadId: "perception-quality"
+    },
+    type: "app_focus",
+    content: {
+      title: "Focused protected app 1Password",
+      summary: "Protected app was focused; semantic window details were not stored."
+    },
+    privacy: {
+      sensitivity: "internal",
+      retentionPolicyId: "observation_default",
+      redactionState: "redacted"
+    },
+    hash: `protected_hash_${id}`
   };
 }

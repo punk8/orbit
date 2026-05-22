@@ -27,6 +27,8 @@ const OBSERVATION_EVENT_TYPES = new Set<Event["type"]>([
 export interface BuildActivitySessionsOptions {
   now?: Date;
   observationIdleThresholdMs?: number;
+  protectedGapThresholdMs?: number;
+  maxSessionDurationMs?: number;
 }
 
 export function buildActivitySessions(
@@ -45,9 +47,9 @@ export function buildActivitySessions(
     splitEventGroup(key, groupEvents, options).map((segment) => {
       const state: {
         closed: boolean;
-        closeReason?: "idle" | "explicit_boundary" | "historical";
+        closeReason?: NonNullable<ActivitySession["localState"]["closeReason"]>;
       } = {
-        closed: segment.closed,
+        closed: segment.closed
       };
       if (segment.closeReason) {
         state.closeReason = segment.closeReason;
@@ -65,7 +67,7 @@ function splitEventGroup(
   key: string;
   events: Event[];
   closed: boolean;
-  closeReason?: "idle" | "explicit_boundary" | "historical";
+  closeReason?: NonNullable<ActivitySession["localState"]["closeReason"]>;
 }> {
   if (!isObservationGroup(events)) {
     return [{ key, events, closed: true, closeReason: "historical" }];
@@ -73,13 +75,22 @@ function splitEventGroup(
 
   const thresholdMs =
     options.observationIdleThresholdMs ?? DEFAULT_OBSERVATION_IDLE_THRESHOLD_MS;
+  const protectedGapThresholdMs = options.protectedGapThresholdMs ?? 2 * 60 * 1000;
+  const maxSessionDurationMs = options.maxSessionDurationMs ?? 90 * 60 * 1000;
   const now = options.now ?? new Date();
   const segments: Event[][] = [];
   let current: Event[] = [];
 
   for (const event of events) {
     const previous = current[current.length - 1];
-    if (previous && startsNewObservationSegment(previous, event, thresholdMs)) {
+    const first = current[0];
+    if (
+      previous &&
+      (startsNewObservationSegment(previous, event, thresholdMs) ||
+        crossesProtectedGap(previous, event, protectedGapThresholdMs) ||
+        crossesMeetingBoundary(previous, event) ||
+        (first ? exceedsMaxDuration(first, event, maxSessionDurationMs) : false))
+    ) {
       segments.push(current);
       current = [];
     }
@@ -94,20 +105,24 @@ function splitEventGroup(
     const idleClosed =
       next !== undefined ||
       now.getTime() - new Date(last.occurredAt).getTime() >= thresholdMs;
+    const closeReason =
+      explicitCloseReason(last) ??
+      (next
+        ? boundaryCloseReason(last, next, thresholdMs, protectedGapThresholdMs, maxSessionDurationMs)
+        : undefined) ??
+      (idleClosed ? "idle_timeout" : undefined);
     const result: {
       key: string;
       events: Event[];
       closed: boolean;
-      closeReason?: "idle" | "explicit_boundary" | "historical";
+      closeReason?: NonNullable<ActivitySession["localState"]["closeReason"]>;
     } = {
       key: `${key}|observation:${segment[0]!.occurredAt}`,
       events: segment,
       closed: explicitBoundary || idleClosed
     };
-    if (explicitBoundary) {
-      result.closeReason = "explicit_boundary";
-    } else if (idleClosed) {
-      result.closeReason = "idle";
+    if (closeReason) {
+      result.closeReason = closeReason;
     }
     return result;
   });
@@ -118,7 +133,7 @@ function buildSession(
   events: Event[],
   state: {
     closed: boolean;
-    closeReason?: "idle" | "explicit_boundary" | "historical";
+    closeReason?: NonNullable<ActivitySession["localState"]["closeReason"]>;
   }
 ): ActivitySession {
   const first = events[0];
@@ -142,10 +157,13 @@ function buildSession(
     .slice(0, 3)
     .join(" / ");
 
+  const quality = scoreActivityQuality(events, durationSeconds);
   const localState: ActivitySession["localState"] = {
     rawAvailable: false,
     indexed: true,
-    closed: state.closed
+    closed: state.closed,
+    qualityScore: quality.qualityScore,
+    qualitySignals: quality.qualitySignals
   };
   if (state.closeReason) {
     localState.closeReason = state.closeReason;
@@ -204,6 +222,128 @@ function startsNewObservationSegment(previous: Event, event: Event, thresholdMs:
   const nextTime = new Date(event.occurredAt).getTime();
   if (Number.isNaN(previousTime) || Number.isNaN(nextTime)) return false;
   return nextTime - previousTime > thresholdMs;
+}
+
+export function scoreActivityQuality(
+  events: Event[],
+  durationSeconds: number
+): {
+  qualityScore: number;
+  qualitySignals: NonNullable<ActivitySession["localState"]["qualitySignals"]>;
+} {
+  const frameCount = events.filter((event) => event.type === "screen_observation").length;
+  const ocrTextChars = events
+    .filter((event) => event.type === "ocr_text")
+    .map((event) => event.content.summary ?? event.content.text ?? "")
+    .join("\n").length;
+  const appCount = unique(events.map((event) => event.context.app).filter(isPresent)).length;
+  const sourceCount = unique(events.map((event) => event.source.kind)).length;
+  const hasFollowUpOrRisk = events.some((event) =>
+    /follow\s*up|todo|block|risk|error|失败|待跟进|阻塞|风险/i.test(
+      `${event.content.title ?? ""} ${event.content.summary ?? ""} ${event.content.text ?? ""}`
+    )
+  );
+  const redactionSafe = events.every((event) => event.privacy.redactionState !== "failed");
+  const reasons: string[] = [];
+  let score = 0;
+  if (durationSeconds >= 60) score += 0.15;
+  else reasons.push("short_duration");
+  if (frameCount >= 2) score += 0.25;
+  else if (frameCount === 1) score += 0.1;
+  else reasons.push("no_screen_frames");
+  if (ocrTextChars >= 120) score += 0.25;
+  else if (ocrTextChars > 0) score += 0.1;
+  else reasons.push("low_ocr_text");
+  if (appCount >= 1) score += 0.1;
+  if (sourceCount >= 2) score += 0.1;
+  if (hasFollowUpOrRisk) score += 0.1;
+  if (redactionSafe) score += 0.05;
+  else reasons.push("failed_redaction");
+  const qualityScore = Math.min(1, Number(score.toFixed(2)));
+  const isLowQuality = qualityScore < 0.35;
+  if (isLowQuality) reasons.push("below_quality_threshold");
+  return {
+    qualityScore,
+    qualitySignals: {
+      durationSeconds,
+      frameCount,
+      ocrTextChars,
+      appCount,
+      sourceCount,
+      hasFollowUpOrRisk,
+      redactionSafe,
+      isLowQuality,
+      reasons
+    }
+  };
+}
+
+function crossesProtectedGap(previous: Event, next: Event, thresholdMs: number): boolean {
+  if (!isProtectedEvent(previous)) return false;
+  const previousTime = new Date(previous.occurredAt).getTime();
+  const nextTime = new Date(next.occurredAt).getTime();
+  if (Number.isNaN(previousTime) || Number.isNaN(nextTime)) return false;
+  return nextTime - previousTime >= thresholdMs;
+}
+
+function crossesMeetingBoundary(previous: Event, next: Event): boolean {
+  return isMeetingEvent(previous) !== isMeetingEvent(next);
+}
+
+function exceedsMaxDuration(first: Event, next: Event, maxDurationMs: number): boolean {
+  const firstTime = new Date(first.occurredAt).getTime();
+  const nextTime = new Date(next.occurredAt).getTime();
+  if (Number.isNaN(firstTime) || Number.isNaN(nextTime)) return false;
+  return nextTime - firstTime >= maxDurationMs;
+}
+
+function explicitCloseReason(
+  event: Event
+): NonNullable<ActivitySession["localState"]["closeReason"]> | undefined {
+  if (event.type !== "observation_state" && event.type !== "permission_state") return undefined;
+  const text = `${event.content.title ?? ""} ${event.content.summary ?? ""}`.toLowerCase();
+  if (text.includes("pause")) return "manual_pause";
+  if (text.includes("stop")) return "manual_stop";
+  if (text.includes("scope")) return "scope_changed";
+  if (text.includes("error")) return "runtime_error";
+  return "explicit_boundary";
+}
+
+function boundaryCloseReason(
+  previous: Event,
+  next: Event,
+  idleThresholdMs: number,
+  protectedGapThresholdMs: number,
+  maxSessionDurationMs: number
+): NonNullable<ActivitySession["localState"]["closeReason"]> | undefined {
+  if (crossesProtectedGap(previous, next, protectedGapThresholdMs)) return "protected_app_gap";
+  if (crossesMeetingBoundary(previous, next)) return "meeting_boundary";
+  if (exceedsMaxDuration(previous, next, maxSessionDurationMs)) return "max_duration";
+  const previousTime = new Date(previous.occurredAt).getTime();
+  const nextTime = new Date(next.occurredAt).getTime();
+  if (
+    !Number.isNaN(previousTime) &&
+    !Number.isNaN(nextTime) &&
+    nextTime - previousTime >= idleThresholdMs
+  ) {
+    return "idle_timeout";
+  }
+  return "topic_shift";
+}
+
+function isProtectedEvent(event: Event): boolean {
+  const title = event.content.title?.toLowerCase() ?? "";
+  const summary = event.content.summary?.toLowerCase() ?? "";
+  return event.privacy.redactionState === "redacted" && `${title} ${summary}`.includes("protected app");
+}
+
+function isMeetingEvent(event: Event): boolean {
+  return (
+    event.type === "meeting" ||
+    event.type === "audio_segment" ||
+    event.type === "transcript_segment" ||
+    event.source.pointer.startsWith("transcript://meeting")
+  );
 }
 
 function buildSessionTitle(events: Event[]): string {

@@ -35,7 +35,33 @@ export interface ActivitySession {
     indexed: boolean;
     storageBytes?: number;
     closed?: boolean;
-    closeReason?: "idle" | "explicit_boundary" | "historical";
+    closeReason?:
+      | "idle"
+      | "explicit_boundary"
+      | "historical"
+      | "idle_timeout"
+      | "topic_shift"
+      | "project_shift"
+      | "protected_app_gap"
+      | "manual_pause"
+      | "manual_stop"
+      | "scope_changed"
+      | "meeting_boundary"
+      | "max_duration"
+      | "day_boundary"
+      | "runtime_error";
+    qualityScore?: number;
+    qualitySignals?: {
+      durationSeconds: number;
+      frameCount: number;
+      ocrTextChars: number;
+      appCount: number;
+      sourceCount: number;
+      hasFollowUpOrRisk: boolean;
+      redactionSafe: boolean;
+      isLowQuality: boolean;
+      reasons: string[];
+    };
     sourcePolicies?: ActivitySourcePolicySnapshot[];
   };
   privacy: {

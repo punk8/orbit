@@ -89,6 +89,32 @@ describe("semantic pipeline AI provider integration", () => {
     }
   });
 
+  it("keeps low-quality closed perception sessions Activity-only", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-low-quality-session-test-"));
+    tempDirs.push(orbitHome);
+    const database = openOrbitDatabase({ orbitHome });
+    try {
+      upsertFixtureSource(database.db, {
+        id: "perception_screen",
+        kind: "screen",
+        displayName: "Screen Observation",
+        defaultSensitivity: "confidential"
+      });
+      new EventRepository(database.db).upsertEvent(
+        makePerceptionScreenEvent("low_quality", new Date(Date.now() - 40 * 60 * 1000).toISOString())
+      );
+
+      runSemanticPipeline(database);
+
+      const session = new ActivityRepository(database.db).listActivitySessions()[0]!;
+      expect(session.localState.closed).toBe(true);
+      expect(session.localState.qualitySignals?.isLowQuality).toBe(true);
+      expect(new KnowledgeRepository(database.db).listKnowledgeArtifacts()).toHaveLength(0);
+    } finally {
+      database.close();
+    }
+  });
+
   it("uses provider drafts and filters unknown evidence IDs", async () => {
     const orbitHome = mkdtempSync(join(tmpdir(), "orbit-provider-pipeline-test-"));
     tempDirs.push(orbitHome);
@@ -262,15 +288,25 @@ describe("semantic pipeline AI provider integration", () => {
   });
 });
 
-function upsertFixtureSource(db: Database.Database): void {
+function upsertFixtureSource(
+  db: Database.Database,
+  overrides: {
+    id?: string;
+    kind?: Event["source"]["kind"];
+    displayName?: string;
+    defaultSensitivity?: Event["privacy"]["sensitivity"];
+  } = {}
+): void {
+  const kind = overrides.kind ?? "codex";
+  const defaultSensitivity = overrides.defaultSensitivity ?? "internal";
   new SourceRepository(db).upsertSource({
-    id: "fixture_codex",
-    kind: "codex",
-    displayName: "Fixture Codex",
+    id: overrides.id ?? "fixture_codex",
+    kind,
+    displayName: overrides.displayName ?? "Fixture Codex",
     enabled: true,
     paused: false,
-    defaultSensitivity: "internal",
-    permissionScope: defaultPermissionScopeForSource("codex", "internal"),
+    defaultSensitivity,
+    permissionScope: defaultPermissionScopeForSource(kind, defaultSensitivity),
     createdAt: "2026-05-20T09:00:00.000Z",
     updatedAt: "2026-05-20T09:00:00.000Z"
   });
@@ -394,5 +430,40 @@ function makeDesktopObservationEvent(
       redactionState: "none"
     },
     hash: hashObject(input)
+  };
+}
+
+function makePerceptionScreenEvent(id: string, occurredAt: string): Event {
+  const source = {
+    kind: "screen" as const,
+    adapterId: "perception_screen",
+    externalId: id,
+    pointer: `screen://capture/test/${id}`
+  };
+  return {
+    id: createStableId("event", { source, occurredAt }),
+    schemaVersion: 1,
+    source,
+    occurredAt,
+    observedAt: occurredAt,
+    context: {
+      app: "Cursor",
+      threadId: "low-quality"
+    },
+    type: "screen_observation",
+    content: {
+      title: "Screen frame",
+      summary: "Single low-signal frame.",
+      metadata: {
+        frameHash: id,
+        rawFrameStored: false
+      }
+    },
+    privacy: {
+      sensitivity: "confidential",
+      retentionPolicyId: "perception_summary_only",
+      redactionState: "none"
+    },
+    hash: hashObject({ source, occurredAt })
   };
 }
