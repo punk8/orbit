@@ -30,7 +30,13 @@ export function buildTodayContext(input: {
       .filter((artifact) => matchesDate(artifact.createdAt))
       .map((artifact) => sanitizeEvidenceObject(artifact, eventSafety))
       .filter((artifact) => artifact.evidence.length > 0 || eventSafety === undefined),
-    memories: input.memories.filter((memory) => matchesDate(memory.createdAt)),
+    memories: input.memories
+      .filter(
+        (memory) =>
+          matchesDate(memory.createdAt) || memory.evidence.some((ref) => matchesDate(ref.timestamp))
+      )
+      .map((memory) => sanitizeEvidenceObject(memory, eventSafety))
+      .filter((memory) => memory.evidence.length > 0 || eventSafety === undefined),
     recommendations: input.recommendations
       .filter((recommendation) => matchesDate(recommendation.createdAt))
       .map((recommendation) => sanitizeEvidenceObject(recommendation, eventSafety))

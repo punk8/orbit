@@ -154,18 +154,26 @@ describe("cli commands", () => {
 
     const resources = listAgentResources();
     expect(resources.map((resource) => resource.uri)).toEqual(
-      expect.arrayContaining(["orbit://handoff/today"])
+      expect.arrayContaining(["orbit://handoff/today", "orbit://context/today"])
     );
     expect(resources.every((resource) => resource.readOnly)).toBe(true);
 
-    const resource = readAgentResource("orbit://handoff/today", {
+    const handoffResource = readAgentResource("orbit://handoff/today", {
       date: "2026-05-20",
       generatedAt: "2026-05-21T08:00:00.000Z"
     });
-    expect(resource.descriptor.uri).toBe("orbit://handoff/today");
-    expect(resource.readyForAgent).toBe(true);
-    expect(resource.content).toContain("# Orbit Handoff");
-    expect(JSON.stringify(resource)).not.toContain("RAW_EVENT_TEXT");
+    expect(handoffResource.descriptor.uri).toBe("orbit://handoff/today");
+    expect(handoffResource.readyForAgent).toBe(true);
+    expect(handoffResource.content).toContain("# Orbit Handoff");
+
+    const contextResource = readAgentResource("orbit://context/today", {
+      date: "2026-05-20"
+    });
+    expect(contextResource.descriptor.uri).toBe("orbit://context/today");
+    expect(contextResource.readyForAgent).toBe(true);
+    expect(contextResource.content).toContain('"date": "2026-05-20"');
+    expect(contextResource.included.activity).toBeGreaterThan(0);
+    expect(JSON.stringify({ handoffResource, contextResource })).not.toContain("RAW_EVENT_TEXT");
 
     const program = buildProgram();
     const agentHelp = program.commands.find((command) => command.name() === "agent")?.helpInformation();

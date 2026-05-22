@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ActivitySession, Event } from "../index";
+import type { ActivitySession, Event, Memory } from "../index";
 import { buildTodayContext, getLocalDateKey, isInLocalDate } from "./todayContext";
 
 describe("today context date helpers", () => {
@@ -27,6 +27,19 @@ describe("today context date helpers", () => {
 
     expect(today.activitySessions[0]?.eventIds).toEqual(["evt_safe"]);
     expect(today.activitySessions[0]?.evidence.map((ref) => ref.eventId)).toEqual(["evt_safe"]);
+  });
+
+  it("keeps confirmed memories that are linked by evidence to the requested day", () => {
+    const today = buildTodayContext({
+      date: "2026-05-21",
+      activitySessions: [],
+      knowledgeArtifacts: [],
+      memories: [makeMemory()],
+      recommendations: [],
+      events: [makeEvent("evt_safe", "none")]
+    });
+
+    expect(today.memories.map((memory) => memory.id)).toEqual(["memory_1"]);
   });
 });
 
@@ -83,5 +96,29 @@ function makeEvent(id: string, redactionState: Event["privacy"]["redactionState"
       redactionState
     },
     hash: id
+  };
+}
+
+function makeMemory(): Memory {
+  return {
+    id: "memory_1",
+    schemaVersion: 1,
+    kind: "decision",
+    title: "Evidence-linked memory",
+    body: "A later-confirmed memory should still appear in the source day's context.",
+    status: "confirmed",
+    scope: { project: "orbit", sourceKinds: ["audio"] },
+    tags: ["handoff"],
+    evidence: [
+      {
+        eventId: "evt_safe",
+        sourceKind: "audio",
+        sourcePointer: "audio://safe",
+        timestamp: "2026-05-21T09:00:00.000Z"
+      }
+    ],
+    confidence: 0.9,
+    createdAt: "2026-05-22T08:00:00.000Z",
+    updatedAt: "2026-05-22T08:00:00.000Z"
   };
 }
