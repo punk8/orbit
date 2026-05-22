@@ -24,6 +24,13 @@ describe("desktop main process runtime guards", () => {
     expect(main).toContain("orbit:cleanupPerceptionSidecars");
     expect(main).toContain("orbit:startObservation");
     expect(main).toContain("orbit:captureScreenOcr");
+    expect(main).toContain('await click(\'[data-page-id="handoff"]\')');
+    expect(main).toContain('await click(\'[data-handoff-action="generate-today"]\')');
+    expect(main).toContain(".handoff-preview");
+    expect(main).toContain(".handoff-excluded-list");
+    expect(main).toMatch(
+      /await waitFor\("\.handoff-excluded-list"\);[\s\S]*await click\('\[data-page-id="settings"\]'\);[\s\S]*await waitFor\("\.provider-boundary"\);/
+    );
     expect(main).toContain("orbit:updatePerceptionSourceRuntime");
     expect(main).toContain("orbit:updatePerceptionSourcePolicy");
     expect(main).toContain("orbit:updatePerceptionProviderRoute");

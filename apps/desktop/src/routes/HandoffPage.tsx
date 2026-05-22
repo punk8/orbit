@@ -68,6 +68,7 @@ export function HandoffPage({
         <div className="handoff-controls">
           <button
             className="secondary-button"
+            data-handoff-action="generate-today"
             disabled={isGenerating}
             onClick={() => void generate({ kind: "today", date: snapshot.date })}
             type="button"
@@ -84,6 +85,7 @@ export function HandoffPage({
             />
             <button
               className="secondary-button"
+              data-handoff-action="generate-project"
               disabled={isGenerating || project.trim().length === 0}
               onClick={() => void generate({ kind: "project", project: project.trim() })}
               type="button"
@@ -99,7 +101,7 @@ export function HandoffPage({
       {result ? (
         <Section title={t("handoff.excluded")}>
           {result.handoff.excluded.length > 0 ? (
-            <div className="item-list compact">
+            <div className="item-list compact handoff-excluded-list">
               {result.handoff.excluded.map((excluded) => (
                 <article
                   className="list-item vertical"

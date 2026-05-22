@@ -411,6 +411,11 @@ async function runRendererSmoke(window: BrowserWindow): Promise<void> {
             await click('[data-page-id="' + pageId + '"]');
             await waitFor('[data-page-id="' + pageId + '"].active');
           }
+          await click('[data-page-id="handoff"]');
+          await click('[data-handoff-action="generate-today"]');
+          await waitFor(".handoff-preview");
+          await waitFor(".handoff-excluded-list");
+          await click('[data-page-id="settings"]');
           await waitFor(".provider-boundary");
           await assertScrollable(".settings-content");
           await click('[data-settings-section-id="privacy"]');
