@@ -100,13 +100,66 @@ describe("screen/OCR perception adapters", () => {
     expect(screen.events[0]?.source.kind).toBe("screen");
     expect(screen.events[0]?.content.rawRef).toBeUndefined();
     expect(screen.events[0]?.content.attachments).toBeUndefined();
+    expect(screen.events[0]?.content.metadata).toMatchObject({
+      frameHash: "frame_goal_8",
+      rawFrameStored: false,
+      ocrStatus: "pending"
+    });
     expect(screen.events[0]?.privacy.retentionPolicyId).toBe("perception_summary_only");
     expect(ocr.events[0]?.type).toBe("ocr_text");
     expect(ocr.events[0]?.source.kind).toBe("ocr");
     expect(ocr.events[0]?.context.threadId).toBe("screen-runtime");
     expect(ocr.events[0]?.content.summary).toContain("支持中文");
     expect(ocr.events[0]?.content.summary).toContain("[REDACTED]");
+    expect(ocr.events[0]?.content.text).toBeUndefined();
+    expect(ocr.events[0]?.content.metadata).toMatchObject({
+      provider: "mock-local-ocr",
+      sourceFrameHash: "frame_goal_8",
+      languages: ["en", "zh-Hans"],
+      rawTextStored: false,
+      summaryStored: true,
+      redactionState: "redacted"
+    });
     expect(JSON.stringify(ocr.events[0])).not.toContain("hunter2");
+  });
+
+  it("suppresses duplicate frame hashes before OCR", async () => {
+    const frames = [
+      frame("duplicate_frame_1", {
+        frameHash: "same-frame-hash",
+        ocrText: "first OCR text"
+      }),
+      frame("duplicate_frame_2", {
+        capturedAt: "2026-05-21T02:00:01.000Z",
+        sequence: 2,
+        frameHash: "same-frame-hash",
+        ocrText: "duplicate OCR text should not be processed"
+      })
+    ];
+
+    const screen = await readAdapter(
+      new ScreenObservationAdapter({
+        frames,
+        scope: displayScope,
+        permission: screenPermission("granted")
+      })
+    );
+    const ocr = await readAdapter(
+      new OcrObservationAdapter({
+        frames,
+        scope: displayScope,
+        engine: new MockOcrEngine(),
+        permission: screenPermission("granted")
+      })
+    );
+
+    expect(screen.events).toHaveLength(1);
+    expect(ocr.events).toHaveLength(1);
+    expect(screen.result.warnings).toContain(
+      "Suppressed duplicate screen frame duplicate_frame_2."
+    );
+    expect(ocr.result.warnings).toContain("Suppressed duplicate OCR frame duplicate_frame_2.");
+    expect(JSON.stringify(ocr.events)).not.toContain("duplicate OCR text should not be processed");
   });
 
   it("can start, pause, resume, capture, and stop a scoped mock screen observation session", async () => {

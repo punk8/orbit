@@ -111,6 +111,7 @@ function applyStoragePolicy(
     if (summary.value !== undefined) next.content.summary = summary.value;
     if (title.redacted || text.redacted || summary.redacted) {
       next.privacy.redactionState = "redacted";
+      syncMetadataRedactionState(next, "redacted");
       warnings.push(`Sensitive text was redacted from event ${next.id}.`);
     }
     if (!permissionScope.canStoreRaw) {
@@ -126,6 +127,7 @@ function applyStoragePolicy(
     delete next.content.rawRef;
     delete next.content.attachments;
     next.privacy.redactionState = "failed";
+    syncMetadataRedactionState(next, "failed");
     warnings.push(
       `Redaction failed for event ${next.id}; raw text was not stored: ${
         error instanceof Error ? error.message : String(error)
@@ -134,6 +136,17 @@ function applyStoragePolicy(
   }
 
   return { event: next, warnings };
+}
+
+function syncMetadataRedactionState(
+  event: Event,
+  redactionState: Event["privacy"]["redactionState"]
+): void {
+  if (!event.content.metadata) return;
+  event.content.metadata = {
+    ...event.content.metadata,
+    redactionState
+  };
 }
 
 const sensitiveTextPatterns = [

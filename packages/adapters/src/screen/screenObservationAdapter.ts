@@ -67,6 +67,7 @@ export class ScreenObservationAdapter implements SourceAdapter {
     const selected = sorted.slice(safeStart, safeStart + (this.options.maxFramesPerRead ?? 10));
     const warnings: string[] = [];
     const inputs: ObservationInput[] = [];
+    const seenFrameHashes = new Set<string>();
 
     for (const frame of selected) {
       if (!scopeAllowsFrame(frame, this.options.scope)) {
@@ -75,6 +76,11 @@ export class ScreenObservationAdapter implements SourceAdapter {
         );
         continue;
       }
+      if (seenFrameHashes.has(frame.frameHash)) {
+        warnings.push(`Suppressed duplicate screen frame ${frame.id}.`);
+        continue;
+      }
+      seenFrameHashes.add(frame.frameHash);
       const input = frameToScreenObservationInput(
         frame,
         this.options.allowRawFrameStorage ?? false

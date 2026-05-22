@@ -336,6 +336,17 @@ function buildContent(
       return {
         title: `Screen observation in ${appName}`,
         summary: `Screen observation captured${scope ? ` for ${scope}` : ""}${dimensions}.${summary}`,
+        metadata: {
+          scopeKind: input.screen?.scopeKind,
+          scopeLabel: input.screen?.scopeLabel,
+          frameHash: input.screen?.frameHash,
+          width: input.screen?.width,
+          height: input.screen?.height,
+          rawFrameStored: Boolean(input.screen?.rawLocalRef),
+          ocrStatus: "pending",
+          redactionState: input.redactionState ?? "none",
+          exportEligibility: "summary_only"
+        },
         ...(input.screen?.rawLocalRef && attachment
           ? {
               rawRef: input.screen.rawLocalRef,
@@ -349,7 +360,20 @@ function buildContent(
         title: `OCR text in ${appName}`,
         summary: input.ocr?.text
           ? truncate(input.ocr.text, 260)
-          : `OCR text observed with ${input.ocr?.engine ?? "local"} engine.`
+          : `OCR text observed with ${input.ocr?.engine ?? "local"} engine.`,
+        metadata: {
+          provider: input.ocr?.engine ?? "local",
+          languages: input.ocr?.languages ?? [],
+          textHash: input.ocr?.textHash,
+          sourceFrameHash: input.ocr?.sourceFrameHash,
+          lineCount: input.ocr?.text ? countLines(input.ocr.text) : 0,
+          snippetCount: input.ocr?.text ? 1 : 0,
+          confidence: input.ocr?.confidence,
+          redactionState: input.redactionState ?? "none",
+          rawTextStored: false,
+          summaryStored: Boolean(input.ocr?.text),
+          exportEligibility: "summary_only"
+        }
       };
     case "audio_segment": {
       const seconds = input.audio?.durationMs
@@ -469,6 +493,10 @@ function basename(path: string): string {
 
 function truncate(value: string, maxLength: number): string {
   return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
+}
+
+function countLines(value: string): number {
+  return value.split(/\r?\n/).filter((line) => line.trim()).length;
 }
 
 function encodePointerPart(value: string): string {

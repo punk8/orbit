@@ -80,6 +80,7 @@ export class OcrObservationAdapter implements SourceAdapter {
     const selected = sorted.slice(safeStart, safeStart + (this.options.maxFramesPerRead ?? 10));
     const warnings: string[] = [];
     const inputs: ObservationInput[] = [];
+    const seenFrameHashes = new Set<string>();
 
     for (const frame of selected) {
       if (!scopeAllowsFrame(frame, this.options.scope)) {
@@ -88,6 +89,11 @@ export class OcrObservationAdapter implements SourceAdapter {
         );
         continue;
       }
+      if (seenFrameHashes.has(frame.frameHash)) {
+        warnings.push(`Suppressed duplicate OCR frame ${frame.id}.`);
+        continue;
+      }
+      seenFrameHashes.add(frame.frameHash);
       const screenInput = frameToScreenObservationInput(frame);
       if (isProtectedObservation(screenInput, this.options.protectedApps)) {
         warnings.push(`Suppressed OCR for protected screen frame ${frame.id}.`);
