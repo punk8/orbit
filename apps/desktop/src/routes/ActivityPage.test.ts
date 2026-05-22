@@ -35,6 +35,10 @@ describe("ActivityPage evidence workbench", () => {
     expect(source).toContain("activity-frame-scrubber");
     expect(source).toContain("activity.noRawFramesYet");
     expect(source).toContain("buildPlaybackFrames");
+    expect(source).toContain("raw_expired");
+    expect(source).toContain("linkedEvents");
+    expect(source).toContain("frameCount");
+    expect(source).toContain("eventCount");
   });
 
   it("offers a real manual Screen/OCR capture action for product dogfooding", () => {

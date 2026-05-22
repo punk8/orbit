@@ -25,6 +25,10 @@ interface PlaybackFrame {
   label: string;
   summary: string;
   position: number;
+  frameCount: number;
+  eventCount: number;
+  linkedEvents: Event[];
+  rawState: "available" | "raw_expired" | "not_stored";
   rawRef?: string;
 }
 
@@ -366,6 +370,8 @@ function ActivityDetail({
             <ChevronLeft aria-hidden="true" size={14} />
           </button>
           <span>{frames.length ? `1 / ${frames.length}` : `0 / 0`}</span>
+          <span>{currentFrame?.rawState ?? "not_stored"}</span>
+          <span>{currentFrame ? `${currentFrame.eventCount} ${t("unit.events")}` : "0"}</span>
           <button aria-label={t("activity.nextFrame")} type="button">
             <ChevronRight aria-hidden="true" size={14} />
           </button>
@@ -568,13 +574,20 @@ function buildPlaybackFrames(session: ActivitySession, events: Event[]): Playbac
   const duration = Math.max(1, sessionEnd - sessionStart);
 
   const sourceEvents = events.filter((event) => isFrameLikeEvent(event));
-  const eventFrames: PlaybackFrame[] = sourceEvents.map((event, index) => {
+  const groupedEvents = groupEventsByFrameHash(sourceEvents);
+  const screenEvents = sourceEvents.filter((event) => event.type === "screen_observation");
+  const eventFrames: PlaybackFrame[] = screenEvents.map((event, index) => {
+    const linkedEvents = groupedEvents.get(frameHashForEvent(event) ?? event.id) ?? [event];
     const frame: PlaybackFrame = {
       id: event.id,
       time: formatEventTime(event.occurredAt),
       label: humanizeValue(event.source.kind),
       summary: formatFrameSummary(event),
-      position: framePosition(event.occurredAt, sessionStart, duration, index, sourceEvents.length)
+      position: framePosition(event.occurredAt, sessionStart, duration, index, screenEvents.length),
+      frameCount: screenEvents.length,
+      eventCount: linkedEvents.length,
+      linkedEvents,
+      rawState: event.content.rawRef ? "available" : "raw_expired"
     };
     if (event.content.rawRef) frame.rawRef = event.content.rawRef;
     return frame;
@@ -590,6 +603,10 @@ function buildPlaybackFrames(session: ActivitySession, events: Event[]): Playbac
     label: "media",
     summary: rawRef,
     position: mediaRefs.length <= 1 ? 0 : (index / (mediaRefs.length - 1)) * 100,
+    frameCount: mediaRefs.length,
+    eventCount: 0,
+    linkedEvents: [],
+    rawState: "available" as const,
     rawRef
   }));
 
@@ -602,13 +619,37 @@ function buildPlaybackFrames(session: ActivitySession, events: Event[]): Playbac
       time: formatEventTime(session.startAt),
       label: "summary",
       summary: session.summary ?? session.title,
-      position: 0
+      position: 0,
+      frameCount: 0,
+      eventCount: 0,
+      linkedEvents: [],
+      rawState: "not_stored"
     }
   ];
 }
 
 function isFrameLikeEvent(event: Event): boolean {
   return event.type === "screen_observation" || event.type === "ocr_text";
+}
+
+function groupEventsByFrameHash(events: Event[]): Map<string, Event[]> {
+  const groups = new Map<string, Event[]>();
+  for (const event of events) {
+    const frameHash = frameHashForEvent(event);
+    if (!frameHash) continue;
+    const existing = groups.get(frameHash) ?? [];
+    existing.push(event);
+    groups.set(frameHash, existing);
+  }
+  return groups;
+}
+
+function frameHashForEvent(event: Event): string | undefined {
+  const metadata = event.content.metadata ?? {};
+  const frameHash = metadata.frameHash;
+  if (typeof frameHash === "string" && frameHash) return frameHash;
+  const sourceFrameHash = metadata.sourceFrameHash;
+  return typeof sourceFrameHash === "string" && sourceFrameHash ? sourceFrameHash : undefined;
 }
 
 function formatFrameSummary(event: Event): string {

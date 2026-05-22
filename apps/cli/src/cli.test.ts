@@ -44,6 +44,7 @@ import {
   searchKnowledgeArtifacts,
   searchMemories
 } from "./commands/readModels";
+import { getActivityFrames, getActivityPlayback } from "./commands/activityPlayback";
 import { getStatus } from "./commands/status";
 import { getAIStatus, testAITask } from "./commands/ai";
 import { screenPermission } from "@orbit/adapters";
@@ -386,6 +387,40 @@ describe("cli commands", () => {
     const perceptionCommand = program.commands.find((command) => command.name() === "perception");
     const screenCommand = perceptionCommand?.commands.find((command) => command.name() === "screen");
     expect(screenCommand?.helpInformation()).toContain("capture-now");
+  });
+
+  it("returns Activity playback frames linked to screen/OCR event stream", async () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-activity-frames-test-"));
+    tempDirs.push(orbitHome);
+    process.env.ORBIT_HOME = orbitHome;
+
+    await captureScreenOcrBurstNow({ mock: true });
+    const session = listActivitySessions()[0]!;
+    const frames = getActivityFrames(session.id);
+    const playback = getActivityPlayback(session.id);
+
+    expect(frames.activityId).toBe(session.id);
+    expect(frames.frameCount).toBe(3);
+    expect(frames.eventCount).toBe(6);
+    expect(frames.frames[0]).toMatchObject({
+      frameIndex: 0,
+      rawAvailable: false,
+      rawState: "raw_expired",
+      ocrStatus: "completed"
+    });
+    expect(frames.frames[0]?.linkedEvents.map((event) => event.type)).toEqual([
+      "screen_observation",
+      "ocr_text"
+    ]);
+    expect(playback.scrubber.markers).toHaveLength(3);
+    expect(playback.eventStream).toHaveLength(6);
+
+    const program = buildProgram();
+    const activityHelp = program.commands
+      .find((command) => command.name() === "activity")
+      ?.helpInformation();
+    expect(activityHelp).toContain("frames");
+    expect(activityHelp).toContain("playback");
   });
 
   it("reports Goal 9A AI provider runtime routing without running capture", async () => {

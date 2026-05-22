@@ -28,6 +28,7 @@ import {
   searchKnowledgeArtifacts,
   searchMemories
 } from "./commands/readModels";
+import { getActivityFrames, getActivityPlayback } from "./commands/activityPlayback";
 import {
   getProjectHandoff,
   getProjectHandoffMarkdown,
@@ -201,6 +202,26 @@ export function buildProgram(): Command {
     .option("--json", "output JSON")
     .action((options: { json?: boolean }) => {
       writeOutput(listActivitySessions(), {
+        json: options.json ?? program.opts<{ json?: boolean }>().json
+      });
+    });
+  activity
+    .command("frames")
+    .description("List playback frame metadata for an Activity Session")
+    .argument("<id>", "Activity Session ID")
+    .option("--json", "output JSON")
+    .action((id: string, options: { json?: boolean }) => {
+      writeOutput(getActivityFrames(id), {
+        json: options.json ?? program.opts<{ json?: boolean }>().json
+      });
+    });
+  activity
+    .command("playback")
+    .description("Show playback scrubber and event stream for an Activity Session")
+    .argument("<id>", "Activity Session ID")
+    .option("--json", "output JSON")
+    .action((id: string, options: { json?: boolean }) => {
+      writeOutput(getActivityPlayback(id), {
         json: options.json ?? program.opts<{ json?: boolean }>().json
       });
     });
