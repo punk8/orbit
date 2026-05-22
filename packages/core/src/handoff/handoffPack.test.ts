@@ -13,6 +13,92 @@ import type { HandoffEventSafety } from "./handoffPack";
 const baseTime = "2026-05-21T08:00:00.000Z";
 
 describe("handoff pack", () => {
+  it("builds an agent-ready dogfood handoff with attempted work, next steps, and Chinese markdown", () => {
+    const pack = buildHandoffPack({
+      kind: "today",
+      objective: "接手 Orbit 半天 dogfood",
+      date: "2026-05-21",
+      generatedAt: baseTime,
+      activitySessions: [
+        makeActivity({
+          id: "act_done",
+          title: "Orbit: 真实 Screen/OCR 采集",
+          summary: "已完成手动 Screen/OCR 采集并进入 Activity。 / 下一步确认中文 Knowledge。"
+        })
+      ],
+      knowledgeArtifacts: [
+        makeKnowledge({
+          status: "confirmed",
+          eventId: "evt_1",
+          content: {
+            description: "真实本地来源已经生成可审阅中文 Knowledge。",
+            keyInsights: [
+              "已完成：Screen/OCR 事件进入 Activity。",
+              "下一步：确认 Memory 后再交给 Agent。"
+            ],
+            decisions: ["默认 Handoff 不导出 raw screen/OCR payload。"],
+            blockers: ["阻塞：Memory 仍待用户确认。"],
+            markdown: "确认后的中文 Knowledge。"
+          }
+        })
+      ],
+      memories: [
+        makeMemory({
+          status: "confirmed",
+          eventId: "evt_1",
+          body: "Orbit dogfood handoff must include safety boundaries and next steps."
+        })
+      ],
+      recommendations: [
+        makeRecommendation({
+          status: "new",
+          eventId: "evt_1",
+          title: "确认 Memory 后再交给 Agent",
+          suggestedAction: "在 Memory 页面确认候选项，然后重新生成 Handoff。"
+        })
+      ],
+      eventSafety: new Map([["evt_1", makeEventSafety({ eventId: "evt_1" })]])
+    });
+
+    expect(pack.currentState).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("Current objective: 接手 Orbit 半天 dogfood"),
+        expect.stringContaining("Confirmed knowledge ready for agent handoff: 1"),
+        expect.stringContaining("Open blockers or risks: 2")
+      ])
+    );
+    expect(pack.completedOrAttempted).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: expect.stringContaining("已完成"),
+          status: "completed"
+        }),
+        expect.objectContaining({
+          title: expect.stringContaining("下一步"),
+          status: "attempted"
+        })
+      ])
+    );
+    expect(pack.nextSteps).toEqual([
+      expect.objectContaining({
+        title: "确认 Memory 后再交给 Agent",
+        action: "在 Memory 页面确认候选项，然后重新生成 Handoff。"
+      })
+    ]);
+
+    const markdown = formatHandoffMarkdown(pack, { language: "zh-CN" });
+    expect(markdown).toContain("# Orbit 交班包");
+    expect(markdown).toContain("## 当前状态");
+    expect(markdown).toContain("## 已完成 / 已尝试");
+    expect(markdown).toContain("## 建议下一步");
+    expect(markdown).toContain("## 安全边界");
+    expect(markdown).toContain("当前目标：接手 Orbit 半天 dogfood");
+    expect(markdown).toContain("用户审阅后再分享");
+    expect(markdown).toContain("已完成");
+    expect(markdown).toContain("默认 Handoff 不导出 raw screen/OCR payload");
+    expect(markdown).not.toContain("RAW_EVENT_TEXT");
+  });
+
   it("builds a default today handoff from confirmed and evidence-backed objects", () => {
     const pack = buildHandoffPack({
       kind: "today",

@@ -435,21 +435,33 @@ export function buildProgram(): Command {
     .description("Generate today's agent handoff")
     .option("--date <date>", "YYYY-MM-DD date override")
     .option("--format <format>", "Output format: markdown")
+    .option("--language <language>", "Markdown language: en or zh-CN")
     .option("--json", "output JSON")
-    .action((options: { date?: string; format?: string; json?: boolean }) => {
+    .action((options: { date?: string; format?: string; language?: string; json?: boolean }) => {
       const json = options.json ?? program.opts<{ json?: boolean }>().json;
       const input = omitUndefined({ date: options.date });
-      writeOutput(json ? getTodayHandoff(input) : getTodayHandoffMarkdown(input), { json });
+      writeOutput(
+        json
+          ? getTodayHandoff(input)
+          : getTodayHandoffMarkdown(withHandoffLanguage(input, options.language)),
+        { json }
+      );
     });
   handoff
     .command("project")
     .description("Generate a project agent handoff")
     .argument("<project>", "Project name")
     .option("--format <format>", "Output format: markdown")
+    .option("--language <language>", "Markdown language: en or zh-CN")
     .option("--json", "output JSON")
-    .action((project: string, options: { format?: string; json?: boolean }) => {
+    .action((project: string, options: { format?: string; language?: string; json?: boolean }) => {
       const json = options.json ?? program.opts<{ json?: boolean }>().json;
-      writeOutput(json ? getProjectHandoff(project) : getProjectHandoffMarkdown(project), { json });
+      writeOutput(
+        json
+          ? getProjectHandoff(project)
+          : getProjectHandoffMarkdown(project, withHandoffLanguage({}, options.language)),
+        { json }
+      );
     });
 
   const observe = program.command("observe").description("Inspect background observation state");
@@ -644,6 +656,20 @@ function parseListOption(value: string | undefined): string[] | undefined {
 
 function getLocalDateOptionDefault(): string {
   return getLocalDateKey();
+}
+
+function readHandoffLanguage(value: string | undefined): "en" | "zh-CN" | undefined {
+  if (value === undefined) return undefined;
+  if (value === "en" || value === "zh-CN") return value;
+  throw new Error(`Unsupported handoff language: ${value}`);
+}
+
+function withHandoffLanguage<T extends Record<string, unknown>>(
+  input: T,
+  value: string | undefined
+): T & { language?: "en" | "zh-CN" } {
+  const language = readHandoffLanguage(value);
+  return language ? { ...input, language } : input;
 }
 
 function omitUndefined<T extends Record<string, unknown>>(

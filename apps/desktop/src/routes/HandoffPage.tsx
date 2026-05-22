@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
 import type { DesktopHandoffResult, DesktopSnapshot } from "../orbitApi";
-import type { HandoffExclusionReason } from "@orbit/core";
+import type { HandoffExclusionReason, HandoffPack } from "@orbit/core";
 import { MetricCard } from "../components/MetricCard";
 import { Section } from "../components/Section";
 import { useI18n } from "../i18n";
@@ -15,7 +15,7 @@ export function HandoffPage({
     input: { kind: "today"; date?: string } | { kind: "project"; project: string }
   ): Promise<DesktopHandoffResult>;
 }): ReactElement {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const [project, setProject] = useState("orbit");
   const [result, setResult] = useState<DesktopHandoffResult | undefined>();
   const [error, setError] = useState<string | undefined>();
@@ -99,6 +99,50 @@ export function HandoffPage({
       {error ? <div className="error-banner">{`${t("handoff.error")}: ${error}`}</div> : null}
 
       {result ? (
+        <div className="page-grid two-column compact-page-grid">
+          <Section title={t("handoff.currentState")}>
+            <HandoffBulletList
+              items={formatCurrentStateForDisplay(result.handoff, language === "zh-CN")}
+            />
+          </Section>
+          <Section title={t("handoff.completedOrAttempted")}>
+            {result.handoff.completedOrAttempted.length > 0 ? (
+              <div className="item-list compact">
+                {result.handoff.completedOrAttempted.map((item) => (
+                  <article className="list-item vertical" key={item.id}>
+                    <h3>{item.title}</h3>
+                    <p>{t(`handoff.progress.${item.status}`)}</p>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="empty-state">{t("handoff.noneCompletedOrAttempted")}</div>
+            )}
+          </Section>
+        </div>
+      ) : null}
+
+      {result ? (
+        <Section title={t("handoff.nextSteps")}>
+          {result.handoff.nextSteps.length > 0 ? (
+            <div className="item-list compact">
+              {result.handoff.nextSteps.map((step) => (
+                <article className="list-item vertical" key={step.id}>
+                  <h3>{step.title}</h3>
+                  <p>{step.action}</p>
+                  <p className="muted">{`${t("handoff.nextStepConfidence")}: ${step.confidence} · ${t(
+                    "filter.impact"
+                  )}: ${step.impact}`}</p>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state">{t("handoff.noNextSteps")}</div>
+          )}
+        </Section>
+      ) : null}
+
+      {result ? (
         <Section title={t("handoff.excluded")}>
           {result.handoff.excluded.length > 0 ? (
             <div className="item-list compact handoff-excluded-list">
@@ -172,6 +216,43 @@ export function HandoffPage({
       ) : null}
     </div>
   );
+}
+
+function HandoffBulletList({ items }: { items: string[] }): ReactElement {
+  if (items.length === 0) {
+    return <div className="empty-state compact">None</div>;
+  }
+  return (
+    <ul className="handoff-bullet-list">
+      {items.map((item) => (
+        <li key={item}>{item}</li>
+      ))}
+    </ul>
+  );
+}
+
+function formatCurrentStateForDisplay(pack: HandoffPack, zh: boolean): string[] {
+  if (!zh) return pack.currentState;
+  return [
+    `当前目标：${formatObjectiveForDisplay(pack.objective)}`,
+    `可交给 Agent 的最近活动：${pack.recentActivity.length}`,
+    `已确认知识：${pack.confirmedKnowledge.length}`,
+    `已确认记忆：${pack.activeMemories.length}`,
+    `未关闭建议：${pack.recommendedNextActions.length}`,
+    `阻塞或风险：${pack.blockersAndRisks.length}`,
+    `可追溯证据指针：${pack.evidenceIndex.length}`,
+    `已排除且带原因的内容：${pack.excluded.length}`
+  ];
+}
+
+function formatObjectiveForDisplay(objective: string): string {
+  if (objective.startsWith("Continue project ")) {
+    return `继续项目 ${objective.slice("Continue project ".length)}`;
+  }
+  if (objective.startsWith("Continue work for ")) {
+    return `继续 ${objective.slice("Continue work for ".length)} 的工作`;
+  }
+  return objective;
 }
 
 function handoffExclusionReasonLabel(

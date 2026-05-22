@@ -139,6 +139,55 @@ describe("sqlite store", () => {
     }
   });
 
+  it("dedupes memory candidates against existing scoped memories and links duplicates for review", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-db-memory-dedupe-test-"));
+    tempDirs.push(orbitHome);
+    const { db, close } = openOrbitDatabase({ orbitHome });
+    try {
+      const event = makeEvent();
+      new EventRepository(db).upsertEvent(event);
+      const memoryRepository = new MemoryRepository(db);
+      memoryRepository.upsertMemory({
+        ...makeMemory(event),
+        id: "memory_existing",
+        title: "Existing Orbit memory",
+        body: "Orbit should keep reviewable knowledge.",
+        status: "confirmed",
+        scope: { project: "orbit", sourceKinds: ["codex"] },
+        tags: ["confirmed"]
+      });
+      new KnowledgeRepository(db).upsertKnowledgeArtifact({
+        ...makeKnowledge(event),
+        content: {
+          ...makeKnowledge(event).content,
+          keyInsights: [
+            "Orbit should keep reviewable knowledge.",
+            "Memory candidates should explain duplicate scope."
+          ]
+        }
+      });
+
+      const result = reviewKnowledgeArtifact(db, "knowledge_fixture", "confirm");
+      const memories = memoryRepository.listMemories();
+      const duplicate = result.generatedMemories.find((memory) =>
+        memory.tags.includes("duplicate_candidate")
+      );
+
+      expect(result.generatedMemories).toHaveLength(2);
+      expect(memories.filter((memory) => memory.body === "Orbit should keep reviewable knowledge."))
+        .toHaveLength(1);
+      expect(duplicate?.supersedes).toEqual(["memory_existing"]);
+      expect(duplicate?.body).toContain("Duplicate candidate");
+      expect(duplicate?.body).toContain("memory_existing");
+      expect(duplicate?.status).toBe("needs_review");
+      expect(duplicate?.scope.project).toBe("orbit");
+      const operations = new AuditRepository(db).listAuditLogs().map((log) => log.operation);
+      expect(operations).toContain("memory.duplicate_candidate");
+    } finally {
+      close();
+    }
+  });
+
   it("edits knowledge content without dropping evidence or FTS indexing", () => {
     const orbitHome = mkdtempSync(join(tmpdir(), "orbit-db-knowledge-edit-test-"));
     tempDirs.push(orbitHome);

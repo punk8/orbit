@@ -1749,6 +1749,19 @@ button {
   white-space: pre-wrap;
 }
 
+.handoff-bullet-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 14px 18px 16px 34px;
+}
+
+.handoff-bullet-list li {
+  color: #344043;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .compact-page-grid {
   padding: 0;
 }

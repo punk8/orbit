@@ -156,18 +156,62 @@ function generateMemoryCandidatesForKnowledge(
   const inserted: Memory[] = [];
 
   for (const candidate of candidates) {
-    if (repository.getMemory(candidate.id)) {
+    const existing = repository.getMemory(candidate.id);
+    if (existing) {
+      inserted.push(existing);
       continue;
     }
-    repository.upsertMemory(candidate);
-    audit.log("memory.generate_candidate", "memory", candidate.id, {
+    const duplicate = findDuplicateMemory(repository.listMemories(), candidate);
+    const memory = duplicate ? duplicateMemoryCandidate(candidate, duplicate) : candidate;
+    repository.upsertMemory(memory);
+    audit.log(duplicate ? "memory.duplicate_candidate" : "memory.generate_candidate", "memory", memory.id, {
       artifactId: artifact.id,
-      status: candidate.status
+      status: memory.status,
+      duplicateOf: duplicate?.id
     });
-    inserted.push(candidate);
+    inserted.push(memory);
   }
 
   return inserted;
+}
+
+function findDuplicateMemory(memories: Memory[], candidate: Memory): Memory | undefined {
+  const candidateBody = normalizeMemoryBody(candidate.body);
+  return memories.find(
+    (memory) =>
+      memory.status !== "rejected" &&
+      normalizeMemoryBody(memory.body) === candidateBody &&
+      sameMemoryScope(memory, candidate)
+  );
+}
+
+function duplicateMemoryCandidate(candidate: Memory, existing: Memory): Memory {
+  return {
+    ...candidate,
+    id: `${candidate.id}_duplicate_${existing.id}`,
+    title: `Duplicate candidate: ${candidate.title}`,
+    body: `Duplicate candidate for existing memory ${existing.id}: ${candidate.body}`,
+    tags: Array.from(new Set([...candidate.tags, "duplicate_candidate"])),
+    supersedes: [existing.id],
+    confidence: Math.min(candidate.confidence, 0.6)
+  };
+}
+
+function normalizeMemoryBody(value: string): string {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function sameMemoryScope(left: Memory, right: Memory): boolean {
+  return (
+    Boolean(left.scope.global) === Boolean(right.scope.global) &&
+    (left.scope.project ?? "") === (right.scope.project ?? "") &&
+    normalizeStringArray(left.scope.sourceKinds ?? []) ===
+      normalizeStringArray(right.scope.sourceKinds ?? [])
+  );
+}
+
+function normalizeStringArray(values: string[]): string {
+  return [...new Set(values)].sort().join("|");
 }
 
 function requireKnowledge(repository: KnowledgeRepository, id: string): KnowledgeArtifact {

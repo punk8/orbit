@@ -17,6 +17,9 @@ describe("HandoffPage", () => {
     expect(source).toContain("handoff.exclusion.reason");
     expect(source).toContain("handoffExclusionNextAction");
     expect(source).toContain("handoff.exclusion.nextAction");
+    expect(source).toContain("handoff.currentState");
+    expect(source).toContain("handoff.completedOrAttempted");
+    expect(source).toContain("handoff.nextSteps");
     expect(source).toContain("handoff.empty");
     expect(source).toContain("handoff.error");
     expect(source).toContain("navigator.clipboard.writeText");

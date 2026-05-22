@@ -861,6 +861,7 @@ export async function captureScreenOcrForDesktop(): Promise<DesktopActionResult>
 export function generateHandoffForDesktop(input: DesktopHandoffRequest): DesktopHandoffResult {
   const database = openOrbitDatabase();
   try {
+    const settings = new SettingsRepository(database.db);
     const handoff =
       input.kind === "project"
         ? buildProjectHandoffPack(database, input.project)
@@ -869,7 +870,9 @@ export function generateHandoffForDesktop(input: DesktopHandoffRequest): Desktop
       snapshot: readDesktopSnapshot(),
       message: `Generated ${handoff.kind} handoff`,
       handoff,
-      markdown: formatHandoffMarkdown(handoff)
+      markdown: formatHandoffMarkdown(handoff, {
+        language: readEffectiveDesktopLanguage(settings)
+      })
     };
   } finally {
     database.close();
@@ -1425,6 +1428,11 @@ function writeRuntimeStatus(
 
 function readLanguageSetting(value: string | undefined): "system" | "en" | "zh-CN" {
   return value === "en" || value === "zh-CN" ? value : "system";
+}
+
+function readEffectiveDesktopLanguage(settings: SettingsRepository): "en" | "zh-CN" {
+  const language = readLanguageSetting(settings.get<string>(SETTING_KEYS.language));
+  return language === "zh-CN" ? "zh-CN" : "en";
 }
 
 function buildDesktopAIProvider(settings: SettingsRepository): AIProvider | undefined {

@@ -12,16 +12,25 @@ export function getTodayHandoff(
   return withDatabase((database) => buildTodayHandoffPack(database, options));
 }
 
-export function getTodayHandoffMarkdown(options: { date?: string } = {}): string {
-  return formatHandoffMarkdown(getTodayHandoff(options));
+export function getTodayHandoffMarkdown(
+  options: { date?: string; language?: "en" | "zh-CN" } = {}
+): string {
+  return formatHandoffMarkdown(getTodayHandoff(options), formatOptions(options.language));
 }
 
 export function getProjectHandoff(project: string): HandoffPack {
   return withDatabase((database) => buildProjectHandoffPack(database, project));
 }
 
-export function getProjectHandoffMarkdown(project: string): string {
-  return formatHandoffMarkdown(getProjectHandoff(project));
+export function getProjectHandoffMarkdown(
+  project: string,
+  options: { language?: "en" | "zh-CN" } = {}
+): string {
+  return formatHandoffMarkdown(getProjectHandoff(project), formatOptions(options.language));
+}
+
+function formatOptions(language: "en" | "zh-CN" | undefined) {
+  return language ? { language } : {};
 }
 
 function withDatabase<T>(read: (database: ReturnType<typeof openOrbitDatabase>) => T): T {

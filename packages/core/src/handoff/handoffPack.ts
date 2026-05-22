@@ -40,15 +40,26 @@ export interface HandoffPack {
   date?: string;
   project?: string;
   currentState: string[];
+  completedOrAttempted: HandoffProgressItem[];
   recentActivity: HandoffActivityItem[];
   confirmedKnowledge: HandoffKnowledgeItem[];
   activeMemories: HandoffMemoryItem[];
   decisions: HandoffDecisionItem[];
   blockersAndRisks: HandoffRiskItem[];
   recommendedNextActions: HandoffRecommendationItem[];
+  nextSteps: HandoffNextStepItem[];
   safetyBoundaries: HandoffSafetyBoundary[];
   evidenceIndex: HandoffEvidenceItem[];
   excluded: HandoffExclusion[];
+}
+
+export interface HandoffProgressItem {
+  id: string;
+  title: string;
+  status: "completed" | "attempted";
+  sourceObjectId: string;
+  sourceObjectType: "activity" | "knowledge" | "recommendation";
+  evidenceIds: string[];
 }
 
 export interface HandoffActivityItem {
@@ -112,6 +123,17 @@ export interface HandoffRecommendationItem {
   confidence: number;
   impact: Recommendation["impact"];
   status: Recommendation["status"];
+  evidenceIds: string[];
+}
+
+export interface HandoffNextStepItem {
+  id: string;
+  title: string;
+  action: string;
+  confidence: number;
+  impact: Recommendation["impact"];
+  sourceObjectId: string;
+  sourceObjectType: "knowledge" | "memory" | "recommendation";
   evidenceIds: string[];
 }
 
@@ -182,6 +204,7 @@ export function buildHandoffPack(input: BuildHandoffPackInput): HandoffPack {
   if (input.project) packScope.project = input.project;
 
   const recentActivity: HandoffActivityItem[] = [];
+  const completedOrAttempted: HandoffProgressItem[] = [];
   for (const session of input.activitySessions) {
     const result = buildEvidenceIds({
       refs: session.evidence,
@@ -205,6 +228,7 @@ export function buildHandoffPack(input: BuildHandoffPackInput): HandoffPack {
     if (session.summary) activityItem.summary = session.summary;
     if (session.project) activityItem.project = session.project;
     recentActivity.push(activityItem);
+    completedOrAttempted.push(...progressItemsFromActivity(activityItem));
   }
 
   const confirmedKnowledge: HandoffKnowledgeItem[] = [];
@@ -255,6 +279,7 @@ export function buildHandoffPack(input: BuildHandoffPackInput): HandoffPack {
   }
 
   const activeMemories: HandoffMemoryItem[] = [];
+  const nextSteps: HandoffNextStepItem[] = [];
   for (const memory of input.memories) {
     const result = buildEvidenceIds({
       refs: memory.evidence,
@@ -321,6 +346,16 @@ export function buildHandoffPack(input: BuildHandoffPackInput): HandoffPack {
       evidenceIds: result.evidenceIds
     };
     recommendedNextActions.push(item);
+    nextSteps.push({
+      id: createStableId("handoff_next_step", ["recommendation", recommendation.id]),
+      title: recommendation.title,
+      action: recommendation.suggestedAction,
+      confidence: recommendation.confidence,
+      impact: recommendation.impact,
+      sourceObjectId: recommendation.id,
+      sourceObjectType: "recommendation",
+      evidenceIds: result.evidenceIds
+    });
     if (
       recommendation.type === "risk" ||
       recommendation.type === "blocker" ||
@@ -352,13 +387,24 @@ export function buildHandoffPack(input: BuildHandoffPackInput): HandoffPack {
     kind: input.kind,
     objective: input.objective,
     generatedAt: input.generatedAt,
-    currentState: buildCurrentState(recentActivity, confirmedKnowledge, activeMemories),
+    currentState: buildCurrentState({
+      objective: input.objective,
+      recentActivity,
+      confirmedKnowledge,
+      activeMemories,
+      blockersAndRisks,
+      recommendedNextActions,
+      evidenceCount: evidence.size,
+      exclusions: excluded.length
+    }),
+    completedOrAttempted: dedupeById(completedOrAttempted).slice(0, 8),
     recentActivity,
     confirmedKnowledge,
     activeMemories,
     decisions,
     blockersAndRisks,
     recommendedNextActions,
+    nextSteps: dedupeById(nextSteps).slice(0, 8),
     safetyBoundaries: buildSafetyBoundaries(),
     evidenceIndex: [...evidence.values()].sort((a, b) => a.id.localeCompare(b.id)),
     excluded
@@ -521,16 +567,77 @@ function includeOrExclude(
   return result.evidenceIds.length > 0;
 }
 
-function buildCurrentState(
-  recentActivity: HandoffActivityItem[],
-  confirmedKnowledge: HandoffKnowledgeItem[],
-  activeMemories: HandoffMemoryItem[]
-): string[] {
+function buildCurrentState(input: {
+  objective: string;
+  recentActivity: HandoffActivityItem[];
+  confirmedKnowledge: HandoffKnowledgeItem[];
+  activeMemories: HandoffMemoryItem[];
+  blockersAndRisks: HandoffRiskItem[];
+  recommendedNextActions: HandoffRecommendationItem[];
+  evidenceCount: number;
+  exclusions: number;
+}): string[] {
   return [
-    `${recentActivity.length} recent activity session(s) are safe for handoff.`,
-    `${confirmedKnowledge.length} confirmed knowledge artifact(s) are available.`,
-    `${activeMemories.length} active memory item(s) are available.`
+    `Current objective: ${input.objective}`,
+    `Recent activity ready for agent handoff: ${input.recentActivity.length}`,
+    `Confirmed knowledge ready for agent handoff: ${input.confirmedKnowledge.length}`,
+    `Confirmed memories ready for agent handoff: ${input.activeMemories.length}`,
+    `Open recommendations: ${input.recommendedNextActions.length}`,
+    `Open blockers or risks: ${input.blockersAndRisks.length}`,
+    `Traceable evidence pointers: ${input.evidenceCount}`,
+    `Excluded items with reasons: ${input.exclusions}`
   ];
+}
+
+function progressItemsFromActivity(activity: HandoffActivityItem): HandoffProgressItem[] {
+  const text = activity.summary ?? activity.title;
+  const segments = text
+    .split(/(?:\s*\/\s*)|(?:[。.!]\s*)/)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  const items: HandoffProgressItem[] = [];
+  for (const [index, segment] of segments.entries()) {
+    const status = progressStatus(segment);
+    if (!status) continue;
+    items.push({
+      id: createStableId("handoff_progress", [activity.id, index, segment, status]),
+      title: segment,
+      status,
+      sourceObjectId: activity.id,
+      sourceObjectType: "activity",
+      evidenceIds: activity.evidenceIds
+    });
+  }
+  if (items.length > 0) return items;
+  return [
+    {
+      id: createStableId("handoff_progress", [activity.id, activity.title, "completed"]),
+      title: activity.summary ?? activity.title,
+      status: "completed",
+      sourceObjectId: activity.id,
+      sourceObjectType: "activity",
+      evidenceIds: activity.evidenceIds
+    }
+  ];
+}
+
+function progressStatus(value: string): HandoffProgressItem["status"] | undefined {
+  if (/(已完成|完成|done|completed|shipped|verified|passed)/i.test(value)) return "completed";
+  if (/(已尝试|尝试|下一步|next|attempted|tried|investigated|blocked)/i.test(value)) {
+    return "attempted";
+  }
+  return undefined;
+}
+
+function dedupeById<T extends { id: string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+  const result: T[] = [];
+  for (const item of items) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    result.push(item);
+  }
+  return result;
 }
 
 function buildSafetyBoundaries(): HandoffSafetyBoundary[] {
