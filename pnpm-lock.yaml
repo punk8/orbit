@@ -131,7 +131,14 @@ importers:
         specifier: workspace:*
         version: link:../core
 
-  packages/agent-api: {}
+  packages/agent-api:
+    dependencies:
+      '@orbit/core':
+        specifier: workspace:*
+        version: link:../core
+      '@orbit/db':
+        specifier: workspace:*
+        version: link:../db
 
   packages/ai:
     dependencies:
