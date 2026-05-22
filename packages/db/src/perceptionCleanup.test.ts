@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -45,8 +45,21 @@ describe("perception sidecar cleanup", () => {
       expect(result.removedRawRefs).toBe(1);
       expect(result.removedAttachments).toBe(1);
       expect(result.deletedLocalSidecars).toBe(1);
+      expect(result.ledgerPath).toContain("cleanup-ledger.jsonl");
+      expect(result.ledgerEntries).toEqual([
+        expect.objectContaining({
+          eventId: "evt_raw_screen",
+          sourcePointer: "screen://capture/frame",
+          reason: "raw_ttl_expired",
+          deletedLocalSidecars: 1,
+          removedRawRefs: 1,
+          removedAttachments: 1
+        })
+      ]);
       expect(result.preservedSummaries).toBe(1);
       expect(existsSync(rawPath)).toBe(false);
+      expect(readFileSync(result.ledgerPath!, "utf8")).toContain("raw_ttl_expired");
+      expect(readFileSync(result.ledgerPath!, "utf8")).not.toContain(rawPath);
 
       const stored = new EventRepository(database.db).getEvent("evt_raw_screen");
       expect(stored?.content.rawRef).toBeUndefined();

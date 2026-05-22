@@ -664,6 +664,21 @@ export function buildProgram(): Command {
       const result = getPerceptionReleaseGate();
       writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
     });
+  perception
+    .command("audit-review")
+    .description("Summarize perception hardening audit coverage")
+    .option("--json", "output JSON")
+    .action((options: { json?: boolean }) => {
+      const result = getPerceptionReleaseGate();
+      writeOutput(
+        {
+          orbitHome: result.orbitHome,
+          dbPath: result.dbPath,
+          auditReview: result.releaseGate.auditReview
+        },
+        { json: options.json ?? program.opts<{ json?: boolean }>().json }
+      );
+    });
 
   return program;
 }

@@ -58,6 +58,11 @@ export interface DesktopSnapshot {
   };
   observation: ObservationStatus;
   perception: PerceptionControlPlaneStatus;
+  auditReview: {
+    operationCounts: Record<string, number>;
+    requiredGroups: string[];
+    missingGroups: string[];
+  };
   aiProviderRuntime: AIProviderRuntimeRegistry;
   settings: {
     localOnly: boolean;

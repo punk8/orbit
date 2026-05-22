@@ -1,5 +1,5 @@
-import { existsSync, unlinkSync } from "node:fs";
-import { isAbsolute, resolve } from "node:path";
+import { appendFileSync, existsSync, mkdirSync, unlinkSync } from "node:fs";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import type { Event, PerceptionControlPlaneStatus, PerceptionSourceKind } from "@orbit/core";
 import type { OrbitDatabase } from "./connection";
 import { AuditRepository } from "./repositories/auditRepository";
@@ -24,7 +24,21 @@ export interface PerceptionSidecarCleanupResult {
   deletedLocalSidecars: number;
   retainedRawSidecars: number;
   preservedSummaries: number;
+  ledgerPath?: string;
+  ledgerEntries: PerceptionSidecarCleanupLedgerEntry[];
   warnings: string[];
+  dryRun: boolean;
+}
+
+export interface PerceptionSidecarCleanupLedgerEntry {
+  eventId: string;
+  sourceKind: string;
+  sourcePointer: string;
+  reason: string;
+  occurredAt: string;
+  removedRawRefs: number;
+  removedAttachments: number;
+  deletedLocalSidecars: number;
   dryRun: boolean;
 }
 
@@ -49,6 +63,8 @@ export function cleanupPerceptionSidecars(
   let deletedLocalSidecars = 0;
   let retainedRawSidecars = 0;
   let preservedSummaries = 0;
+  const ledgerPath = join(database.orbitHome, "perception", "cleanup-ledger.jsonl");
+  const ledgerEntries: PerceptionSidecarCleanupLedgerEntry[] = [];
 
   for (const event of events.listEvents()) {
     scannedEvents += 1;
@@ -67,15 +83,30 @@ export function cleanupPerceptionSidecars(
     }
 
     const minimized = removeRawSidecar(event);
-    removedRawRefs += event.content.rawRef ? 1 : 0;
-    removedAttachments += event.content.attachments?.length ?? 0;
+    const eventRemovedRawRefs = event.content.rawRef ? 1 : 0;
+    const eventRemovedAttachments = event.content.attachments?.length ?? 0;
+    let eventDeletedLocalSidecars = 0;
+    removedRawRefs += eventRemovedRawRefs;
+    removedAttachments += eventRemovedAttachments;
     if (!event.content.summary && minimized.content.summary) preservedSummaries += 1;
 
     for (const localRef of rawLocalRefs(event)) {
       const deletion = deleteLocalSidecar(database.orbitHome, localRef, dryRun);
       deletedLocalSidecars += deletion.deleted ? 1 : 0;
+      eventDeletedLocalSidecars += deletion.deleted ? 1 : 0;
       if (deletion.warning) warnings.push(deletion.warning);
     }
+    ledgerEntries.push({
+      eventId: event.id,
+      sourceKind,
+      sourcePointer: event.source.pointer,
+      reason: cleanupReason,
+      occurredAt: event.occurredAt,
+      removedRawRefs: eventRemovedRawRefs,
+      removedAttachments: eventRemovedAttachments,
+      deletedLocalSidecars: eventDeletedLocalSidecars,
+      dryRun
+    });
 
     if (!dryRun) {
       events.updateEventPrivacyAndContent(minimized);
@@ -93,10 +124,13 @@ export function cleanupPerceptionSidecars(
     deletedLocalSidecars,
     retainedRawSidecars,
     preservedSummaries,
+    ledgerPath,
+    ledgerEntries,
     warnings,
     dryRun
   };
 
+  writeCleanupLedger(ledgerPath, ledgerEntries);
   audit.log("perception.sidecar_cleanup", "database", undefined, result);
 
   if (!dryRun && cleanedEvents > 0) {
@@ -104,6 +138,18 @@ export function cleanupPerceptionSidecars(
   }
 
   return result;
+}
+
+function writeCleanupLedger(
+  ledgerPath: string,
+  entries: PerceptionSidecarCleanupLedgerEntry[]
+): void {
+  mkdirSync(dirname(ledgerPath), { recursive: true });
+  if (entries.length === 0) {
+    appendFileSync(ledgerPath, "");
+    return;
+  }
+  appendFileSync(ledgerPath, entries.map((entry) => JSON.stringify(entry)).join("\n") + "\n");
 }
 
 function normalizeNow(value: Date | string | undefined): Date {

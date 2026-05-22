@@ -126,6 +126,31 @@ export interface PerceptionResourcePolicy {
   };
 }
 
+export interface PerceptionResourceSnapshot {
+  lowPowerMode: boolean;
+  batteryPercent: number | null;
+  rawSidecarBytes: number;
+  queueDepth: number;
+  providerRequestsLastHour: number;
+  providerInputCharsPending: number;
+  providerTokensLastHour: number;
+}
+
+export type PerceptionResourceLimitReason =
+  | "low_power_mode"
+  | "battery_below_threshold"
+  | "raw_sidecar_storage_cap"
+  | "queue_depth_cap"
+  | "provider_request_cap"
+  | "provider_input_size_cap"
+  | "provider_token_cap";
+
+export interface PerceptionResourceState {
+  canCapture: boolean;
+  state: "normal" | "paused_low_power" | "paused_resource_budget";
+  reasons: PerceptionResourceLimitReason[];
+}
+
 export interface PerceptionProviderRoute {
   task: PerceptionProviderTask;
   provider: PerceptionProviderKind;
@@ -367,6 +392,49 @@ export function perceptionResourcePolicyForSampling(
       maxTokensPerHour: 100_000,
       allowExternalByDefault: false
     }
+  };
+}
+
+export function evaluatePerceptionResourceState(
+  policy: PerceptionResourcePolicy,
+  snapshot: PerceptionResourceSnapshot
+): PerceptionResourceState {
+  const reasons: PerceptionResourceLimitReason[] = [];
+  if (policy.battery.pauseOnLowPowerMode && snapshot.lowPowerMode) {
+    reasons.push("low_power_mode");
+  }
+  if (
+    snapshot.batteryPercent !== null &&
+    snapshot.batteryPercent <= policy.battery.pauseBelowPercent
+  ) {
+    reasons.push("battery_below_threshold");
+  }
+  if (snapshot.rawSidecarBytes > policy.storage.maxRawSidecarBytes) {
+    reasons.push("raw_sidecar_storage_cap");
+  }
+  if (snapshot.queueDepth > policy.queue.maxItems) {
+    reasons.push("queue_depth_cap");
+  }
+  if (snapshot.providerRequestsLastHour > policy.provider.maxRequestsPerHour) {
+    reasons.push("provider_request_cap");
+  }
+  if (snapshot.providerInputCharsPending > policy.provider.maxInputCharsPerRequest) {
+    reasons.push("provider_input_size_cap");
+  }
+  if (snapshot.providerTokensLastHour > policy.provider.maxTokensPerHour) {
+    reasons.push("provider_token_cap");
+  }
+
+  const state =
+    reasons[0] === "low_power_mode"
+      ? "paused_low_power"
+      : reasons.length > 0
+        ? "paused_resource_budget"
+        : "normal";
+  return {
+    canCapture: reasons.length === 0,
+    state,
+    reasons
   };
 }
 

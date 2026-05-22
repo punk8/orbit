@@ -40,6 +40,10 @@ export interface PerceptionReleaseGateInput {
   packaging?: {
     excludesTmp: boolean;
     excludesFixtures: boolean;
+    privateDataScan?: {
+      scanned: number;
+      violations: string[];
+    };
     nativeHelperMode: "none" | "mock" | "unsigned" | "signed";
     signed: boolean;
     notarized: boolean;
@@ -49,6 +53,24 @@ export interface PerceptionReleaseGateInput {
 export interface PerceptionReleaseGateReport {
   status: "pass" | "fail";
   checks: ReleaseGateCheck[];
+  auditReview: PerceptionAuditReview;
+  packaging: {
+    excludesTmp: boolean;
+    excludesFixtures: boolean;
+    privateDataScan: {
+      scanned: number;
+      violations: string[];
+    };
+    nativeHelperMode: "none" | "mock" | "unsigned" | "signed" | "unknown";
+    signed: boolean;
+    notarized: boolean;
+  };
+}
+
+export interface PerceptionAuditReview {
+  operationCounts: Record<string, number>;
+  requiredGroups: string[];
+  missingGroups: string[];
 }
 
 const requiredAuditOperationGroups: Array<{
@@ -71,18 +93,22 @@ const requiredAuditOperationGroups: Array<{
 export function evaluatePerceptionReleaseGate(
   input: PerceptionReleaseGateInput
 ): PerceptionReleaseGateReport {
+  const auditReview = buildAuditReview(input.auditOperations ?? []);
+  const packaging = buildPackagingSummary(input.packaging);
   const checks = [
     noDefaultCaptureCheck(input.perception),
     rawStorageDefaultOffCheck(input.perception),
     protectedAppsCheck(input.perception),
     resourceBudgetCheck(input.perception),
     cleanupCheck(input.cleanup),
-    auditCoverageCheck(input.auditOperations ?? []),
+    auditCoverageCheck(auditReview),
     packagingCheck(input.packaging)
   ];
   return {
     status: checks.some((check) => check.status === "fail") ? "fail" : "pass",
-    checks
+    checks,
+    auditReview,
+    packaging
   };
 }
 
@@ -184,31 +210,23 @@ function cleanupCheck(cleanup: PerceptionCleanupSummary | undefined): ReleaseGat
   };
 }
 
-function auditCoverageCheck(auditOperations: string[]): ReleaseGateCheck {
-  const present = new Set(auditOperations);
-  const missingGroups = requiredAuditOperationGroups
-    .filter((group) =>
-      group.mode === "all"
-        ? group.operations.some((operation) => !present.has(operation))
-        : !group.operations.some((operation) => present.has(operation))
-    )
-    .map((group) => group.id);
-  if (auditOperations.length === 0) {
+function auditCoverageCheck(auditReview: PerceptionAuditReview): ReleaseGateCheck {
+  if (Object.keys(auditReview.operationCounts).length === 0) {
     return {
       id: "audit_review",
       status: "needs_data",
       message: "No audit logs exist yet; run smoke, cleanup, provider, and Handoff checks.",
-      details: { requiredGroups: requiredAuditOperationGroups.map((group) => group.id) }
+      details: { auditReview }
     };
   }
   return {
     id: "audit_review",
-    status: missingGroups.length === 0 ? "pass" : "needs_data",
+    status: auditReview.missingGroups.length === 0 ? "pass" : "needs_data",
     message:
-      missingGroups.length === 0
+      auditReview.missingGroups.length === 0
         ? "Audit log includes perception release-gate operation groups."
         : "Audit log is present but some perception operation groups have not been exercised.",
-    details: { missingGroups, operations: auditOperations }
+    details: { auditReview }
   };
 }
 
@@ -225,6 +243,7 @@ function packagingCheck(
   const safe =
     packaging.excludesTmp &&
     packaging.excludesFixtures &&
+    (packaging.privateDataScan?.violations.length ?? 0) === 0 &&
     (packaging.nativeHelperMode === "none" ||
       packaging.nativeHelperMode === "mock" ||
       packaging.nativeHelperMode === "signed");
@@ -235,5 +254,38 @@ function packagingCheck(
       ? "Package policy excludes private fixture/tmp data and has no silently trusted unsigned helper."
       : "Package policy can include private data or an unsigned native helper.",
     details: { packaging }
+  };
+}
+
+function buildAuditReview(auditOperations: string[]): PerceptionAuditReview {
+  const present = new Set(auditOperations);
+  const missingGroups = requiredAuditOperationGroups
+    .filter((group) =>
+      group.mode === "all"
+        ? group.operations.some((operation) => !present.has(operation))
+        : !group.operations.some((operation) => present.has(operation))
+    )
+    .map((group) => group.id);
+  const operationCounts: Record<string, number> = {};
+  for (const operation of auditOperations) {
+    operationCounts[operation] = (operationCounts[operation] ?? 0) + 1;
+  }
+  return {
+    operationCounts,
+    requiredGroups: requiredAuditOperationGroups.map((group) => group.id),
+    missingGroups
+  };
+}
+
+function buildPackagingSummary(
+  packaging: PerceptionReleaseGateInput["packaging"] | undefined
+): PerceptionReleaseGateReport["packaging"] {
+  return {
+    excludesTmp: packaging?.excludesTmp ?? false,
+    excludesFixtures: packaging?.excludesFixtures ?? false,
+    privateDataScan: packaging?.privateDataScan ?? { scanned: 0, violations: [] },
+    nativeHelperMode: packaging?.nativeHelperMode ?? "unknown",
+    signed: packaging?.signed ?? false,
+    notarized: packaging?.notarized ?? false
   };
 }

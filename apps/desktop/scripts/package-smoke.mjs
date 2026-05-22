@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve, join } from "node:path";
 
@@ -9,6 +9,12 @@ const appEntry = join(appPath, "Contents/MacOS/Orbit");
 if (!existsSync(appEntry)) {
   throw new Error(`Packaged Orbit executable is missing: ${appEntry}`);
 }
+const privateScan = scanPackagedPrivateData(appPath);
+if (privateScan.violations.length > 0) {
+  throw new Error(
+    `Packaged Orbit contains private or raw fixture data: ${privateScan.violations.join(", ")}`
+  );
+}
 
 const orbitHome = args.orbitHome ? resolve(args.orbitHome) : mkdtempSync(join(tmpdir(), "orbit-package-smoke-"));
 const cleanupOrbitHome = !args.orbitHome;
@@ -16,6 +22,7 @@ const env = {
   ...process.env,
   ORBIT_HOME: orbitHome,
   ORBIT_PACKAGED_SMOKE: "1",
+  ORBIT_PACKAGED_NATIVE_HELPER_MODE: "mock",
   ORBIT_SKIP_LOGIN_ITEM_SETTINGS: "1"
 };
 delete env.ELECTRON_RUN_AS_NODE;
@@ -90,4 +97,32 @@ function cleanup() {
   if (cleanupOrbitHome) {
     rmSync(orbitHome, { recursive: true, force: true });
   }
+}
+
+function scanPackagedPrivateData(root) {
+  const violations = [];
+  let scanned = 0;
+  const stack = [root];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    const stat = statSync(current);
+    if (stat.isDirectory()) {
+      for (const entry of readdirSync(current)) {
+        stack.push(join(current, entry));
+      }
+      continue;
+    }
+    scanned += 1;
+    if (/(?:fixtures|perception-sidecars|\.tmp)(?:\/|$)/.test(current)) {
+      violations.push(current.replace(root, ""));
+      continue;
+    }
+    if (stat.size <= 1024 * 1024 && /\.(?:json|jsonl|txt|md|log|env)$/i.test(current)) {
+      const text = readFileSync(current, "utf8");
+      if (/hunter2|sk-test|person@example\.com|RAW_OCR_TEXT|RAW_EVENT_TEXT/.test(text)) {
+        violations.push(current.replace(root, ""));
+      }
+    }
+  }
+  return { scanned, violations };
 }

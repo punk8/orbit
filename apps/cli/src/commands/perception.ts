@@ -51,6 +51,7 @@ import {
 import { evaluatePerceptionReleaseGate } from "@orbit/privacy";
 import { getCliConfig } from "../config";
 import { runSemanticPipeline, type SemanticPipelineResult } from "./semanticPipeline";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type {
   PerceptionControlPlaneStatus,
@@ -637,6 +638,7 @@ export function getPerceptionReleaseGate(): PerceptionReleaseGateCommandResult {
         packaging: {
           excludesTmp: true,
           excludesFixtures: true,
+          privateDataScan: scanPackagedPrivateData(join(process.cwd(), "apps/desktop")),
           nativeHelperMode: "mock",
           signed: false,
           notarized: false
@@ -646,6 +648,36 @@ export function getPerceptionReleaseGate(): PerceptionReleaseGateCommandResult {
   } finally {
     database.close();
   }
+}
+
+function scanPackagedPrivateData(root: string): { scanned: number; violations: string[] } {
+  const releaseRoot = join(root, "release");
+  if (!existsSync(releaseRoot)) return { scanned: 0, violations: [] };
+  const violations: string[] = [];
+  let scanned = 0;
+  const stack = [releaseRoot];
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    const stat = statSync(current);
+    if (stat.isDirectory()) {
+      for (const entry of readdirSync(current)) {
+        stack.push(join(current, entry));
+      }
+      continue;
+    }
+    scanned += 1;
+    if (/(?:fixtures|perception-sidecars|\.tmp)(?:\/|$)/.test(current)) {
+      violations.push(current.replace(root, ""));
+      continue;
+    }
+    if (stat.size <= 1024 * 1024 && /\.(?:json|jsonl|txt|md|log|env)$/i.test(current)) {
+      const text = readFileSync(current, "utf8");
+      if (/hunter2|sk-test|person@example\.com|RAW_OCR_TEXT|RAW_EVENT_TEXT/.test(text)) {
+        violations.push(current.replace(root, ""));
+      }
+    }
+  }
+  return { scanned, violations };
 }
 
 export async function transcribeAudioFixture(): Promise<TranscribeFixtureCommandResult> {

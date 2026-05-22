@@ -899,14 +899,35 @@ describe("cli commands", () => {
     const cleanup = cleanupPerceptionRawSidecars({ dryRun: true });
     expect(cleanup.cleanup.dryRun).toBe(true);
     expect(cleanup.cleanup.cleanedEvents).toBe(0);
+    expect(cleanup.cleanup.ledgerPath).toContain("cleanup-ledger.jsonl");
 
     const gate = getPerceptionReleaseGate();
     expect(gate.releaseGate.status).toBe("pass");
+    expect(gate.releaseGate.auditReview).toEqual(
+      expect.objectContaining({
+        operationCounts: expect.any(Object),
+        requiredGroups: expect.any(Array),
+        missingGroups: expect.any(Array)
+      })
+    );
+    expect(gate.releaseGate.packaging).toEqual(
+      expect.objectContaining({
+        privateDataScan: expect.objectContaining({
+          scanned: expect.any(Number),
+          violations: []
+        })
+      })
+    );
     expect(gate.releaseGate.checks.find((check) => check.id === "no_default_capture")?.status).toBe(
       "pass"
     );
     expect(gate.releaseGate.checks.find((check) => check.id === "sidecar_cleanup")?.status).toBe(
       "pass"
     );
+    const program = buildProgram();
+    const perceptionHelp = program.commands
+      .find((command) => command.name() === "perception")
+      ?.helpInformation();
+    expect(perceptionHelp).toContain("audit-review");
   });
 });

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   createDefaultPerceptionStatus,
   defaultPerceptionProviderRoutes,
+  defaultPerceptionResourcePolicy,
+  evaluatePerceptionResourceState,
   createPerceptionPolicySnapshot,
   readPerceptionSamplingPreset,
   perceptionCapabilityDescriptors
@@ -96,5 +98,48 @@ describe("perception capability descriptors", () => {
     expect(balanced.samplingPolicy.framesPerBurst).toBe(4);
     expect(balanced.resourcePolicy.cpu.minScreenCaptureIntervalMs).toBe(60_000);
     expect(readPerceptionSamplingPreset("unknown").name).toBe("conservative");
+  });
+
+  it("pauses capture on low battery or exhausted resource budgets", () => {
+    const policy = defaultPerceptionResourcePolicy();
+
+    expect(
+      evaluatePerceptionResourceState(policy, {
+        lowPowerMode: true,
+        batteryPercent: 80,
+        rawSidecarBytes: 0,
+        queueDepth: 0,
+        providerRequestsLastHour: 0,
+        providerInputCharsPending: 0,
+        providerTokensLastHour: 0
+      })
+    ).toMatchObject({
+      canCapture: false,
+      state: "paused_low_power",
+      reasons: ["low_power_mode"]
+    });
+
+    expect(
+      evaluatePerceptionResourceState(policy, {
+        lowPowerMode: false,
+        batteryPercent: 10,
+        rawSidecarBytes: policy.storage.maxRawSidecarBytes + 1,
+        queueDepth: policy.queue.maxItems + 1,
+        providerRequestsLastHour: policy.provider.maxRequestsPerHour + 1,
+        providerInputCharsPending: policy.provider.maxInputCharsPerRequest + 1,
+        providerTokensLastHour: policy.provider.maxTokensPerHour + 1
+      })
+    ).toMatchObject({
+      canCapture: false,
+      state: "paused_resource_budget",
+      reasons: expect.arrayContaining([
+        "battery_below_threshold",
+        "raw_sidecar_storage_cap",
+        "queue_depth_cap",
+        "provider_request_cap",
+        "provider_input_size_cap",
+        "provider_token_cap"
+      ])
+    });
   });
 });

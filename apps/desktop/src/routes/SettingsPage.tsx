@@ -650,6 +650,26 @@ export function SettingsPage({
                 />
               </dl>
             </Section>
+            <Section title={t("section.auditReview")}>
+              <dl className="settings-grid">
+                <DetailRow
+                  label={t("settings.auditReviewCoverage")}
+                  value={`${snapshot.auditReview.requiredGroups.length - snapshot.auditReview.missingGroups.length}/${snapshot.auditReview.requiredGroups.length}`}
+                />
+                <DetailRow
+                  label={t("settings.auditReviewMissing")}
+                  value={
+                    snapshot.auditReview.missingGroups.length > 0
+                      ? snapshot.auditReview.missingGroups.join(", ")
+                      : t("fallback.none")
+                  }
+                />
+                <DetailRow
+                  label={t("settings.auditReviewOperations")}
+                  value={String(Object.keys(snapshot.auditReview.operationCounts).length)}
+                />
+              </dl>
+            </Section>
           </div>
         ) : null}
 

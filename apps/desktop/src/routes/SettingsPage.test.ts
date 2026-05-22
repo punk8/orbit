@@ -13,12 +13,15 @@ describe("SettingsPage privacy and provider hardening", () => {
     expect(source).toContain("section.sourcePolicyMatrix");
     expect(source).toContain("section.perceptionPolicyMatrix");
     expect(source).toContain("section.perceptionBudgets");
+    expect(source).toContain("section.auditReview");
     expect(source).toContain("settings.screenRecordingPermission");
     expect(source).toContain("settings.samplingPreset");
     expect(source).toContain("settings.framesPerBurst");
     expect(source).toContain("settings.burstInterval");
     expect(source).toContain("settings.rawRetention");
     expect(source).toContain("settings.protectedApps");
+    expect(source).toContain("settings.auditReviewCoverage");
+    expect(source).toContain("snapshot.auditReview");
     expect(source).toContain("snapshot.perception.policySnapshot.id");
     expect(source).toContain("onUpdatePerceptionSourcePolicy");
     expect(source).toContain("onUpdatePerceptionProviderRoute");

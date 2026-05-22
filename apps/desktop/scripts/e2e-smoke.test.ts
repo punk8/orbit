@@ -37,4 +37,33 @@ describe("desktop e2e smoke script", () => {
     expect(rebuildNative).toContain("EEXIST");
     expect(rebuildNative).toContain("Atomics.wait");
   });
+
+  it("package smoke scans packaged output for private data and documents native helper mode", () => {
+    const packageSmoke = readFileSync(new URL("./package-smoke.mjs", import.meta.url), "utf8");
+    const builderConfig = readFileSync(new URL("../electron-builder.yml", import.meta.url), "utf8");
+
+    expect(packageSmoke).toContain("scanPackagedPrivateData");
+    expect(packageSmoke).toContain("ORBIT_PACKAGED_NATIVE_HELPER_MODE");
+    expect(packageSmoke).toContain("fixtures");
+    expect(packageSmoke).toContain("perception-sidecars");
+    expect(builderConfig).toContain("!**/fixtures/**");
+    expect(builderConfig).toContain("!**/.tmp/**");
+  });
+
+  it("keeps alpha hardening checklist and limitations discoverable", () => {
+    const checklist = readFileSync(
+      new URL("../../../docs/alpha-release-checklist.md", import.meta.url),
+      "utf8"
+    );
+    const limitations = readFileSync(
+      new URL("../../../docs/alpha-release-limitations.md", import.meta.url),
+      "utf8"
+    );
+
+    expect(checklist).toContain("Manual macOS Permission Smoke");
+    expect(checklist).toContain("Known Alpha Limitations");
+    expect(limitations).toContain("Alpha Release Limitations");
+    expect(limitations).toContain("Low Power Mode");
+    expect(limitations).toContain("not notarized");
+  });
 });

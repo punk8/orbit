@@ -207,6 +207,7 @@ export function readDesktopSnapshot(date = getLocalDateKey()): DesktopSnapshot {
       runtime: readRuntime(settingsRepository, database.db),
       observation: readObservationStatus(settingsRepository),
       perception,
+      auditReview: readAuditReview(database.db),
       aiProviderRuntime: buildAIProviderRuntimeRegistry({
         aiProviderConfig: buildDesktopAIProviderConfig(settingsRepository),
         perceptionStatus: perception
@@ -1332,6 +1333,34 @@ function readSettings(settings: SettingsRepository): DesktopSnapshot["settings"]
     snapshotSettings.aiModel = aiModel;
   }
   return snapshotSettings;
+}
+
+function readAuditReview(db: ConstructorParameters<typeof AuditRepository>[0]): DesktopSnapshot["auditReview"] {
+  const operations = new AuditRepository(db).listAuditLogs().map((log) => log.operation);
+  const operationCounts: Record<string, number> = {};
+  for (const operation of operations) {
+    operationCounts[operation] = (operationCounts[operation] ?? 0) + 1;
+  }
+  const groups = [
+    { id: "capture_start_stop", operations: ["perception.capture.start", "perception.capture.stop"], mode: "all" },
+    { id: "redaction_failure", operations: ["perception.redaction_failure"], mode: "any" },
+    { id: "model_call", operations: ["ai.draft_knowledge", "perception.vision_fixture_ingest"], mode: "any" },
+    { id: "transcription", operations: ["perception.transcription"], mode: "any" },
+    { id: "deletion", operations: ["perception.sidecar_cleanup", "perception.delete"], mode: "any" },
+    { id: "handoff", operations: ["handoff.generate"], mode: "any" }
+  ] as const;
+  const present = new Set(operations);
+  return {
+    operationCounts,
+    requiredGroups: groups.map((group) => group.id),
+    missingGroups: groups
+      .filter((group) =>
+        group.mode === "all"
+          ? group.operations.some((operation) => !present.has(operation))
+          : !group.operations.some((operation) => present.has(operation))
+      )
+      .map((group) => group.id)
+  };
 }
 
 function readRuntime(
