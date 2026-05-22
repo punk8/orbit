@@ -49,8 +49,11 @@ export interface SemanticPipelineOptions {
   language?: string;
 }
 
-export function runSemanticPipeline(database: OrbitDatabase): SemanticPipelineResult {
-  return runSemanticPipelineCore(database) as SemanticPipelineResult;
+export function runSemanticPipeline(
+  database: OrbitDatabase,
+  options: Pick<SemanticPipelineOptions, "language"> = {}
+): SemanticPipelineResult {
+  return runSemanticPipelineCore(database, options) as SemanticPipelineResult;
 }
 
 export async function runSemanticPipelineWithProvider(
@@ -108,7 +111,7 @@ function runSemanticPipelineCore(
     .filter((input) => shouldGenerateKnowledgeDraft(input.session, input.events));
 
   const buildArtifact = async (input: (typeof draftInputs)[number]): Promise<KnowledgeArtifact> => {
-    const fallback = draftKnowledgeArtifact(input);
+    const fallback = draftKnowledgeArtifact({ ...input, language: readKnowledgeLanguage(options) });
     if (!options.aiProvider?.enabled) return fallback;
     const eligibleEvents = filterEventsForAI(input.events, sourcePermissions);
     const filteredEventCount = input.events.length - eligibleEvents.length;
@@ -121,6 +124,7 @@ function runSemanticPipelineCore(
       });
       return draftKnowledgeArtifact({
         ...input,
+        language: readKnowledgeLanguage(options),
         generatedBy: "deterministic_privacy_fallback"
       });
     }
@@ -151,6 +155,7 @@ function runSemanticPipelineCore(
       });
       return draftKnowledgeArtifact({
         ...input,
+        language: readKnowledgeLanguage(options),
         generatedBy: "deterministic_fallback"
       });
     }
@@ -160,7 +165,7 @@ function runSemanticPipelineCore(
     return (async () => {
       const draftArtifacts: KnowledgeArtifact[] = [];
       for (const input of draftInputs) {
-        const fallback = draftKnowledgeArtifact(input);
+        const fallback = draftKnowledgeArtifact({ ...input, language: readKnowledgeLanguage(options) });
         const existing = knowledgeRepository.getKnowledgeArtifact(fallback.id);
         const artifact = existing ? fallback : await buildArtifact(input);
         draftArtifacts.push(artifact);
@@ -181,7 +186,9 @@ function runSemanticPipelineCore(
     })();
   }
 
-  const draftArtifacts = draftInputs.map((input) => draftKnowledgeArtifact(input));
+  const draftArtifacts = draftInputs.map((input) =>
+    draftKnowledgeArtifact({ ...input, language: readKnowledgeLanguage(options) })
+  );
 
   for (const artifact of draftArtifacts) {
     const existing = knowledgeRepository.getKnowledgeArtifact(artifact.id);
@@ -231,6 +238,10 @@ function shouldGenerateKnowledgeDraft(
       event.privacy.redactionState === "none"
   );
   return session.durationSeconds >= 600 && hasSemanticWindowEvidence;
+}
+
+function readKnowledgeLanguage(options: SemanticPipelineOptions): "en" | "zh-CN" {
+  return options.language === "zh-CN" ? "zh-CN" : "en";
 }
 
 function isPerceptionSession(events: Event[]): boolean {

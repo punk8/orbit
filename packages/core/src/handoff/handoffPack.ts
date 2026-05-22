@@ -18,7 +18,9 @@ export type HandoffExclusionReason =
   | "missing_evidence"
   | "secret_content"
   | "failed_redaction"
-  | "source_export_blocked";
+  | "source_export_blocked"
+  | "raw_payload_excluded"
+  | "private_payload_excluded";
 
 export interface HandoffEventSafety {
   eventId: string;
@@ -459,6 +461,22 @@ export function explainHandoffExclusion(
       nextAction: "Fix the source data or redaction result before allowing export."
     };
   }
+  if (reason === "raw_payload_excluded") {
+    return {
+      title: "Raw payload was excluded",
+      description:
+        "Default Handoff keeps summaries and source pointers, not raw screenshots, OCR dumps, recordings, or transcripts.",
+      nextAction: "Use an explicit export flow only after reviewing retention, redaction, and source policy."
+    };
+  }
+  if (reason === "private_payload_excluded") {
+    return {
+      title: "Private payload was excluded",
+      description:
+        "Private-looking evidence snippets are stripped from the pack even when the source pointer itself is safe.",
+      nextAction: "Review the Activity locally if the private detail is needed."
+    };
+  }
   return {
     title: "Source export is blocked",
     description: "The source policy does not allow this evidence to be exported to agents.",
@@ -511,6 +529,12 @@ function buildEvidenceIds(input: {
     if (safety && !safety.canExportToAgent) {
       exclusions.add("source_export_blocked");
       continue;
+    }
+    if (ref.excerpt && hasRawPayloadMarker(ref.excerpt)) {
+      exclusions.add("raw_payload_excluded");
+    }
+    if (ref.excerpt && hasPrivatePayloadMarker(ref.excerpt)) {
+      exclusions.add("private_payload_excluded");
     }
 
     const evidenceId = createStableId("handoff_ev", [
@@ -638,6 +662,16 @@ function dedupeById<T extends { id: string }>(items: T[]): T[] {
     result.push(item);
   }
   return result;
+}
+
+function hasRawPayloadMarker(value: string): boolean {
+  return /RAW_|raw[-_\s]?(ocr|screen|frame|payload|dump|event|private)|screenshot|thumbnail/i.test(
+    value
+  );
+}
+
+function hasPrivatePayloadMarker(value: string): boolean {
+  return /PRIVATE|secret token|hunter2|password|api[-_\s]?key|token/i.test(value);
 }
 
 function buildSafetyBoundaries(): HandoffSafetyBoundary[] {

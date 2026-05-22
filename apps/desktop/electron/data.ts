@@ -1538,9 +1538,13 @@ function buildDesktopAIProvider(settings: SettingsRepository): AIProvider | unde
   return buildAIProvider(config);
 }
 
-function buildDesktopPipelineOptions(settings: SettingsRepository): { aiProvider?: AIProvider } {
+function buildDesktopPipelineOptions(settings: SettingsRepository): {
+  aiProvider?: AIProvider;
+  language: "en" | "zh-CN";
+} {
   const aiProvider = buildDesktopAIProvider(settings);
-  return aiProvider ? { aiProvider } : {};
+  const language = readEffectiveDesktopLanguage(settings);
+  return aiProvider ? { aiProvider, language } : { language };
 }
 
 function readAIProviderKind(value: string | undefined): "disabled" | "openai-compatible" {

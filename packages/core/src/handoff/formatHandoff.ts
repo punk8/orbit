@@ -314,6 +314,20 @@ function translateExclusion(reason: HandoffPack["excluded"][number]["reason"]): 
       nextAction: "修复来源数据或脱敏结果后再允许导出"
     };
   }
+  if (reason === "raw_payload_excluded") {
+    return {
+      title: "原始载荷已排除",
+      description: "默认 Handoff 只保留摘要和来源指针，不包含截图、OCR 原文、录音或转写全文",
+      nextAction: "只有在审阅保留、脱敏和来源策略后，才使用显式导出流程"
+    };
+  }
+  if (reason === "private_payload_excluded") {
+    return {
+      title: "私密载荷已排除",
+      description: "即使来源指针可导出，疑似私密的证据片段也会被剔除",
+      nextAction: "如果确实需要该细节，请在本地 Activity 中审阅"
+    };
+  }
   return {
     title: "来源禁止导出",
     description: "该来源策略不允许把这条证据导出给 Agent",

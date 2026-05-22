@@ -4,10 +4,10 @@ import type {
   EvidenceRef,
   KnowledgeArtifact,
   Memory,
-  Recommendation,
-  SourceKind
+  Recommendation
 } from "../index";
 import { createStableId } from "../id";
+import { isPerceptionSource } from "../perception/perceptionEvidencePacket";
 
 export interface GenerateRecommendationInput {
   events: Event[];
@@ -45,7 +45,7 @@ export function generateRecommendations(input: GenerateRecommendationInput): Rec
     });
   const perceptionFollowUps = safeEvents
     .filter((event) => isPerceptionSource(event.source.kind))
-    .filter((event) => /\b(follow up|action item|next)\b/i.test(eventText(event)))
+    .filter((event) => followUpPattern.test(eventText(event)))
     .map((event) =>
       recommendationFromEvent({
         event,
@@ -64,9 +64,7 @@ export function generateRecommendations(input: GenerateRecommendationInput): Rec
     );
   const visibleRisks = safeEvents
     .filter((event) => isPerceptionSource(event.source.kind))
-    .filter((event) =>
-      /\b(error|failed|failure|bug|blocked|unresolved|exception)\b/i.test(eventText(event))
-    )
+    .filter((event) => riskPattern.test(eventText(event)))
     .map((event) =>
       recommendationFromEvent({
         event,
@@ -111,7 +109,15 @@ export function generateRecommendations(input: GenerateRecommendationInput): Rec
     ...visibleRisks,
     ...contextRecommendation,
     ...perceptionContextRecommendation
-  ]);
+  ]).map((recommendation) => {
+    if (!recommendation.evidence.some((ref) => isPerceptionSource(ref.sourceKind))) {
+      return recommendation;
+    }
+    return {
+      ...recommendation,
+      explanation: `${recommendation.explanation} Handoff should use summary/source pointers only; raw/private perception payloads stay excluded by policy.`
+    };
+  });
 }
 
 function recommendationFromEvent(input: {
@@ -205,15 +211,6 @@ function eventText(event: Event): string {
     .join(" ");
 }
 
-function isPerceptionSource(sourceKind: SourceKind): boolean {
-  return (
-    sourceKind === "screen" ||
-    sourceKind === "ocr" ||
-    sourceKind === "audio" ||
-    sourceKind === "transcript"
-  );
-}
-
 function isSafeRecommendationEvent(event: Event): boolean {
   return event.privacy.sensitivity !== "secret" && event.privacy.redactionState !== "failed";
 }
@@ -236,3 +233,7 @@ function clamp(value: number): number {
 function truncate(value: string, maxLength: number): string {
   return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
 }
+
+const followUpPattern = /\b(follow up|action item|next)\b|待跟进|后续|下一步|行动项|需要处理/i;
+const riskPattern =
+  /\b(error|failed|failure|bug|blocked|unresolved|exception)\b|失败|错误|阻塞|风险|异常|未解决/i;

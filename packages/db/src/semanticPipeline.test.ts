@@ -115,6 +115,25 @@ describe("semantic pipeline AI provider integration", () => {
     }
   });
 
+  it("uses the requested language for deterministic Knowledge drafts", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-language-pipeline-test-"));
+    tempDirs.push(orbitHome);
+    const database = openOrbitDatabase({ orbitHome });
+    try {
+      upsertFixtureSource(database.db);
+      new EventRepository(database.db).upsertEvent(makeEvent("1", "todo"));
+
+      runSemanticPipeline(database, { language: "zh-CN" });
+
+      const artifact = new KnowledgeRepository(database.db).listKnowledgeArtifacts()[0]!;
+      expect(artifact.metadata.language).toBe("zh-CN");
+      expect(artifact.title).toContain("知识");
+      expect(artifact.content.markdown).toContain("## 关键洞察");
+    } finally {
+      database.close();
+    }
+  });
+
   it("uses provider drafts and filters unknown evidence IDs", async () => {
     const orbitHome = mkdtempSync(join(tmpdir(), "orbit-provider-pipeline-test-"));
     tempDirs.push(orbitHome);

@@ -505,6 +505,16 @@ describe("cli commands", () => {
     expect(second.totals.inserted).toBe(0);
   });
 
+  it("registers pipeline language control for Chinese Knowledge drafts", () => {
+    const program = buildProgram();
+    const pipelineHelp = program.commands
+      .find((command) => command.name() === "pipeline")
+      ?.commands.find((command) => command.name() === "run")
+      ?.helpInformation();
+    expect(pipelineHelp).toContain("--language <language>");
+    expect(pipelineHelp).toContain("zh-CN");
+  });
+
   it("feeds mock vision summaries into Events and Knowledge drafts when policy allows", async () => {
     const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-vision-fixture-test-"));
     tempDirs.push(orbitHome);

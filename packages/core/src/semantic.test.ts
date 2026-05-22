@@ -4,7 +4,8 @@ import {
   buildActivitySessions,
   draftKnowledgeArtifact,
   extractMemoryCandidates,
-  generateRecommendations
+  generateRecommendations,
+  buildPerceptionEvidencePacket
 } from "./index";
 
 describe("semantic pipeline", () => {
@@ -168,6 +169,91 @@ describe("semantic pipeline", () => {
     expect(recommendations.some((item) => item.type === "context_needed")).toBe(true);
     expect(artifacts.flatMap((artifact) => artifact.content.followUps ?? [])).not.toHaveLength(0);
     expect(artifacts[0]?.content.markdown).toContain("## Evidence");
+  });
+
+  it("drafts Chinese Activity-level Knowledge from safe perception packets without raw payloads", () => {
+    const events = [
+      makePerceptionFrameEvent("frame_goal_f_1", "screen", "2026-05-21T11:00:00.000Z", {
+        summary: "Cursor window shows Orbit Goal F implementation progress.",
+        metadata: {
+          frameHash: "goal_f_frame_1",
+          rawFrameStored: false,
+          rawFrameRef: "file:///private/raw-screen.png"
+        }
+      }),
+      makePerceptionFrameEvent("ocr_goal_f_1", "ocr", "2026-05-21T11:01:00.000Z", {
+        summary:
+          "可见内容显示 Goal F 正在实现中文 Knowledge、Handoff 排除原因和待跟进检查，测试失败需要修复。",
+        text: "RAW_OCR_TEXT should never appear in Knowledge",
+        rawRef: "file:///private/raw-ocr.txt",
+        metadata: {
+          sourceFrameHash: "goal_f_frame_1",
+          rawTextStored: true,
+          rawTextRef: "file:///private/raw-ocr.txt"
+        }
+      }),
+      makePerceptionFrameEvent("frame_goal_f_2", "screen", "2026-05-21T11:02:00.000Z", {
+        summary: "Second frame confirms the same Activity continues.",
+        metadata: {
+          frameHash: "goal_f_frame_2",
+          rawFrameStored: false
+        }
+      })
+    ];
+    const session = buildActivitySessions(events, {
+      now: new Date("2026-05-21T11:30:00.000Z")
+    })[0]!;
+
+    const packet = buildPerceptionEvidencePacket({ session, events });
+    const artifact = draftKnowledgeArtifact({ session, events, language: "zh-CN" });
+    const memoriesFromDraft = extractMemoryCandidates([artifact]);
+    const memoriesFromConfirmed = extractMemoryCandidates([
+      { ...artifact, status: "confirmed" as const }
+    ]);
+
+    expect(packet.activitySessionId).toBe(session.id);
+    expect(packet.frameCount).toBe(2);
+    expect(packet.selectedOcrSnippets).toEqual([
+      "可见内容显示 Goal F 正在实现中文 Knowledge、Handoff 排除原因和待跟进检查，测试失败需要修复。"
+    ]);
+    expect(JSON.stringify(packet)).not.toContain("raw-screen.png");
+    expect(JSON.stringify(packet)).not.toContain("RAW_OCR_TEXT");
+    expect(artifact.metadata.language).toBe("zh-CN");
+    expect(artifact.title).toContain("知识");
+    expect(artifact.content.markdown).toContain("## 元数据");
+    expect(artifact.content.markdown).toContain("## 关键洞察");
+    expect(artifact.content.markdown).toContain("## 来源 Activity Sessions");
+    expect(artifact.content.markdown).not.toContain("RAW_OCR_TEXT");
+    expect(artifact.content.markdown).not.toContain("raw-ocr.txt");
+    expect(memoriesFromDraft).toHaveLength(0);
+    expect(memoriesFromConfirmed[0]?.status).toBe("needs_review");
+  });
+
+  it("detects Chinese visible errors, follow-ups, and context gaps from perception evidence", () => {
+    const events = [
+      makePerceptionFrameEvent("frame_cn_1", "screen", "2026-05-21T12:00:00.000Z", {
+        summary: "Orbit pipeline run is visible in Terminal."
+      }),
+      makePerceptionFrameEvent("ocr_cn_1", "ocr", "2026-05-21T12:01:00.000Z", {
+        summary: "终端显示测试失败，需要待跟进 Handoff raw payload 排除原因，并补充上下文缺口。",
+        metadata: { sourceFrameHash: "frame_cn_1", rawTextStored: false }
+      })
+    ];
+    const sessions = buildActivitySessions(events, {
+      now: new Date("2026-05-21T12:30:00.000Z")
+    });
+    const recommendations = generateRecommendations({
+      events,
+      sessions,
+      artifacts: [],
+      memories: []
+    });
+
+    expect(recommendations.some((item) => item.type === "risk")).toBe(true);
+    expect(recommendations.some((item) => item.type === "follow_up")).toBe(true);
+    expect(recommendations.some((item) => item.type === "context_needed")).toBe(true);
+    expect(recommendations.every((item) => item.evidence.length > 0)).toBe(true);
+    expect(JSON.stringify(recommendations)).toContain("summary/source pointers only");
   });
 });
 

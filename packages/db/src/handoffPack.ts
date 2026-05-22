@@ -145,7 +145,8 @@ function logHandoffGeneration(audit: AuditRepository, pack: HandoffPack): void {
       memories: pack.activeMemories.length,
       recommendations: pack.recommendedNextActions.length
     },
-    excluded: pack.excluded.length
+    excluded: pack.excluded.length,
+    excludedReasons: Array.from(new Set(pack.excluded.map((item) => item.reason))).sort()
   });
 }
 

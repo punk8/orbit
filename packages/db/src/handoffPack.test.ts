@@ -67,6 +67,15 @@ describe("handoff pack DB assembly", () => {
         .filter((log) => log.operation === "handoff.generate");
       expect(handoffAuditLogs).toHaveLength(2);
       expect(handoffAuditLogs[0]?.objectType).toBe("handoff_pack");
+      expect(handoffAuditLogs[0]?.details).toMatchObject({
+        included: {
+          activity: todayPack.recentActivity.length,
+          knowledge: todayPack.confirmedKnowledge.length,
+          memories: todayPack.activeMemories.length,
+          recommendations: todayPack.recommendedNextActions.length
+        },
+        excludedReasons: expect.any(Array)
+      });
     } finally {
       database.close();
     }
@@ -125,6 +134,18 @@ describe("handoff pack DB assembly", () => {
           "failed_redaction"
         ])
       );
+      const audit = new AuditRepository(database.db)
+        .listAuditLogs()
+        .find((log) => log.operation === "handoff.generate");
+      expect(audit?.details).toMatchObject({
+        excludedReasons: expect.arrayContaining([
+          "secret_content",
+          "source_export_blocked",
+          "draft_knowledge",
+          "memory_not_confirmed",
+          "failed_redaction"
+        ])
+      });
     } finally {
       database.close();
     }

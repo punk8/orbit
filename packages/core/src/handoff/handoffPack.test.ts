@@ -175,8 +175,11 @@ describe("handoff pack", () => {
           eventIds: ["evt_screen", "evt_transcript_blocked"],
           sourceKinds: ["screen", "transcript"],
           evidence: [
-            makeEvidence("evt_screen", "screen"),
-            makeEvidence("evt_transcript_blocked", "transcript")
+            { ...makeEvidence("evt_screen", "screen"), excerpt: "Safe screen summary." },
+            {
+              ...makeEvidence("evt_transcript_blocked", "transcript"),
+              excerpt: "Safe transcript summary."
+            }
           ]
         })
       ],
@@ -310,6 +313,78 @@ describe("handoff pack", () => {
     ]);
     expect(JSON.stringify(pack)).not.toContain("RAW_PRIVATE_WINDOW_TITLE");
     expect(formatHandoffMarkdown(pack)).not.toContain("secret token");
+  });
+
+  it("audits raw and private payload exclusions while keeping safe source pointers", () => {
+    const pack = buildHandoffPack({
+      kind: "today",
+      objective: "Continue Orbit perception work",
+      date: "2026-05-21",
+      generatedAt: baseTime,
+      activitySessions: [
+        makeActivity({
+          id: "act_raw_private",
+          eventIds: ["evt_screen"],
+          sourceKinds: ["screen", "ocr"],
+          apps: ["Cursor"],
+          summary: "Screen/OCR Activity summary is safe to hand off.",
+          evidence: [
+            {
+              ...makeEvidence("evt_screen", "screen"),
+              sourcePointer: "screen://capture/day/frame#safe-pointer",
+              excerpt: "RAW_PRIVATE_PAYLOAD: raw-ocr-dump hunter2"
+            }
+          ]
+        })
+      ],
+      knowledgeArtifacts: [],
+      memories: [],
+      recommendations: [],
+      eventSafety: new Map([
+        [
+          "evt_screen",
+          makeEventSafety({
+            eventId: "evt_screen",
+            sourceAdapterId: "perception_screen",
+            sourceKind: "screen",
+            sourcePointer: "screen://capture/day/frame#safe-pointer",
+            sensitivity: "confidential",
+            redactionState: "redacted",
+            canExportToAgent: true
+          })
+        ]
+      ])
+    });
+
+    expect(pack.recentActivity).toHaveLength(1);
+    expect(pack.evidenceIndex).toEqual([
+      expect.objectContaining({
+        sourceKind: "screen",
+        sourcePointer: "screen://capture/day/frame#safe-pointer"
+      })
+    ]);
+    expect(pack.excluded).toEqual(
+      expect.arrayContaining([
+        {
+          objectType: "activity",
+          objectId: "act_raw_private",
+          reason: "raw_payload_excluded"
+        },
+        {
+          objectType: "activity",
+          objectId: "act_raw_private",
+          reason: "private_payload_excluded"
+        }
+      ])
+    );
+    expect(explainHandoffExclusion("raw_payload_excluded").title).toBe(
+      "Raw payload was excluded"
+    );
+    expect(explainHandoffExclusion("private_payload_excluded").title).toBe(
+      "Private payload was excluded"
+    );
+    expect(JSON.stringify(pack)).not.toContain("raw-ocr-dump");
+    expect(formatHandoffMarkdown(pack)).not.toContain("hunter2");
   });
 
   it("explains exclusion reasons and includes next actions in markdown", () => {

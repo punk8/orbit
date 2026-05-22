@@ -158,18 +158,21 @@ export function buildProgram(): Command {
     .command("run")
     .description("Build Activity, Knowledge, Memory, and Recommendation records from stored Events")
     .option("--ai", "force configured AI provider for Knowledge drafting")
+    .option("--language <language>", "Knowledge draft language: en or zh-CN")
     .option("--json", "output JSON")
-    .action(async (options: { ai?: boolean; json?: boolean }) => {
+    .action(async (options: { ai?: boolean; language?: string; json?: boolean }) => {
       const config = getCliConfig();
       const database = openOrbitDatabase({ orbitHome: config.orbitHome });
       try {
         const providerConfig = readAIProviderConfigFromEnv();
         const useProvider = Boolean(options.ai) || isAIProviderConfigured(providerConfig);
+        const language = readKnowledgeLanguage(options.language);
         const result = useProvider
           ? await runSemanticPipelineWithProvider(database, {
-              aiProvider: buildAIProvider(providerConfig)
+              aiProvider: buildAIProvider(providerConfig),
+              ...(language ? { language } : {})
             })
-          : runSemanticPipeline(database);
+          : runSemanticPipeline(database, language ? { language } : {});
         writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
       } finally {
         database.close();
@@ -715,6 +718,12 @@ function readHandoffLanguage(value: string | undefined): "en" | "zh-CN" | undefi
   if (value === undefined) return undefined;
   if (value === "en" || value === "zh-CN") return value;
   throw new Error(`Unsupported handoff language: ${value}`);
+}
+
+function readKnowledgeLanguage(value: string | undefined): "en" | "zh-CN" | undefined {
+  if (value === undefined) return undefined;
+  if (value === "en" || value === "zh-CN") return value;
+  throw new Error(`Unsupported knowledge language: ${value}`);
 }
 
 function withHandoffLanguage<T extends Record<string, unknown>>(
