@@ -35,6 +35,13 @@ export interface ActivitySession {
     indexed: boolean;
     storageBytes?: number;
     closed?: boolean;
+    boundaryConfidence?: number;
+    primaryApps?: string[];
+    frameCount?: number;
+    ocrPageCount?: number;
+    ocrTextChars?: number;
+    eventCount?: number;
+    protectedSkipCount?: number;
     closeReason?:
       | "idle"
       | "explicit_boundary"
@@ -54,9 +61,13 @@ export interface ActivitySession {
     qualitySignals?: {
       durationSeconds: number;
       frameCount: number;
+      ocrPageCount: number;
       ocrTextChars: number;
+      eventCount: number;
       appCount: number;
       sourceCount: number;
+      protectedSkipCount: number;
+      rawAvailable: boolean;
       hasFollowUpOrRisk: boolean;
       redactionSafe: boolean;
       isLowQuality: boolean;
