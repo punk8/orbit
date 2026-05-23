@@ -607,9 +607,24 @@ export async function captureScreenOcrBurstNow(
           warnings: result.warnings
         });
       }
+      const lastFrame = frames[frames.length - 1]!;
+      eventRepository.upsertEvent(
+        normalizeObservationInput(
+          {
+            type: "observation_state",
+            tier: "tier3",
+            sourceKind: "screen",
+            occurredAt: new Date(new Date(lastFrame.capturedAt).getTime() + 1).toISOString(),
+            observedAt: new Date(new Date(lastFrame.capturedAt).getTime() + 1).toISOString(),
+            runtimeSessionId,
+            sequence: lastFrame.sequence + 10_000
+          },
+          { adapterId: SCREEN_OBSERVATION_ADAPTER_ID, protectedApps: perception.protectedApps }
+        )
+      );
     }
 
-    const pipeline = runSemanticPipeline(database);
+    const pipeline = runSemanticPipeline(database, { language: "zh-CN" });
     return {
       orbitHome: database.orbitHome,
       dbPath: database.dbPath,

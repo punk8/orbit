@@ -974,6 +974,21 @@ export async function captureScreenOcrBurstForDesktop(): Promise<DesktopActionRe
           warnings: result.warnings
         });
       }
+      const lastFrame = frames[frames.length - 1]!;
+      eventRepository.upsertEvent(
+        normalizeObservationInput(
+          {
+            type: "observation_state",
+            tier: "tier3",
+            sourceKind: "screen",
+            occurredAt: new Date(new Date(lastFrame.capturedAt).getTime() + 1).toISOString(),
+            observedAt: new Date(new Date(lastFrame.capturedAt).getTime() + 1).toISOString(),
+            runtimeSessionId,
+            sequence: lastFrame.sequence + 10_000
+          },
+          { adapterId: SCREEN_OBSERVATION_ADAPTER_ID, protectedApps: perception.protectedApps }
+        )
+      );
       settingsRepository.set(SETTING_KEYS.sourceSetupCompleted, true);
       await reindexLocalDataWithProvider(database, buildDesktopPipelineOptions(settingsRepository));
     }

@@ -384,6 +384,34 @@ describe("cli commands", () => {
       3
     );
     expect(result.totals.inserted).toBeGreaterThanOrEqual(3);
+    expect(result.pipeline.knowledgeArtifacts.generated).toBe(1);
+
+    const session = listActivitySessions()[0]!;
+    expect(session.localState.closed).toBe(true);
+    expect(session.localState.closeReason).toBe("explicit_boundary");
+    expect(session.localState.qualitySignals).toMatchObject({
+      frameCount: 3,
+      isLowQuality: false
+    });
+
+    const artifact = listKnowledgeArtifacts()[0]!;
+    expect(artifact.metadata.language).toBe("zh-CN");
+    expect(artifact.title).toContain("知识：");
+    expect(artifact.content.markdown).toContain("## 关键洞察");
+    expect(listRecommendations().some((item) => item.type === "context_needed")).toBe(true);
+
+    const today = getTodayContext("2026-05-21");
+    expect(today.activitySessions).toHaveLength(1);
+    expect(today.knowledgeArtifacts).toHaveLength(1);
+    expect(today.knowledgeArtifacts[0]?.metadata.language).toBe("zh-CN");
+    expect(today.recommendations.length).toBeGreaterThan(0);
+
+    const handoff = getTodayHandoff({ date: "2026-05-21" });
+    expect(handoff.excluded.map((item) => item.reason)).toEqual(
+      expect.arrayContaining(["source_export_blocked", "draft_knowledge"])
+    );
+    expect(JSON.stringify(handoff)).not.toContain("raw screenshot");
+    expect(JSON.stringify(handoff)).not.toContain("raw OCR");
 
     const audit = getPerceptionReleaseGate().releaseGate.auditReview;
     expect(audit.operationCounts["perception.burst_scheduled"]).toBe(1);
@@ -408,7 +436,7 @@ describe("cli commands", () => {
 
     expect(frames.activityId).toBe(session.id);
     expect(frames.frameCount).toBe(3);
-    expect(frames.eventCount).toBe(6);
+    expect(frames.eventCount).toBe(7);
     expect(frames.frames[0]).toMatchObject({
       frameIndex: 0,
       rawAvailable: false,
@@ -420,7 +448,8 @@ describe("cli commands", () => {
       "ocr_text"
     ]);
     expect(playback.scrubber.markers).toHaveLength(3);
-    expect(playback.eventStream).toHaveLength(6);
+    expect(playback.eventStream).toHaveLength(7);
+    expect(playback.eventStream.at(-1)?.type).toBe("observation_state");
 
     const program = buildProgram();
     const activityHelp = program.commands
