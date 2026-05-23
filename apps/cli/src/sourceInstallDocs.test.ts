@@ -14,9 +14,11 @@ describe("source install dogfood guide", () => {
 
     const rootReadme = readRepoFile("README.md");
     const guide = readRepoFile("docs/source-install-dogfood.md");
+    const manualSmoke = readRepoFile("docs/source-install-manual-smoke.md");
     const spec = readRepoFile("docs/source-install-dogfood-production-spec.md");
 
     expect(rootReadme).toContain("docs/source-install-dogfood.md");
+    expect(rootReadme).toContain("docs/source-install-manual-smoke.md");
     expect(rootReadme).toContain("docs/source-install-dogfood-production-spec.md");
     expect(spec).toContain("Goal N: Source Install And Local Verification Path");
     expect(spec).toContain("source-install:verify");
@@ -45,6 +47,22 @@ describe("source install dogfood guide", () => {
     expect(guide).toContain("Packaged helper missing");
     expect(guide).toContain("SQLite lock");
     expect(guide).toContain("Stale ORBIT_HOME");
+
+    expect(manualSmoke).toContain("# Source Install Manual macOS Smoke");
+    expect(manualSmoke).toContain("screenRecordingPermission=passed");
+    expect(manualSmoke).toContain("handoffExclusion=passed");
+    expect(manualSmoke).toContain("screenRecordingPermission");
+    expect(manualSmoke).toContain("autoStart");
+    expect(manualSmoke).toContain("pauseResumeStop");
+    expect(manualSmoke).toContain("permissionRevoke");
+    expect(manualSmoke).toContain("restartAutoResume");
+    expect(manualSmoke).toContain("resourcePause");
+    expect(manualSmoke).toContain("protectedContext");
+    expect(manualSmoke).toContain("auditReview");
+    expect(manualSmoke).toContain("cleanup");
+    expect(manualSmoke).toContain("handoffExclusion");
+    expect(manualSmoke).toContain("failed");
+    expect(manualSmoke).toContain("needs_data");
   });
 
   it("provides one safe non-interactive source install verification script", () => {

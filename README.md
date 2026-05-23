@@ -7,6 +7,7 @@ Start here:
 
 - [Docs index](docs/README.md)
 - [Source install dogfood guide](docs/source-install-dogfood.md)
+- [Source install manual macOS smoke](docs/source-install-manual-smoke.md)
 - [Source Install Dogfood Production Spec](docs/source-install-dogfood-production-spec.md)
 
 The stable product flow is:

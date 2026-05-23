@@ -182,7 +182,8 @@ describe("perception release gate", () => {
         resourcePause: "needs_data",
         protectedContext: "passed",
         auditReview: "passed",
-        cleanup: "passed"
+        cleanup: "passed",
+        handoffExclusion: "needs_data"
       }
     });
 
@@ -198,10 +199,95 @@ describe("perception release gate", () => {
     expect(report.manualSmoke.missing).toEqual([
       "permissionRevoke",
       "restartAutoResume",
-      "resourcePause"
+      "resourcePause",
+      "handoffExclusion"
     ]);
     expect(report.checks.find((check) => check.id === "manual_smoke")?.status).toBe(
       "needs_data"
     );
+  });
+
+  it("fails release gate when manual smoke evidence explicitly records a failed required check", () => {
+    const report = evaluatePerceptionReleaseGate({
+      perception: createDefaultPerceptionStatus(),
+      cleanup: {
+        scannedEvents: 0,
+        cleanedEvents: 0,
+        removedRawRefs: 0,
+        removedAttachments: 0,
+        deletedLocalSidecars: 0,
+        preservedSummaries: 0
+      },
+      auditOperations: [],
+      packaging: {
+        excludesTmp: true,
+        excludesFixtures: true,
+        nativeHelperMode: "unsigned",
+        signed: false,
+        notarized: false,
+        privateDataScan: { scanned: 3, violations: [] }
+      },
+      manualSmoke: {
+        screenRecordingPermission: "passed",
+        autoStart: "passed",
+        pauseResumeStop: "passed",
+        permissionRevoke: "passed",
+        restartAutoResume: "passed",
+        resourcePause: "passed",
+        protectedContext: "failed",
+        auditReview: "passed",
+        cleanup: "passed",
+        handoffExclusion: "passed"
+      }
+    });
+
+    expect(report.status).toBe("fail");
+    expect(report.manualSmoke.failed).toEqual(["protectedContext"]);
+    expect(report.checks.find((check) => check.id === "manual_smoke")).toMatchObject({
+      status: "fail",
+      nextAction: "rerun_failed_manual_smoke"
+    });
+  });
+
+  it("reports source-install next actions for missing manual smoke, audit data, and signing evidence", () => {
+    const report = evaluatePerceptionReleaseGate({
+      perception: createDefaultPerceptionStatus(),
+      cleanup: {
+        scannedEvents: 0,
+        cleanedEvents: 0,
+        removedRawRefs: 0,
+        removedAttachments: 0,
+        deletedLocalSidecars: 0,
+        preservedSummaries: 0
+      },
+      auditOperations: [],
+      packaging: {
+        excludesTmp: true,
+        excludesFixtures: true,
+        nativeHelperMode: "unsigned",
+        signed: false,
+        notarized: false,
+        privateDataScan: { scanned: 3, violations: [] }
+      }
+    });
+
+    expect(report.nextActions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "manual_smoke.record_evidence",
+          command: expect.stringContaining("ORBIT_ALPHA_MANUAL_SMOKE")
+        }),
+        expect.objectContaining({
+          id: "audit_review.exercise_missing_groups",
+          command: "pnpm --filter @orbit/cli orbit perception audit-review --json"
+        }),
+        expect.objectContaining({
+          id: "packaging_policy.provide_apple_credentials"
+        })
+      ])
+    );
+    expect(report.checks.find((check) => check.id === "manual_smoke")).toMatchObject({
+      nextAction: "record_source_install_manual_smoke"
+    });
   });
 });

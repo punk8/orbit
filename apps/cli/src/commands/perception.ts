@@ -739,7 +739,8 @@ function isManualSmokeScenario(value: string | undefined): value is ManualSmokeS
     value === "resourcePause" ||
     value === "protectedContext" ||
     value === "auditReview" ||
-    value === "cleanup"
+    value === "cleanup" ||
+    value === "handoffExclusion"
   );
 }
 

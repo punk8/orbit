@@ -974,12 +974,35 @@ describe("cli commands", () => {
     tempDirs.push(orbitHome);
     process.env.ORBIT_HOME = orbitHome;
     process.env.ORBIT_ALPHA_MANUAL_SMOKE =
-      "screenRecordingPermission=passed,autoStart=passed,pauseResumeStop=passed,permissionRevoke=passed,restartAutoResume=passed,resourcePause=passed,protectedContext=passed,auditReview=passed,cleanup=passed";
+      "screenRecordingPermission=passed,autoStart=passed,pauseResumeStop=passed,permissionRevoke=passed,restartAutoResume=passed,resourcePause=passed,protectedContext=passed,auditReview=passed,cleanup=passed,handoffExclusion=passed";
 
     const gate = getPerceptionReleaseGate();
     expect(gate.releaseGate.manualSmoke.missing).toEqual([]);
     expect(gate.releaseGate.checks.find((check) => check.id === "manual_smoke")?.status).toBe(
       "pass"
+    );
+    expect(gate.releaseGate.nextActions.map((action) => action.id)).not.toContain(
+      "manual_smoke.record_evidence"
+    );
+  });
+
+  it("fails release gate when environment-recorded manual smoke includes a failed required check", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-manual-smoke-failed-test-"));
+    tempDirs.push(orbitHome);
+    process.env.ORBIT_HOME = orbitHome;
+    process.env.ORBIT_ALPHA_MANUAL_SMOKE =
+      "screenRecordingPermission=passed,autoStart=passed,pauseResumeStop=passed,permissionRevoke=passed,restartAutoResume=passed,resourcePause=passed,protectedContext=failed,auditReview=passed,cleanup=passed,handoffExclusion=passed";
+
+    const gate = getPerceptionReleaseGate();
+    expect(gate.releaseGate.status).toBe("fail");
+    expect(gate.releaseGate.manualSmoke.failed).toEqual(["protectedContext"]);
+    expect(gate.releaseGate.nextActions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "manual_smoke.rerun_failed",
+          command: expect.stringContaining("ORBIT_ALPHA_MANUAL_SMOKE")
+        })
+      ])
     );
   });
 

@@ -21,6 +21,7 @@ export interface ReleaseGateCheck {
   id: string;
   status: ReleaseGateStatus;
   message: string;
+  nextAction?: string;
   details?: Record<string, unknown>;
 }
 
@@ -56,6 +57,7 @@ export interface PerceptionReleaseGateReport {
   checks: ReleaseGateCheck[];
   auditReview: PerceptionAuditReview;
   manualSmoke: PerceptionManualSmokeReview;
+  nextActions: PerceptionReleaseGateNextAction[];
   packaging: {
     excludesTmp: boolean;
     excludesFixtures: boolean;
@@ -73,6 +75,7 @@ export interface PerceptionAuditReview {
   operationCounts: Record<string, number>;
   requiredGroups: string[];
   missingGroups: string[];
+  dataState: "missing_implementation" | "needs_data" | "partial" | "complete";
 }
 
 export type ManualSmokeScenario =
@@ -84,7 +87,8 @@ export type ManualSmokeScenario =
   | "resourcePause"
   | "protectedContext"
   | "auditReview"
-  | "cleanup";
+  | "cleanup"
+  | "handoffExclusion";
 
 export type ManualSmokeStatus = "passed" | "failed" | "needs_data";
 
@@ -93,6 +97,14 @@ export interface PerceptionManualSmokeReview {
   completed: ManualSmokeScenario[];
   failed: ManualSmokeScenario[];
   missing: ManualSmokeScenario[];
+}
+
+export interface PerceptionReleaseGateNextAction {
+  id: string;
+  severity: "required" | "evidence" | "credentials";
+  title: string;
+  command?: string;
+  docs?: string;
 }
 
 const requiredAuditOperationGroups: Array<{
@@ -135,13 +147,14 @@ const requiredManualSmokeScenarios: ManualSmokeScenario[] = [
   "resourcePause",
   "protectedContext",
   "auditReview",
-  "cleanup"
+  "cleanup",
+  "handoffExclusion"
 ];
 
 export function evaluatePerceptionReleaseGate(
   input: PerceptionReleaseGateInput
 ): PerceptionReleaseGateReport {
-  const auditReview = buildAuditReview(input.auditOperations ?? []);
+  const auditReview = buildAuditReview(input.auditOperations);
   const manualSmoke = buildManualSmokeReview(input.manualSmoke);
   const packaging = buildPackagingSummary(input.packaging);
   const checks = [
@@ -154,11 +167,17 @@ export function evaluatePerceptionReleaseGate(
     manualSmokeCheck(manualSmoke),
     packagingCheck(input.packaging)
   ];
+  const nextActions = buildReleaseGateNextActions({
+    auditReview,
+    manualSmoke,
+    packagingCheck: checks.find((check) => check.id === "packaging_policy")
+  });
   return {
     status: checks.some((check) => check.status === "fail") ? "fail" : "pass",
     checks,
     auditReview,
     manualSmoke,
+    nextActions,
     packaging
   };
 }
@@ -275,11 +294,21 @@ function cleanupCheck(cleanup: PerceptionCleanupSummary | undefined): ReleaseGat
 }
 
 function auditCoverageCheck(auditReview: PerceptionAuditReview): ReleaseGateCheck {
+  if (auditReview.dataState === "missing_implementation") {
+    return {
+      id: "audit_review",
+      status: "fail",
+      message: "Audit review data was not provided to the release-gate evaluator.",
+      nextAction: "wire_release_gate_audit_review",
+      details: { auditReview }
+    };
+  }
   if (Object.keys(auditReview.operationCounts).length === 0) {
     return {
       id: "audit_review",
       status: "needs_data",
       message: "No audit logs exist yet; run smoke, cleanup, provider, and Handoff checks.",
+      nextAction: "exercise_source_install_audit_smoke",
       details: { auditReview }
     };
   }
@@ -290,6 +319,9 @@ function auditCoverageCheck(auditReview: PerceptionAuditReview): ReleaseGateChec
       auditReview.missingGroups.length === 0
         ? "Audit log includes perception release-gate operation groups."
         : "Audit log is present but some perception operation groups have not been exercised.",
+    ...(auditReview.missingGroups.length === 0
+      ? {}
+      : { nextAction: "exercise_missing_audit_groups" }),
     details: { auditReview }
   };
 }
@@ -300,6 +332,7 @@ function manualSmokeCheck(manualSmoke: PerceptionManualSmokeReview): ReleaseGate
       id: "manual_smoke",
       status: "fail",
       message: "One or more required Alpha dogfood manual smoke scenarios failed.",
+      nextAction: "rerun_failed_manual_smoke",
       details: { manualSmoke }
     };
   }
@@ -308,6 +341,7 @@ function manualSmokeCheck(manualSmoke: PerceptionManualSmokeReview): ReleaseGate
       id: "manual_smoke",
       status: "needs_data",
       message: "Some required Alpha dogfood manual smoke scenarios still need real macOS evidence.",
+      nextAction: "record_source_install_manual_smoke",
       details: { manualSmoke }
     };
   }
@@ -347,6 +381,13 @@ function packagingCheck(
       : unsignedAlphaHelper
         ? "Alpha package uses an unsigned native helper; signing and notarization require Apple Developer credentials."
         : "Package policy can include private data or an unsigned native helper.",
+    ...(safe
+      ? {}
+      : {
+          nextAction: unsignedAlphaHelper
+            ? "provide_apple_developer_credentials"
+            : "fix_packaging_private_data_or_helper"
+        }),
     details: {
       packaging,
       ...(unsignedAlphaHelper
@@ -354,6 +395,74 @@ function packagingCheck(
         : {})
     }
   };
+}
+
+function buildReleaseGateNextActions(input: {
+  auditReview: PerceptionAuditReview;
+  manualSmoke: PerceptionManualSmokeReview;
+  packagingCheck: ReleaseGateCheck | undefined;
+}): PerceptionReleaseGateNextAction[] {
+  const actions: PerceptionReleaseGateNextAction[] = [];
+  if (input.manualSmoke.failed.length > 0) {
+    actions.push({
+      id: "manual_smoke.rerun_failed",
+      severity: "required",
+      title: `Rerun failed source-install manual smoke checks: ${input.manualSmoke.failed.join(", ")}.`,
+      command: `ORBIT_ALPHA_MANUAL_SMOKE="${manualSmokeEnvExample()}" pnpm --filter @orbit/cli orbit perception release-gate --json`,
+      docs: "docs/source-install-manual-smoke.md"
+    });
+  } else if (input.manualSmoke.missing.length > 0) {
+    actions.push({
+      id: "manual_smoke.record_evidence",
+      severity: "evidence",
+      title: `Record source-install manual smoke evidence for: ${input.manualSmoke.missing.join(", ")}.`,
+      command: `ORBIT_ALPHA_MANUAL_SMOKE="${manualSmokeEnvExample()}" pnpm --filter @orbit/cli orbit perception release-gate --json`,
+      docs: "docs/source-install-manual-smoke.md"
+    });
+  }
+
+  if (input.auditReview.dataState === "missing_implementation") {
+    actions.push({
+      id: "audit_review.wire_implementation",
+      severity: "required",
+      title: "Wire audit operations into the release-gate evaluator.",
+      docs: "docs/source-install-dogfood-production-spec.md"
+    });
+  } else if (input.auditReview.missingGroups.length > 0) {
+    actions.push({
+      id: "audit_review.exercise_missing_groups",
+      severity: "evidence",
+      title: `Exercise missing audit groups: ${input.auditReview.missingGroups.join(", ")}.`,
+      command: "pnpm --filter @orbit/cli orbit perception audit-review --json",
+      docs: "docs/source-install-manual-smoke.md"
+    });
+  }
+
+  if (input.packagingCheck?.details?.signingBlocker === "missing_apple_developer_credentials") {
+    actions.push({
+      id: "packaging_policy.provide_apple_credentials",
+      severity: "credentials",
+      title:
+        "Provide Apple Developer credentials only when moving beyond source-install dogfood packaging.",
+      docs: "docs/source-install-dogfood.md"
+    });
+  } else if (input.packagingCheck?.status === "fail") {
+    actions.push({
+      id: "packaging_policy.fix_package",
+      severity: "required",
+      title: "Fix package private-data exclusions or native helper mode before sharing the build.",
+      command: "pnpm --filter @orbit/desktop package:smoke",
+      docs: "docs/source-install-dogfood.md"
+    });
+  }
+
+  return actions;
+}
+
+function manualSmokeEnvExample(): string {
+  return requiredManualSmokeScenarios
+    .map((scenario) => `${scenario}=passed`)
+    .join(",");
 }
 
 function buildManualSmokeReview(
@@ -376,7 +485,15 @@ function buildManualSmokeReview(
   };
 }
 
-function buildAuditReview(auditOperations: string[]): PerceptionAuditReview {
+function buildAuditReview(auditOperations: string[] | undefined): PerceptionAuditReview {
+  if (!auditOperations) {
+    return {
+      operationCounts: {},
+      requiredGroups: requiredAuditOperationGroups.map((group) => group.id),
+      missingGroups: requiredAuditOperationGroups.map((group) => group.id),
+      dataState: "missing_implementation"
+    };
+  }
   const present = new Set(auditOperations);
   const missingGroups = requiredAuditOperationGroups
     .filter((group) =>
@@ -392,7 +509,13 @@ function buildAuditReview(auditOperations: string[]): PerceptionAuditReview {
   return {
     operationCounts,
     requiredGroups: requiredAuditOperationGroups.map((group) => group.id),
-    missingGroups
+    missingGroups,
+    dataState:
+      auditOperations.length === 0
+        ? "needs_data"
+        : missingGroups.length === 0
+          ? "complete"
+          : "partial"
   };
 }
 
