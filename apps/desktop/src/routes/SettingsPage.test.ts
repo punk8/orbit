@@ -48,10 +48,23 @@ describe("SettingsPage privacy and provider hardening", () => {
     expect(source).toContain("data-screen-ocr-action=\"pause\"");
     expect(source).toContain("data-screen-ocr-action=\"stop\"");
     expect(source).toContain("data-screen-ocr-action=\"capture\"");
+    expect(source).toContain("data-screen-ocr-action=\"cleanup-dry-run\"");
+    expect(source).toContain("data-screen-ocr-action=\"cleanup-execute\"");
+    expect(source).toContain("data-cleanup-action=\"disable-source-delete-raw\"");
+    expect(source).toContain("data-cleanup-action=\"delete-events-dry-run\"");
+    expect(source).toContain("data-cleanup-action=\"delete-events-execute\"");
     expect(source).toContain("onUpdatePerceptionSourceRuntime(\"screen\"");
     expect(source).toContain("onCaptureScreenOcrBurst");
     expect(source).toContain("onCleanupPerceptionSidecars");
+    expect(source).toContain("onCleanupPerceptionSidecarsDryRun");
+    expect(source).toContain("onDisablePerceptionSourceAndDeleteRaw");
+    expect(source).toContain("onDeletePerceptionEvents");
+    expect(source).toContain("snapshot.auditReview.groups.map");
+    expect(source).toContain("audit.status.covered");
+    expect(source).toContain("audit.status.missing");
     expect(source).toContain("confirm.clearLocalData");
+    expect(source).toContain("confirm.disableSourceDeleteRaw");
+    expect(source).toContain("confirm.deletePerceptionEvents");
   });
 
   it("keeps Screen/OCR runtime and onboarding copy i18n-backed in English and Chinese", () => {
@@ -65,7 +78,16 @@ describe("SettingsPage privacy and provider hardening", () => {
     expect(i18n).toContain('"dogfoodRuntime.observing"');
     expect(i18n).toContain('"dogfoodRuntime.needs_permission"');
     expect(i18n).toContain('"dogfoodNextAction.grant_screen_recording_permission"');
+    expect(i18n).toContain('"action.cleanupPerceptionSidecarsDryRun"');
+    expect(i18n).toContain('"action.disableSourceDeleteRaw"');
+    expect(i18n).toContain('"action.previewDeleteEvents"');
+    expect(i18n).toContain('"action.deletePerceptionEvents"');
+    expect(i18n).toContain('"settings.cleanupControlsTitle"');
+    expect(i18n).toContain('"settings.cleanupControlsNote"');
+    expect(i18n).toContain('"audit.status.covered"');
+    expect(i18n).toContain('"audit.status.missing"');
     expect(i18n).toContain("屏幕 / OCR");
+    expect(i18n).toContain("删除源事件");
   });
 
   it("does not expose mock providers as product configuration choices", () => {

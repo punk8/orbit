@@ -92,6 +92,14 @@ export class EventRepository {
       .run(encodeJson(event.content), encodeJson(event.privacy), event.id);
   }
 
+  deleteEventsByIds(ids: string[]): number {
+    if (ids.length === 0) return 0;
+    const uniqueIds = [...new Set(ids)];
+    const placeholders = uniqueIds.map(() => "?").join(", ");
+    return this.db.prepare(`DELETE FROM events WHERE id IN (${placeholders})`).run(...uniqueIds)
+      .changes;
+  }
+
   listEvents(): Event[] {
     return this.db
       .prepare("SELECT * FROM events ORDER BY occurred_at, id")

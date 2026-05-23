@@ -23,6 +23,8 @@ export interface KnowledgeArtifact {
     sourceSessionIds: ID[];
     generatedBy?: string;
     language?: string;
+    evidenceState?: "available" | "unavailable" | "partial";
+    evidenceUnavailableReason?: "source_events_deleted" | "raw_sidecar_deleted" | "source_disabled";
   };
   content: {
     description: string;

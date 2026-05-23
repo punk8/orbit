@@ -290,4 +290,77 @@ describe("perception release gate", () => {
       nextAction: "record_source_install_manual_smoke"
     });
   });
+
+  it("requires Goal Q audit groups for permission, runtime, protected skips, cleanup, knowledge, and handoff", () => {
+    const complete = evaluatePerceptionReleaseGate({
+      perception: createDefaultPerceptionStatus(),
+      cleanup: {
+        scannedEvents: 0,
+        cleanedEvents: 0,
+        removedRawRefs: 0,
+        removedAttachments: 0,
+        deletedLocalSidecars: 0,
+        preservedSummaries: 0
+      },
+      auditOperations: [
+        "perception.permission_checked",
+        "perception.runtime_auto_started",
+        "perception.runtime_paused",
+        "perception.burst_scheduled",
+        "perception.burst_started",
+        "perception.burst_completed",
+        "perception.burst_skipped",
+        "perception.protected_content_dropped",
+        "perception.resource_paused",
+        "perception.redaction_failure",
+        "perception.sidecar_cleanup",
+        "perception.events_delete",
+        "knowledge.generated",
+        "knowledge.suppressed",
+        "handoff.generate"
+      ],
+      packaging: {
+        excludesTmp: true,
+        excludesFixtures: true,
+        nativeHelperMode: "mock",
+        signed: false,
+        notarized: false
+      }
+    });
+
+    expect(complete.auditReview.requiredGroups).toEqual(
+      expect.arrayContaining([
+        "permission",
+        "runtime",
+        "burst_scheduler",
+        "protected_skip",
+        "resource_pause",
+        "redaction_failure",
+        "cleanup",
+        "knowledge_generated_or_suppressed",
+        "handoff_included_or_excluded"
+      ])
+    );
+    expect(complete.auditReview.missingGroups).toEqual([]);
+
+    const missingKnowledge = evaluatePerceptionReleaseGate({
+      perception: createDefaultPerceptionStatus(),
+      auditOperations: [
+        "perception.permission_checked",
+        "perception.runtime_auto_started",
+        "perception.burst_scheduled",
+        "perception.burst_started",
+        "perception.burst_completed",
+        "perception.burst_skipped",
+        "perception.protected_content_dropped",
+        "perception.resource_paused",
+        "perception.redaction_failure",
+        "perception.sidecar_cleanup",
+        "handoff.generate"
+      ]
+    });
+    expect(missingKnowledge.auditReview.requiredGroups).toContain(
+      "knowledge_generated_or_suppressed"
+    );
+  });
 });

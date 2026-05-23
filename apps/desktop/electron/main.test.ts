@@ -47,6 +47,11 @@ describe("desktop main process runtime guards", () => {
     expect(main).toContain("runtimeLocale.tray.cleanupPrivacy");
     expect(main).toContain("captureScreenOcrBurstForDesktop");
     expect(main).toContain('await waitFor(".screen-ocr-runtime-panel")');
+    expect(main).toContain('await waitFor(\'[data-screen-ocr-action="cleanup-dry-run"]\')');
+    expect(main).toContain('await waitFor(".cleanup-controls-panel")');
+    expect(main).toContain('await waitFor(\'[data-cleanup-action="delete-events-dry-run"]\')');
+    expect(main).toContain('await click(\'[data-screen-ocr-action="cleanup-dry-run"]\')');
+    expect(main).toContain('await click(\'[data-cleanup-action="delete-events-dry-run"]\')');
     expect(main).toContain('window.webContents.send("orbit:navigate", page)');
     expect(main).toContain(".knowledge-list-item");
     expect(main).toContain(".memory-list-item");

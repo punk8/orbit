@@ -113,9 +113,24 @@ const requiredAuditOperationGroups: Array<{
   mode: "all" | "any";
 }> = [
   {
-    id: "capture_start_stop",
-    operations: ["perception.capture.start", "perception.capture.stop"],
-    mode: "all"
+    id: "permission",
+    operations: [
+      "perception.permission_checked",
+      "perception.permission_granted",
+      "perception.permission_revoked"
+    ],
+    mode: "any"
+  },
+  {
+    id: "runtime",
+    operations: [
+      "perception.runtime_auto_started",
+      "perception.runtime_paused",
+      "perception.runtime_resumed",
+      "perception.runtime_stopped",
+      "perception.source_disabled"
+    ],
+    mode: "any"
   },
   {
     id: "burst_scheduler",
@@ -131,11 +146,36 @@ const requiredAuditOperationGroups: Array<{
     operations: ["perception.burst_skipped", "perception.burst_failed"],
     mode: "any"
   },
+  {
+    id: "protected_skip",
+    operations: ["perception.protected_context_skipped", "perception.protected_content_dropped"],
+    mode: "any"
+  },
+  {
+    id: "resource_pause",
+    operations: ["perception.resource_paused", "perception.burst_skipped"],
+    mode: "any"
+  },
   { id: "redaction_failure", operations: ["perception.redaction_failure"], mode: "any" },
-  { id: "model_call", operations: ["ai.draft_knowledge", "perception.vision_fixture_ingest"], mode: "any" },
-  { id: "transcription", operations: ["perception.transcription"], mode: "any" },
-  { id: "deletion", operations: ["perception.sidecar_cleanup", "perception.delete"], mode: "any" },
-  { id: "handoff", operations: ["handoff.generate"], mode: "any" }
+  {
+    id: "cleanup",
+    operations: [
+      "perception.sidecar_cleanup",
+      "perception.events_delete",
+      "perception.evidence_unavailable"
+    ],
+    mode: "any"
+  },
+  {
+    id: "knowledge_generated_or_suppressed",
+    operations: ["knowledge.generated", "knowledge.suppressed", "ai.draft_knowledge.skipped"],
+    mode: "any"
+  },
+  {
+    id: "handoff_included_or_excluded",
+    operations: ["handoff.generate"],
+    mode: "any"
+  }
 ];
 
 const requiredManualSmokeScenarios: ManualSmokeScenario[] = [

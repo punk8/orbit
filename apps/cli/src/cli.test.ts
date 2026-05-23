@@ -19,6 +19,8 @@ import {
 } from "./commands/observe";
 import {
   cleanupPerceptionRawSidecars,
+  deletePerceptionEvents,
+  disablePerceptionSourceAndDeleteRaw,
   captureScreenOcrBurstNow,
   captureScreenOcrOnce,
   getPerceptionReleaseGate,
@@ -406,11 +408,62 @@ describe("cli commands", () => {
     const cleanup = cleanupPerceptionRawSidecars({ dryRun: true });
     expect(cleanup.cleanup.dryRun).toBe(true);
     expect(cleanup.cleanup.cleanedEvents).toBe(0);
+    expect(() => cleanupPerceptionRawSidecars()).toThrow(/--confirm/);
 
     const program = buildProgram();
     const perceptionCommand = program.commands.find((command) => command.name() === "perception");
     const screenCommand = perceptionCommand?.commands.find((command) => command.name() === "screen");
     expect(screenCommand?.helpInformation()).toContain("cleanup");
+  });
+
+  it("requires explicit flags for destructive perception cleanup and event deletion", async () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-perception-delete-test-"));
+    tempDirs.push(orbitHome);
+    process.env.ORBIT_HOME = orbitHome;
+    await captureScreenOcrBurstNow({ mock: true });
+
+    const preview = deletePerceptionEvents({
+      sourceKind: "screen",
+      from: "2026-05-21T00:00:00.000Z",
+      to: "2026-05-22T00:00:00.000Z",
+      dryRun: true
+    });
+    expect(preview.deletion.dryRun).toBe(true);
+    expect(preview.deletion.matchedEvents).toBeGreaterThan(0);
+    expect(() =>
+      deletePerceptionEvents({
+        sourceKind: "screen",
+        from: "2026-05-21T00:00:00.000Z",
+        to: "2026-05-22T00:00:00.000Z"
+      })
+    ).toThrow(/--confirm/);
+    expect(() => disablePerceptionSourceAndDeleteRaw({ sourceKind: "screen" })).toThrow(
+      /--confirm/
+    );
+
+    const disabled = disablePerceptionSourceAndDeleteRaw({
+      sourceKind: "screen",
+      confirm: true
+    });
+    expect(disabled.cleanup.dryRun).toBe(false);
+    expect(disabled.perception.sources.find((source) => source.sourceKind === "screen")?.enabled)
+      .toBe(false);
+
+    const deleted = deletePerceptionEvents({
+      sourceKind: "screen",
+      from: "2026-05-21T00:00:00.000Z",
+      to: "2026-05-22T00:00:00.000Z",
+      confirm: true
+    });
+    expect(deleted.deletion.deletedEvents).toBeGreaterThan(0);
+    expect(deleted.deletion.rebuild.status).toBe("completed");
+
+    const program = buildProgram();
+    const perceptionHelp = program.commands
+      .find((command) => command.name() === "perception")
+      ?.helpInformation();
+    expect(perceptionHelp).toContain("delete-events");
+    expect(perceptionHelp).toContain("disable-source-delete-raw");
   });
 
   it("runs one mock Screen/OCR capture burst from the nested screen command", async () => {

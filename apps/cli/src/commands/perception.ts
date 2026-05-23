@@ -41,6 +41,7 @@ import type { SourceAdapter } from "@orbit/core";
 import {
   AuditRepository,
   cleanupPerceptionSidecars,
+  deletePerceptionSourceEvents,
   EventRepository,
   openOrbitDatabase,
   ignoreCurrentPerceptionContextRule,
@@ -53,7 +54,8 @@ import {
   upsertProtectedAppRule,
   updatePerceptionProviderRoute,
   updatePerceptionSamplingPreset,
-  updatePerceptionSourcePolicy
+  updatePerceptionSourcePolicy,
+  updatePerceptionSourceRuntime
 } from "@orbit/db";
 import type { IgnoreCurrentContextInput, ProtectedRuleInput } from "@orbit/db";
 import {
@@ -162,6 +164,19 @@ export interface PerceptionCleanupCommandResult {
   cleanup: ReturnType<typeof cleanupPerceptionSidecars>;
 }
 
+export interface PerceptionDeleteEventsCommandResult {
+  orbitHome: string;
+  dbPath: string;
+  deletion: ReturnType<typeof deletePerceptionSourceEvents>;
+}
+
+export interface PerceptionDisableSourceDeleteRawCommandResult {
+  orbitHome: string;
+  dbPath: string;
+  perception: PerceptionControlPlaneStatus;
+  cleanup: ReturnType<typeof cleanupPerceptionSidecars>;
+}
+
 export interface PerceptionReleaseGateCommandResult {
   orbitHome: string;
   dbPath: string;
@@ -238,7 +253,7 @@ export function setPerceptionSourcePolicy(
     const sourceKind = readPerceptionSourceKind(input.sourceKind);
     const perception = updatePerceptionSourcePolicy(database.db, sourceKind, input.patch);
     if (input.patch.canStoreRaw === false || input.patch.rawRetentionTtlMinutes === null) {
-      cleanupPerceptionSidecars(database, { sourceKind });
+      cleanupPerceptionSidecars(database, { sourceKind, dryRun: true });
     }
     return {
       orbitHome: database.orbitHome,
@@ -719,8 +734,10 @@ export async function captureScreenOcrBurstNow(
 export function cleanupPerceptionRawSidecars(
   options: {
     dryRun?: boolean;
+    confirm?: boolean;
   } = {}
 ): PerceptionCleanupCommandResult {
+  requireConfirmForDestructive("perception cleanup", options);
   const config = getCliConfig();
   const database = openOrbitDatabase({ orbitHome: config.orbitHome });
   try {
@@ -728,6 +745,65 @@ export function cleanupPerceptionRawSidecars(
       orbitHome: database.orbitHome,
       dbPath: database.dbPath,
       cleanup: cleanupPerceptionSidecars(database, { dryRun: options.dryRun === true })
+    };
+  } finally {
+    database.close();
+  }
+}
+
+function requireConfirmForDestructive(
+  action: string,
+  options: { dryRun?: boolean; confirm?: boolean }
+): void {
+  if (options.dryRun === true) return;
+  if (options.confirm === true) return;
+  throw new Error(`${action} modifies local Orbit data. Re-run with --confirm or use --dry-run.`);
+}
+
+export function deletePerceptionEvents(options: {
+  sourceKind?: string;
+  sourceAdapterId?: string;
+  from?: string;
+  to?: string;
+  dryRun?: boolean;
+  confirm?: boolean;
+}): PerceptionDeleteEventsCommandResult {
+  requireConfirmForDestructive("perception delete-events", options);
+  const config = getCliConfig();
+  const database = openOrbitDatabase({ orbitHome: config.orbitHome });
+  try {
+    return {
+      orbitHome: database.orbitHome,
+      dbPath: database.dbPath,
+      deletion: deletePerceptionSourceEvents(database, {
+        ...(options.sourceKind ? { sourceKind: readPerceptionSourceKind(options.sourceKind) } : {}),
+        ...(options.sourceAdapterId ? { sourceAdapterId: options.sourceAdapterId } : {}),
+        ...(options.from ? { from: options.from } : {}),
+        ...(options.to ? { to: options.to } : {}),
+        dryRun: options.dryRun === true
+      })
+    };
+  } finally {
+    database.close();
+  }
+}
+
+export function disablePerceptionSourceAndDeleteRaw(options: {
+  sourceKind: string;
+  confirm?: boolean;
+}): PerceptionDisableSourceDeleteRawCommandResult {
+  requireConfirmForDestructive("perception disable-source-delete-raw", options);
+  const sourceKind = readPerceptionSourceKind(options.sourceKind);
+  const config = getCliConfig();
+  const database = openOrbitDatabase({ orbitHome: config.orbitHome });
+  try {
+    const perception = updatePerceptionSourceRuntime(database.db, sourceKind, "disable");
+    const cleanup = cleanupPerceptionSidecars(database, { sourceKind });
+    return {
+      orbitHome: database.orbitHome,
+      dbPath: database.dbPath,
+      perception,
+      cleanup
     };
   } finally {
     database.close();

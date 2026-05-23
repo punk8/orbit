@@ -5,9 +5,12 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { Event, SourceRecord } from "@orbit/core";
 import { hashObject } from "@orbit/core";
 import { openOrbitDatabase } from "./connection";
-import { cleanupPerceptionSidecars } from "./perceptionCleanup";
+import { cleanupPerceptionSidecars, deletePerceptionSourceEvents } from "./perceptionCleanup";
 import { AuditRepository } from "./repositories/auditRepository";
 import { EventRepository } from "./repositories/eventRepository";
+import { KnowledgeRepository } from "./repositories/knowledgeRepository";
+import { MemoryRepository } from "./repositories/memoryRepository";
+import { RecommendationRepository } from "./repositories/recommendationRepository";
 import { SourceRepository } from "./repositories/sourceRepository";
 import { updatePerceptionSourcePolicy } from "./perceptionSettings";
 
@@ -74,6 +77,93 @@ describe("perception sidecar cleanup", () => {
       database.close();
     }
   });
+
+  it("deletes source-derived events by time range while preserving derived summaries with unavailable evidence state", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-perception-delete-events-test-"));
+    tempDirs.push(orbitHome);
+    const database = openOrbitDatabase({ orbitHome });
+    try {
+      const events = new EventRepository(database.db);
+      const knowledge = new KnowledgeRepository(database.db);
+      const memory = new MemoryRepository(database.db);
+      const recommendations = new RecommendationRepository(database.db);
+      new SourceRepository(database.db).upsertSource(makePerceptionSource());
+      const inRange = makeRawScreenEvent("/not-used/in-range.png");
+      const outOfRange = {
+        ...makeRawScreenEvent("/not-used/out-of-range.png"),
+        id: "evt_raw_screen_out_of_range",
+        occurredAt: "2026-05-21T02:00:00.000Z",
+        observedAt: "2026-05-21T02:00:00.000Z",
+        hash: hashObject({ id: "evt_raw_screen_out_of_range" })
+      };
+      events.upsertEvent(inRange);
+      events.upsertEvent(outOfRange);
+      knowledge.upsertKnowledgeArtifact(makeDerivedKnowledge(inRange));
+      memory.upsertMemory(makeDerivedMemory(inRange));
+      recommendations.upsertRecommendation(makeDerivedRecommendation(inRange));
+
+      const dryRun = deletePerceptionSourceEvents(database, {
+        sourceKind: "screen",
+        from: "2026-05-21T00:00:00.000Z",
+        to: "2026-05-21T01:00:00.000Z",
+        dryRun: true
+      });
+      expect(dryRun.matchedEvents).toBe(1);
+      expect(dryRun.deletedEvents).toBe(0);
+      expect(events.getEvent(inRange.id)).toBeTruthy();
+
+      const result = deletePerceptionSourceEvents(database, {
+        sourceKind: "screen",
+        from: "2026-05-21T00:00:00.000Z",
+        to: "2026-05-21T01:00:00.000Z"
+      });
+
+      expect(result).toMatchObject({
+        dryRun: false,
+        sourceKind: "screen",
+        matchedEvents: 1,
+        deletedEvents: 1,
+        preservedKnowledge: 1,
+        preservedMemories: 1,
+        preservedRecommendations: 1,
+        rebuild: expect.objectContaining({
+          status: "completed",
+          pipeline: expect.any(Object)
+        })
+      });
+      expect(events.getEvent(inRange.id)).toBeUndefined();
+      expect(events.getEvent(outOfRange.id)).toBeTruthy();
+      expect(knowledge.getKnowledgeArtifact("kn_delete_preserve")?.metadata).toMatchObject({
+        evidenceState: "unavailable",
+        evidenceUnavailableReason: "source_events_deleted"
+      });
+      expect(knowledge.getKnowledgeArtifact("kn_delete_preserve")?.evidence).toEqual([
+        expect.objectContaining({
+          sourcePointer: "screen://capture/frame",
+          sourceKind: "screen"
+        })
+      ]);
+      expect(knowledge.getKnowledgeArtifact("kn_delete_preserve")?.evidence[0]?.eventId).toBeUndefined();
+      expect(memory.getMemory("mem_delete_preserve")?.evidence[0]?.eventId).toBeUndefined();
+      expect(
+        recommendations.getRecommendation("rec_delete_preserve")?.evidence[0]?.eventId
+      ).toBeUndefined();
+      const auditOperations = new AuditRepository(database.db)
+        .listAuditLogs()
+        .map((log) => log.operation);
+      expect(auditOperations).toContain("perception.events_delete");
+      expect(auditOperations).toContain("perception.evidence_unavailable");
+      const eventsDeleteAudit = new AuditRepository(database.db)
+        .listAuditLogs()
+        .find((log) => log.operation === "perception.events_delete");
+      expect(eventsDeleteAudit).toBeTruthy();
+      const auditPayload = JSON.stringify(eventsDeleteAudit?.details);
+      expect(auditPayload).not.toContain(inRange.id);
+      expect(auditPayload).not.toContain(inRange.source.pointer);
+    } finally {
+      database.close();
+    }
+  });
 });
 
 function makePerceptionSource(): SourceRecord {
@@ -135,5 +225,84 @@ function makeRawScreenEvent(rawPath: string): Event {
       redactionState: "none"
     },
     hash: hashObject({ id: "evt_raw_screen", rawPath })
+  };
+}
+
+function makeDerivedKnowledge(event: Event) {
+  return {
+    id: "kn_delete_preserve",
+    schemaVersion: 1,
+    type: "daily_brief" as const,
+    title: "Screen-derived Knowledge",
+    status: "confirmed" as const,
+    metadata: {
+      apps: ["Orbit"],
+      projects: ["orbit"],
+      sourceSessionIds: ["act_delete_preserve"]
+    },
+    content: {
+      description: "Derived summary should remain after source Event deletion.",
+      keyInsights: ["Keep summary, mark evidence unavailable."],
+      markdown: "# Screen-derived Knowledge\n\nKeep summary, mark evidence unavailable."
+    },
+    evidence: [
+      {
+        eventId: event.id,
+        sourceKind: event.source.kind,
+        sourcePointer: event.source.pointer,
+        timestamp: event.occurredAt,
+        excerpt: "Safe derived excerpt"
+      }
+    ],
+    confidence: 0.8,
+    createdAt: "2026-05-21T00:05:00.000Z",
+    updatedAt: "2026-05-21T00:05:00.000Z"
+  };
+}
+
+function makeDerivedMemory(event: Event) {
+  return {
+    id: "mem_delete_preserve",
+    schemaVersion: 1,
+    kind: "project_fact" as const,
+    title: "Screen-derived Memory",
+    body: "A derived memory should remain reviewable.",
+    status: "confirmed" as const,
+    scope: { project: "orbit", sourceKinds: ["screen" as const] },
+    tags: ["screen"],
+    evidence: [
+      {
+        eventId: event.id,
+        sourceKind: event.source.kind,
+        sourcePointer: event.source.pointer,
+        timestamp: event.occurredAt
+      }
+    ],
+    confidence: 0.7,
+    createdAt: "2026-05-21T00:06:00.000Z",
+    updatedAt: "2026-05-21T00:06:00.000Z"
+  };
+}
+
+function makeDerivedRecommendation(event: Event) {
+  return {
+    id: "rec_delete_preserve",
+    schemaVersion: 1,
+    type: "follow_up" as const,
+    title: "Review deleted source evidence",
+    explanation: "The derived recommendation should survive source event deletion.",
+    suggestedAction: "Review the preserved summary.",
+    confidence: 0.7,
+    impact: "medium" as const,
+    status: "new" as const,
+    evidence: [
+      {
+        eventId: event.id,
+        sourceKind: event.source.kind,
+        sourcePointer: event.source.pointer,
+        timestamp: event.occurredAt
+      }
+    ],
+    createdAt: "2026-05-21T00:07:00.000Z"
   };
 }

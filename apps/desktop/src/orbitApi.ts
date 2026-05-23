@@ -22,9 +22,12 @@ import type {
 import type { AIProviderRuntimeRegistry } from "@orbit/ai";
 import type {
   BackgroundRuntimeSnapshot,
+  DeletePerceptionSourceEventsOptions,
+  DeletePerceptionSourceEventsResult,
   KnowledgeReviewAction,
   MemoryEditInput,
   MemoryReviewAction,
+  PerceptionSidecarCleanupResult,
   RecommendationReviewAction
 } from "@orbit/db";
 import type { KnowledgeEditInput } from "@orbit/db";
@@ -63,6 +66,13 @@ export interface DesktopSnapshot {
     operationCounts: Record<string, number>;
     requiredGroups: string[];
     missingGroups: string[];
+    groups: Array<{
+      id: string;
+      label: string;
+      status: "covered" | "missing";
+      operations: string[];
+      count: number;
+    }>;
   };
   aiProviderRuntime: AIProviderRuntimeRegistry;
   settings: {
@@ -196,6 +206,14 @@ export interface DesktopActionResult {
   warnings?: string[];
 }
 
+export interface DesktopCleanupResult extends DesktopActionResult {
+  cleanup: PerceptionSidecarCleanupResult;
+}
+
+export interface DesktopDeleteEventsResult extends DesktopActionResult {
+  deletion: DeletePerceptionSourceEventsResult;
+}
+
 export type DesktopHandoffRequest =
   | { kind: "today"; date?: string }
   | { kind: "project"; project: string };
@@ -255,7 +273,13 @@ export interface OrbitDesktopApi {
   deleteSource(sourceId: string): Promise<DesktopActionResult>;
   resetSourceCursor(sourceId: string): Promise<DesktopActionResult>;
   cleanupLegacyEventPrivacy(): Promise<DesktopActionResult>;
-  cleanupPerceptionSidecars(): Promise<DesktopActionResult>;
+  cleanupPerceptionSidecars(options?: { dryRun?: boolean }): Promise<DesktopCleanupResult>;
+  disablePerceptionSourceAndDeleteRaw(
+    sourceKind: PerceptionSourceKind
+  ): Promise<DesktopCleanupResult>;
+  deletePerceptionEvents(
+    options: DeletePerceptionSourceEventsOptions
+  ): Promise<DesktopDeleteEventsResult>;
   captureScreenOcr(): Promise<DesktopActionResult>;
   captureScreenOcrBurst(): Promise<DesktopActionResult>;
   generateHandoff(input: DesktopHandoffRequest): Promise<DesktopHandoffResult>;

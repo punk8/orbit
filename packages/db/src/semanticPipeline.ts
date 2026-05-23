@@ -112,12 +112,13 @@ function runSemanticPipelineCore(
 
   const buildArtifact = async (input: (typeof draftInputs)[number]): Promise<KnowledgeArtifact> => {
     const fallback = draftKnowledgeArtifact({ ...input, language: readKnowledgeLanguage(options) });
-    if (!options.aiProvider?.enabled) return fallback;
+    const aiProvider = options.aiProvider;
+    if (!aiProvider?.enabled) return fallback;
     const eligibleEvents = filterEventsForAI(input.events, sourcePermissions);
     const filteredEventCount = input.events.length - eligibleEvents.length;
     if (eligibleEvents.length === 0) {
       auditRepository.log("ai.draft_knowledge.skipped", "activity_session", input.session.id, {
-        provider: options.aiProvider.id,
+        provider: aiProvider.id,
         reason: "no_events_allowed_by_policy",
         sourceEventCount: input.events.length,
         filteredEventCount
@@ -137,18 +138,18 @@ function runSemanticPipelineCore(
       if (options.language !== undefined) {
         Object.assign(providerInput, { language: options.language });
       }
-      const draft = await options.aiProvider.draftKnowledge(providerInput);
+      const draft = await aiProvider.draftKnowledge(providerInput);
       auditRepository.log("ai.draft_knowledge", "activity_session", input.session.id, {
-        provider: options.aiProvider.id,
+        provider: aiProvider.id,
         status: "success",
         includedEventIds: eligibleEvents.map((event) => event.id),
         filteredEventCount,
         payloadTextMode: eligibleEvents.some((event) => event.content.text) ? "excerpt" : "summary"
       });
-      return knowledgeArtifactFromProviderDraft(fallback, draft, options.aiProvider.id);
+      return knowledgeArtifactFromProviderDraft(fallback, draft, aiProvider.id);
     } catch (error) {
       auditRepository.log("ai.draft_knowledge", "activity_session", input.session.id, {
-        provider: options.aiProvider.id,
+        provider: aiProvider.id,
         status: "failed",
         filteredEventCount,
         message: error instanceof Error ? error.message : String(error)
@@ -161,7 +162,8 @@ function runSemanticPipelineCore(
     }
   };
 
-  if (options.aiProvider?.enabled) {
+  const enabledAiProvider = options.aiProvider?.enabled ? options.aiProvider : undefined;
+  if (enabledAiProvider) {
     return (async () => {
       const draftArtifacts: KnowledgeArtifact[] = [];
       for (const input of draftInputs) {
@@ -171,6 +173,12 @@ function runSemanticPipelineCore(
         draftArtifacts.push(artifact);
         if (!existing) {
           knowledgeRepository.upsertKnowledgeArtifact(artifact);
+          auditRepository.log("knowledge.generated", "knowledge_artifact", artifact.id, {
+            sourceSessionIds: artifact.metadata.sourceSessionIds,
+            generatedBy: artifact.metadata.generatedBy ?? enabledAiProvider.id,
+            status: artifact.status,
+            language: artifact.metadata.language ?? readKnowledgeLanguage(options)
+          });
         }
       }
       return finishSemanticPipeline({
@@ -194,7 +202,31 @@ function runSemanticPipelineCore(
     const existing = knowledgeRepository.getKnowledgeArtifact(artifact.id);
     if (!existing) {
       knowledgeRepository.upsertKnowledgeArtifact(artifact);
+      auditRepository.log("knowledge.generated", "knowledge_artifact", artifact.id, {
+        sourceSessionIds: artifact.metadata.sourceSessionIds,
+        generatedBy: artifact.metadata.generatedBy ?? "deterministic_local",
+        status: artifact.status,
+        language: artifact.metadata.language ?? "en"
+      });
     }
+  }
+
+  const suppressedSessions = persistedSessions.filter((session) => {
+    if (session.localState.closed === false) return true;
+    if (session.localState.qualitySignals?.isLowQuality === true) return true;
+    return false;
+  });
+  if (suppressedSessions.length > 0) {
+    auditRepository.log("knowledge.suppressed", "activity_session", undefined, {
+      suppressedSessionIds: suppressedSessions.map((session) => session.id),
+      reasons: Array.from(
+        new Set(
+          suppressedSessions.map((session) =>
+            session.localState.closed === false ? "session_open" : "low_quality"
+          )
+        )
+      )
+    });
   }
 
   return finishSemanticPipeline({

@@ -68,6 +68,7 @@ import {
   clearLocalData,
   cleanupLegacyEventPrivacy,
   cleanupPerceptionSidecars,
+  deletePerceptionSourceEvents,
   buildProjectHandoffPack,
   buildTodayHandoffPack,
   EventRepository,
@@ -103,6 +104,7 @@ import {
 import { safeStorage } from "electron";
 import { detectAccessibilityPermissionStatus } from "./observation/permissionStatus";
 import type {
+  DeletePerceptionSourceEventsOptions,
   KnowledgeEditInput,
   KnowledgeReviewAction,
   MemoryEditInput,
@@ -778,14 +780,55 @@ export function cleanupLegacyEventPrivacyForDesktop(): DesktopActionResult {
   }
 }
 
-export function cleanupPerceptionSidecarsForDesktop(): DesktopActionResult {
+export function cleanupPerceptionSidecarsForDesktop(
+  options: { dryRun?: boolean } = {}
+): DesktopActionResult & { cleanup: ReturnType<typeof cleanupPerceptionSidecars> } {
   const database = openOrbitDatabase();
   try {
-    const result = cleanupPerceptionSidecars(database);
+    const result = cleanupPerceptionSidecars(database, { dryRun: options.dryRun === true });
     return {
       snapshot: readDesktopSnapshot(),
-      message: `Cleaned ${result.cleanedEvents} perception events; removed ${result.removedRawRefs} raw refs`,
-      warnings: result.warnings
+      message: options.dryRun === true
+        ? `Cleanup dry run found ${result.cleanedEvents} perception events and ${result.removedRawRefs} raw refs`
+        : `Cleaned ${result.cleanedEvents} perception events; removed ${result.removedRawRefs} raw refs`,
+      warnings: result.warnings,
+      cleanup: result
+    };
+  } finally {
+    database.close();
+  }
+}
+
+export function disablePerceptionSourceAndDeleteRawForDesktop(
+  sourceKind: PerceptionSourceKind
+): DesktopActionResult & { cleanup: ReturnType<typeof cleanupPerceptionSidecars> } {
+  const database = openOrbitDatabase();
+  try {
+    updatePerceptionSourceRuntime(database.db, sourceKind, "disable");
+    const result = cleanupPerceptionSidecars(database, { sourceKind });
+    return {
+      snapshot: readDesktopSnapshot(),
+      message: `Disabled ${sourceKind}; cleaned ${result.cleanedEvents} perception events and ${result.removedRawRefs} raw refs`,
+      warnings: result.warnings,
+      cleanup: result
+    };
+  } finally {
+    database.close();
+  }
+}
+
+export function deletePerceptionEventsForDesktop(
+  options: DeletePerceptionSourceEventsOptions
+): DesktopActionResult & { deletion: ReturnType<typeof deletePerceptionSourceEvents> } {
+  const database = openOrbitDatabase();
+  try {
+    const result = deletePerceptionSourceEvents(database, options);
+    return {
+      snapshot: readDesktopSnapshot(),
+      message: options.dryRun === true
+        ? `Delete preview matched ${result.matchedEvents} perception event(s)`
+        : `Deleted ${result.deletedEvents} perception event(s); preserved ${result.preservedKnowledge} Knowledge summaries`,
+      deletion: result
     };
   } finally {
     database.close();
@@ -1177,7 +1220,7 @@ export function updatePerceptionSourceRuntimeForDesktop(
   try {
     updatePerceptionSourceRuntime(database.db, sourceKind, action);
     if (action === "disable" || action === "delete") {
-      cleanupPerceptionSidecars(database, { sourceKind });
+      cleanupPerceptionSidecars(database, { sourceKind, dryRun: true });
     }
   } finally {
     database.close();
@@ -1193,7 +1236,7 @@ export function updatePerceptionSourcePolicyForDesktop(
   try {
     updatePerceptionSourcePolicy(database.db, sourceKind, patch);
     if (patch.canStoreRaw === false || patch.rawRetentionTtlMinutes === null) {
-      cleanupPerceptionSidecars(database, { sourceKind });
+      cleanupPerceptionSidecars(database, { sourceKind, dryRun: true });
     }
   } finally {
     database.close();
@@ -1521,31 +1564,119 @@ function readSettings(settings: SettingsRepository): DesktopSnapshot["settings"]
   return snapshotSettings;
 }
 
-function readAuditReview(db: ConstructorParameters<typeof AuditRepository>[0]): DesktopSnapshot["auditReview"] {
+function readAuditReview(
+  db: ConstructorParameters<typeof AuditRepository>[0]
+): DesktopSnapshot["auditReview"] {
   const operations = new AuditRepository(db).listAuditLogs().map((log) => log.operation);
   const operationCounts: Record<string, number> = {};
   for (const operation of operations) {
     operationCounts[operation] = (operationCounts[operation] ?? 0) + 1;
   }
   const groups = [
-    { id: "capture_start_stop", operations: ["perception.capture.start", "perception.capture.stop"], mode: "all" },
-    { id: "redaction_failure", operations: ["perception.redaction_failure"], mode: "any" },
-    { id: "model_call", operations: ["ai.draft_knowledge", "perception.vision_fixture_ingest"], mode: "any" },
-    { id: "transcription", operations: ["perception.transcription"], mode: "any" },
-    { id: "deletion", operations: ["perception.sidecar_cleanup", "perception.delete"], mode: "any" },
-    { id: "handoff", operations: ["handoff.generate"], mode: "any" }
+    {
+      id: "permission",
+      label: "Permission",
+      operations: [
+        "perception.permission_checked",
+        "perception.permission_granted",
+        "perception.permission_revoked"
+      ],
+      mode: "any"
+    },
+    {
+      id: "runtime",
+      label: "Runtime",
+      operations: [
+        "perception.runtime_auto_started",
+        "perception.runtime_paused",
+        "perception.runtime_resumed",
+        "perception.runtime_stopped",
+        "perception.source_disabled"
+      ],
+      mode: "any"
+    },
+    {
+      id: "burst_scheduler",
+      label: "Burst scheduler",
+      operations: [
+        "perception.burst_scheduled",
+        "perception.burst_started",
+        "perception.burst_completed"
+      ],
+      mode: "all"
+    },
+    {
+      id: "burst_skip_or_failure",
+      label: "Burst skip or failure",
+      operations: ["perception.burst_skipped", "perception.burst_failed"],
+      mode: "any"
+    },
+    {
+      id: "protected_skip",
+      label: "Protected skip",
+      operations: ["perception.protected_context_skipped", "perception.protected_content_dropped"],
+      mode: "any"
+    },
+    {
+      id: "resource_pause",
+      label: "Resource pause",
+      operations: ["perception.resource_paused", "perception.burst_skipped"],
+      mode: "any"
+    },
+    {
+      id: "redaction_failure",
+      label: "Redaction failure",
+      operations: ["perception.redaction_failure"],
+      mode: "any"
+    },
+    {
+      id: "cleanup",
+      label: "Cleanup",
+      operations: [
+        "perception.sidecar_cleanup",
+        "perception.events_delete",
+        "perception.evidence_unavailable"
+      ],
+      mode: "any"
+    },
+    {
+      id: "knowledge_generated_or_suppressed",
+      label: "Knowledge generated or suppressed",
+      operations: ["knowledge.generated", "knowledge.suppressed", "ai.draft_knowledge.skipped"],
+      mode: "any"
+    },
+    {
+      id: "handoff_included_or_excluded",
+      label: "Handoff included or excluded",
+      operations: ["handoff.generate"],
+      mode: "any"
+    }
   ] as const;
   const present = new Set(operations);
+  const groupResults = groups.map((group) => {
+    const count = group.operations.reduce(
+      (sum, operation) => sum + (operationCounts[operation] ?? 0),
+      0
+    );
+    const missing =
+      group.mode === "all"
+        ? group.operations.some((operation) => !present.has(operation))
+        : !group.operations.some((operation) => present.has(operation));
+    return {
+      id: group.id,
+      label: group.label,
+      status: missing ? ("missing" as const) : ("covered" as const),
+      operations: [...group.operations],
+      count
+    };
+  });
   return {
     operationCounts,
     requiredGroups: groups.map((group) => group.id),
-    missingGroups: groups
-      .filter((group) =>
-        group.mode === "all"
-          ? group.operations.some((operation) => !present.has(operation))
-          : !group.operations.some((operation) => present.has(operation))
-      )
-      .map((group) => group.id)
+    missingGroups: groupResults
+      .filter((group) => group.status === "missing")
+      .map((group) => group.id),
+    groups: groupResults
   };
 }
 

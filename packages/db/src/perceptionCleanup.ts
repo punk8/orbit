@@ -1,12 +1,23 @@
 import { appendFileSync, existsSync, mkdirSync, unlinkSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import type { Event, PerceptionControlPlaneStatus, PerceptionSourceKind } from "@orbit/core";
+import type {
+  Event,
+  EvidenceRef,
+  KnowledgeArtifact,
+  Memory,
+  PerceptionControlPlaneStatus,
+  PerceptionSourceKind,
+  Recommendation
+} from "@orbit/core";
 import type { OrbitDatabase } from "./connection";
 import { AuditRepository } from "./repositories/auditRepository";
 import { EventRepository } from "./repositories/eventRepository";
+import { KnowledgeRepository } from "./repositories/knowledgeRepository";
+import { MemoryRepository } from "./repositories/memoryRepository";
+import { RecommendationRepository } from "./repositories/recommendationRepository";
 import { SourceRepository } from "./repositories/sourceRepository";
 import { readPerceptionStatus } from "./perceptionSettings";
-import { runSemanticPipeline } from "./semanticPipeline";
+import { runSemanticPipeline, type SemanticPipelineResult } from "./semanticPipeline";
 
 export interface PerceptionSidecarCleanupOptions {
   now?: Date | string;
@@ -40,6 +51,33 @@ export interface PerceptionSidecarCleanupLedgerEntry {
   removedAttachments: number;
   deletedLocalSidecars: number;
   dryRun: boolean;
+}
+
+export interface DeletePerceptionSourceEventsOptions {
+  sourceKind?: PerceptionSourceKind;
+  sourceAdapterId?: string;
+  from?: string;
+  to?: string;
+  dryRun?: boolean;
+}
+
+export interface DeletePerceptionSourceEventsResult {
+  dryRun: boolean;
+  sourceKind?: PerceptionSourceKind;
+  sourceAdapterId?: string;
+  from?: string;
+  to?: string;
+  scannedEvents: number;
+  matchedEvents: number;
+  deletedEvents: number;
+  preservedKnowledge: number;
+  preservedMemories: number;
+  preservedRecommendations: number;
+  preservedEvidenceRefs: number;
+  rebuild: {
+    status: "not_required" | "completed";
+    pipeline?: SemanticPipelineResult;
+  };
 }
 
 export function cleanupPerceptionSidecars(
@@ -138,6 +176,178 @@ export function cleanupPerceptionSidecars(
   }
 
   return result;
+}
+
+export function deletePerceptionSourceEvents(
+  database: OrbitDatabase,
+  options: DeletePerceptionSourceEventsOptions = {}
+): DeletePerceptionSourceEventsResult {
+  const eventRepository = new EventRepository(database.db);
+  const knowledgeRepository = new KnowledgeRepository(database.db);
+  const memoryRepository = new MemoryRepository(database.db);
+  const recommendationRepository = new RecommendationRepository(database.db);
+  const auditRepository = new AuditRepository(database.db);
+  const dryRun = options.dryRun === true;
+  const events = eventRepository.listEvents();
+  const matchedEvents = events.filter((event) => eventMatchesDeleteOptions(event, options));
+  const matchedEventIds = new Set(matchedEvents.map((event) => event.id));
+  const affected = findAndMarkUnavailableEvidence({
+    knowledgeRepository,
+    memoryRepository,
+    recommendationRepository,
+    matchedEventIds,
+    dryRun
+  });
+
+  let deletedEvents = 0;
+  if (!dryRun && matchedEvents.length > 0) {
+    deletedEvents = eventRepository.deleteEventsByIds([...matchedEventIds]);
+  }
+  const pipeline =
+    !dryRun && (deletedEvents > 0 || affected.preservedEvidenceRefs > 0)
+      ? runSemanticPipeline(database)
+      : undefined;
+  const result: DeletePerceptionSourceEventsResult = {
+    dryRun,
+    ...(options.sourceKind ? { sourceKind: options.sourceKind } : {}),
+    ...(options.sourceAdapterId ? { sourceAdapterId: options.sourceAdapterId } : {}),
+    ...(options.from ? { from: options.from } : {}),
+    ...(options.to ? { to: options.to } : {}),
+    scannedEvents: events.length,
+    matchedEvents: matchedEvents.length,
+    deletedEvents,
+    preservedKnowledge: affected.preservedKnowledge,
+    preservedMemories: affected.preservedMemories,
+    preservedRecommendations: affected.preservedRecommendations,
+    preservedEvidenceRefs: affected.preservedEvidenceRefs,
+    rebuild: pipeline ? { status: "completed", pipeline } : { status: "not_required" }
+  };
+
+  auditRepository.log("perception.events_delete", "database", undefined, result);
+  if (affected.preservedEvidenceRefs > 0) {
+    auditRepository.log("perception.evidence_unavailable", "database", undefined, {
+      reason: "source_events_deleted",
+      preservedKnowledge: affected.preservedKnowledge,
+      preservedMemories: affected.preservedMemories,
+      preservedRecommendations: affected.preservedRecommendations,
+      preservedEvidenceRefs: affected.preservedEvidenceRefs,
+      dryRun
+    });
+  }
+
+  return result;
+}
+
+function eventMatchesDeleteOptions(
+  event: Event,
+  options: DeletePerceptionSourceEventsOptions
+): boolean {
+  const sourceKind = perceptionSourceKindForEvent(event);
+  if (!sourceKind) return false;
+  if (options.sourceKind && sourceKind !== options.sourceKind) return false;
+  if (options.sourceAdapterId && event.source.adapterId !== options.sourceAdapterId) return false;
+  if (options.from && new Date(event.occurredAt).getTime() < new Date(options.from).getTime()) {
+    return false;
+  }
+  if (options.to && new Date(event.occurredAt).getTime() > new Date(options.to).getTime()) {
+    return false;
+  }
+  return true;
+}
+
+function findAndMarkUnavailableEvidence(input: {
+  knowledgeRepository: KnowledgeRepository;
+  memoryRepository: MemoryRepository;
+  recommendationRepository: RecommendationRepository;
+  matchedEventIds: Set<string>;
+  dryRun: boolean;
+}): {
+  preservedKnowledge: number;
+  preservedMemories: number;
+  preservedRecommendations: number;
+  preservedEvidenceRefs: number;
+} {
+  let preservedKnowledge = 0;
+  let preservedMemories = 0;
+  let preservedRecommendations = 0;
+  let preservedEvidenceRefs = 0;
+
+  for (const artifact of input.knowledgeRepository.listKnowledgeArtifacts()) {
+    const marked = markEvidenceRefsUnavailable(artifact.evidence, input.matchedEventIds);
+    if (marked.changedRefs === 0) continue;
+    preservedKnowledge += 1;
+    preservedEvidenceRefs += marked.changedRefs;
+    if (!input.dryRun) {
+      const updated: KnowledgeArtifact = {
+        ...artifact,
+        metadata: {
+          ...artifact.metadata,
+          evidenceState: artifact.evidence.length === marked.changedRefs ? "unavailable" : "partial",
+          evidenceUnavailableReason: "source_events_deleted"
+        },
+        evidence: marked.evidence,
+        updatedAt: new Date().toISOString()
+      };
+      input.knowledgeRepository.upsertKnowledgeArtifact(updated);
+    }
+  }
+
+  for (const memory of input.memoryRepository.listMemories()) {
+    const marked = markEvidenceRefsUnavailable(memory.evidence, input.matchedEventIds);
+    if (marked.changedRefs === 0) continue;
+    preservedMemories += 1;
+    preservedEvidenceRefs += marked.changedRefs;
+    if (!input.dryRun) {
+      const updated: Memory = {
+        ...memory,
+        tags: Array.from(new Set([...memory.tags, "evidence_unavailable"])),
+        evidence: marked.evidence,
+        updatedAt: new Date().toISOString()
+      };
+      input.memoryRepository.upsertMemory(updated);
+    }
+  }
+
+  for (const recommendation of input.recommendationRepository.listRecommendations()) {
+    const marked = markEvidenceRefsUnavailable(recommendation.evidence, input.matchedEventIds);
+    if (marked.changedRefs === 0) continue;
+    preservedRecommendations += 1;
+    preservedEvidenceRefs += marked.changedRefs;
+    if (!input.dryRun) {
+      const updated: Recommendation = {
+        ...recommendation,
+        evidence: marked.evidence
+      };
+      input.recommendationRepository.upsertRecommendation(updated);
+    }
+  }
+
+  return {
+    preservedKnowledge,
+    preservedMemories,
+    preservedRecommendations,
+    preservedEvidenceRefs
+  };
+}
+
+function markEvidenceRefsUnavailable(
+  evidence: EvidenceRef[],
+  eventIds: Set<string>
+): { evidence: EvidenceRef[]; changedRefs: number } {
+  let changedRefs = 0;
+  const marked = evidence.map((ref) => {
+    if (!ref.eventId || !eventIds.has(ref.eventId)) return ref;
+    changedRefs += 1;
+    const next: EvidenceRef = {
+      ...ref,
+      availability: "unavailable",
+      unavailableReason: "source_events_deleted"
+    };
+    delete next.eventId;
+    delete next.excerpt;
+    return next;
+  });
+  return { evidence: marked, changedRefs };
 }
 
 function writeCleanupLedger(

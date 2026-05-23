@@ -46,6 +46,8 @@ import {
   cleanupPerceptionRawSidecars,
   captureScreenOcrBurstNow,
   captureScreenOcrOnce,
+  deletePerceptionEvents,
+  disablePerceptionSourceAndDeleteRaw,
   getPerceptionReleaseGate,
   getPerceptionStatus,
   ignoreCurrentPerceptionContext,
@@ -651,9 +653,13 @@ export function buildProgram(): Command {
     .command("cleanup")
     .description("Remove expired or policy-blocked raw screen sidecars")
     .option("--dry-run", "report cleanup without modifying events or files")
+    .option("--confirm", "confirm cleanup may modify local Event metadata and sidecar files")
     .option("--json", "output JSON")
-    .action((options: { dryRun?: boolean; json?: boolean }) => {
-      const result = cleanupPerceptionRawSidecars({ dryRun: options.dryRun === true });
+    .action((options: { dryRun?: boolean; confirm?: boolean; json?: boolean }) => {
+      const result = cleanupPerceptionRawSidecars({
+        dryRun: options.dryRun === true,
+        confirm: options.confirm === true
+      });
       writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
     });
   perception
@@ -727,9 +733,61 @@ export function buildProgram(): Command {
     .command("cleanup")
     .description("Remove expired or policy-blocked raw perception sidecars")
     .option("--dry-run", "report cleanup without modifying events or files")
+    .option("--confirm", "confirm cleanup may modify local Event metadata and sidecar files")
     .option("--json", "output JSON")
-    .action((options: { dryRun?: boolean; json?: boolean }) => {
-      const result = cleanupPerceptionRawSidecars({ dryRun: options.dryRun === true });
+    .action((options: { dryRun?: boolean; confirm?: boolean; json?: boolean }) => {
+      const result = cleanupPerceptionRawSidecars({
+        dryRun: options.dryRun === true,
+        confirm: options.confirm === true
+      });
+      writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
+    });
+  perception
+    .command("delete-events")
+    .description("Delete source-derived perception Events by source and optional time range")
+    .option("--source-kind <source>", "screen, ocr, vision, microphone_audio, system_audio, or transcript")
+    .option("--source-adapter-id <id>", "specific adapter ID to delete")
+    .option("--from <timestamp>", "inclusive ISO timestamp lower bound")
+    .option("--to <timestamp>", "inclusive ISO timestamp upper bound")
+    .option("--dry-run", "preview matched Events without deleting data")
+    .option("--confirm", "confirm destructive Event deletion")
+    .option("--json", "output JSON")
+    .action(
+      (options: {
+        sourceKind?: string;
+        sourceAdapterId?: string;
+        from?: string;
+        to?: string;
+        dryRun?: boolean;
+        confirm?: boolean;
+        json?: boolean;
+      }) => {
+        const input: Parameters<typeof deletePerceptionEvents>[0] = {
+          dryRun: options.dryRun === true,
+          confirm: options.confirm === true
+        };
+        if (options.sourceKind !== undefined) input.sourceKind = options.sourceKind;
+        if (options.sourceAdapterId !== undefined) input.sourceAdapterId = options.sourceAdapterId;
+        if (options.from !== undefined) input.from = options.from;
+        if (options.to !== undefined) input.to = options.to;
+        const result = deletePerceptionEvents(input);
+        writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
+      }
+    );
+  perception
+    .command("disable-source-delete-raw")
+    .description("Disable one perception source and delete its registered raw sidecars")
+    .requiredOption(
+      "--source-kind <source>",
+      "screen, ocr, vision, microphone_audio, system_audio, or transcript"
+    )
+    .option("--confirm", "confirm disabling the source and cleaning raw sidecars")
+    .option("--json", "output JSON")
+    .action((options: { sourceKind: string; confirm?: boolean; json?: boolean }) => {
+      const result = disablePerceptionSourceAndDeleteRaw({
+        sourceKind: options.sourceKind,
+        confirm: options.confirm === true
+      });
       writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
     });
   perception

@@ -6,7 +6,9 @@ import {
   cleanupLegacyEventPrivacyForDesktop,
   cleanupPerceptionSidecarsForDesktop,
   clearLocalDataForDesktop,
+  deletePerceptionEventsForDesktop,
   deleteSourceForDesktop,
+  disablePerceptionSourceAndDeleteRawForDesktop,
   editKnowledgeForDesktop,
   editMemoryForDesktop,
   exportContextForDesktop,
@@ -45,6 +47,7 @@ import {
   readPerceptionSourceKind
 } from "@orbit/db";
 import type { PerceptionSamplingPresetName } from "@orbit/core";
+import type { DeletePerceptionSourceEventsOptions } from "@orbit/db";
 import type { DesktopLanguage, DesktopSnapshot } from "../src/orbitApi";
 import type { DesktopIgnoreCurrentContextInput, DesktopProtectedRuleInput } from "../src/orbitApi";
 import { DesktopObservationService } from "./observation/observationService";
@@ -192,7 +195,20 @@ ipcMain.handle("orbit:resetSourceCursor", (_event, sourceId: string) =>
   resetSourceCursorForDesktop(sourceId)
 );
 ipcMain.handle("orbit:cleanupLegacyEventPrivacy", () => cleanupLegacyEventPrivacyForDesktop());
-ipcMain.handle("orbit:cleanupPerceptionSidecars", () => cleanupPerceptionSidecarsForDesktop());
+ipcMain.handle("orbit:cleanupPerceptionSidecars", (_event, options?: { dryRun?: boolean }) =>
+  cleanupPerceptionSidecarsForDesktop(options)
+);
+ipcMain.handle("orbit:disablePerceptionSourceAndDeleteRaw", (_event, sourceKind: string) =>
+  disablePerceptionSourceAndDeleteRawForDesktop(readPerceptionSourceKind(sourceKind))
+);
+ipcMain.handle(
+  "orbit:deletePerceptionEvents",
+  (_event, options: DeletePerceptionSourceEventsOptions = {}) =>
+    deletePerceptionEventsForDesktop({
+      ...options,
+      ...(options.sourceKind ? { sourceKind: readPerceptionSourceKind(options.sourceKind) } : {})
+    })
+);
 ipcMain.handle("orbit:captureScreenOcr", async () => {
   const result = await captureScreenOcrForDesktop();
   applyRuntimeSettings();
@@ -400,7 +416,7 @@ function ensureTray(): void {
       {
         label: runtimeLocale.tray.cleanupPrivacy,
         click: () => {
-          cleanupPerceptionSidecarsForDesktop();
+          cleanupPerceptionSidecarsForDesktop({ dryRun: true });
           applyRuntimeSettings();
           notifySnapshotChanged();
         }
@@ -547,6 +563,14 @@ async function runRendererSmoke(window: BrowserWindow): Promise<void> {
           await click('[data-settings-section-id="runtime"]');
           await waitFor(".observation-settings-panel");
           await waitFor(".screen-ocr-runtime-panel");
+          await waitFor('[data-screen-ocr-action="cleanup-dry-run"]');
+          await waitFor('[data-screen-ocr-action="cleanup-execute"]');
+          await waitFor(".cleanup-controls-panel");
+          await waitFor('[data-cleanup-action="disable-source-delete-raw"]');
+          await waitFor('[data-cleanup-action="delete-events-dry-run"]');
+          await waitFor('[data-cleanup-action="delete-events-execute"]');
+          await click('[data-screen-ocr-action="cleanup-dry-run"]');
+          await click('[data-cleanup-action="delete-events-dry-run"]');
           await click('[data-observation-action="start"]');
           await sleep(1200);
           await click('[data-observation-action="stop"]');

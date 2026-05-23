@@ -44,7 +44,10 @@ export function SettingsPage({
   onUpsertProtectedRule,
   onIgnoreCurrentContext,
   onCaptureScreenOcrBurst,
-  onCleanupPerceptionSidecars
+  onCleanupPerceptionSidecars,
+  onCleanupPerceptionSidecarsDryRun,
+  onDisablePerceptionSourceAndDeleteRaw,
+  onDeletePerceptionEvents
 }: {
   snapshot: DesktopSnapshot;
   onUpdateSetting(key: DesktopSettingKey, value: unknown): Promise<void>;
@@ -75,6 +78,15 @@ export function SettingsPage({
   onIgnoreCurrentContext(input: DesktopIgnoreCurrentContextInput): Promise<void>;
   onCaptureScreenOcrBurst(): Promise<void>;
   onCleanupPerceptionSidecars(): Promise<void>;
+  onCleanupPerceptionSidecarsDryRun(): Promise<void>;
+  onDisablePerceptionSourceAndDeleteRaw(sourceKind: PerceptionSourceKind): Promise<void>;
+  onDeletePerceptionEvents(input: {
+    sourceKind?: PerceptionSourceKind;
+    sourceAdapterId?: string;
+    from?: string;
+    to?: string;
+    dryRun?: boolean;
+  }): Promise<void>;
 }): ReactElement {
   const { t, sensitivity, sourceKind } = useI18n();
   const [activeSection, setActiveSection] = useState<SettingsSectionId>("provider");
@@ -94,6 +106,11 @@ export function SettingsPage({
   const [protectedBundleId, setProtectedBundleId] = useState("");
   const [protectedWindowTitle, setProtectedWindowTitle] = useState("");
   const [protectedDomain, setProtectedDomain] = useState("");
+  const [disableRawSourceKind, setDisableRawSourceKind] = useState<PerceptionSourceKind>("screen");
+  const [deleteEventsSourceKind, setDeleteEventsSourceKind] =
+    useState<PerceptionSourceKind>("screen");
+  const [deleteEventsFrom, setDeleteEventsFrom] = useState("");
+  const [deleteEventsTo, setDeleteEventsTo] = useState("");
   const [providerTestResult, setProviderTestResult] = useState<
     DesktopAIProviderTestResult | undefined
   >();
@@ -165,6 +182,23 @@ export function SettingsPage({
   const clearLocalData = async (): Promise<void> => {
     if (!window.confirm(t("confirm.clearLocalData"))) return;
     await onClearLocalData();
+  };
+  const executePerceptionCleanup = async (): Promise<void> => {
+    if (!window.confirm(t("confirm.cleanupPerceptionSidecars"))) return;
+    await onCleanupPerceptionSidecars();
+  };
+  const disableSourceAndDeleteRaw = async (): Promise<void> => {
+    if (!window.confirm(t("confirm.disableSourceDeleteRaw"))) return;
+    await onDisablePerceptionSourceAndDeleteRaw(disableRawSourceKind);
+  };
+  const runPerceptionEventDelete = async (dryRun: boolean): Promise<void> => {
+    if (!dryRun && !window.confirm(t("confirm.deletePerceptionEvents"))) return;
+    await onDeletePerceptionEvents({
+      sourceKind: deleteEventsSourceKind,
+      ...(deleteEventsFrom.trim() ? { from: deleteEventsFrom.trim() } : {}),
+      ...(deleteEventsTo.trim() ? { to: deleteEventsTo.trim() } : {}),
+      dryRun
+    });
   };
   const settingsSections: Array<{ id: SettingsSectionId; label: string; detail: string }> = [
     {
@@ -807,6 +841,24 @@ export function SettingsPage({
                   value={String(Object.keys(snapshot.auditReview.operationCounts).length)}
                 />
               </dl>
+              <div className="audit-review-list">
+                {snapshot.auditReview.groups.map((group) => (
+                  <article className="source-policy-row" key={group.id}>
+                    <div>
+                      <h3>{t(`audit.group.${group.id}` as Parameters<typeof t>[0])}</h3>
+                      <p>{group.operations.join(", ")}</p>
+                    </div>
+                    <div className="source-policy-badges">
+                      <span className={`status-pill ${group.status}`}>
+                        {group.status === "covered"
+                          ? t("audit.status.covered")
+                          : t("audit.status.missing")}
+                      </span>
+                      <span>{`${group.count} ${t("settings.auditReviewOperations")}`}</span>
+                    </div>
+                  </article>
+                ))}
+              </div>
             </Section>
           </div>
         ) : null}
@@ -915,12 +967,102 @@ export function SettingsPage({
                   </button>
                   <button
                     className="secondary-button"
-                    data-screen-ocr-action="cleanup"
-                    onClick={() => void onCleanupPerceptionSidecars()}
+                    data-screen-ocr-action="cleanup-dry-run"
+                    onClick={() => void onCleanupPerceptionSidecarsDryRun()}
+                    type="button"
+                  >
+                    {t("action.cleanupPerceptionSidecarsDryRun")}
+                  </button>
+                  <button
+                    className="secondary-button"
+                    data-screen-ocr-action="cleanup-execute"
+                    onClick={() => void executePerceptionCleanup()}
                     type="button"
                   >
                     {t("action.cleanupPerceptionSidecars")}
                   </button>
+                </div>
+                <div className="settings-policy-block cleanup-controls-panel">
+                  <h4>{t("settings.cleanupControlsTitle")}</h4>
+                  <div className="protected-rule-controls">
+                    <label>
+                      <span>{t("settings.disableRawSource")}</span>
+                      <select
+                        className="select-input compact-select"
+                        onChange={(event) =>
+                          setDisableRawSourceKind(event.currentTarget.value as PerceptionSourceKind)
+                        }
+                        value={disableRawSourceKind}
+                      >
+                        {snapshot.perception.sources.map((source) => (
+                          <option key={source.sourceKind} value={source.sourceKind}>
+                            {source.displayName}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      className="danger-button"
+                      data-cleanup-action="disable-source-delete-raw"
+                      onClick={() => void disableSourceAndDeleteRaw()}
+                      type="button"
+                    >
+                      {t("action.disableSourceDeleteRaw")}
+                    </button>
+                    <label>
+                      <span>{t("settings.deleteEventsSource")}</span>
+                      <select
+                        className="select-input compact-select"
+                        onChange={(event) =>
+                          setDeleteEventsSourceKind(
+                            event.currentTarget.value as PerceptionSourceKind
+                          )
+                        }
+                        value={deleteEventsSourceKind}
+                      >
+                        {snapshot.perception.sources.map((source) => (
+                          <option key={source.sourceKind} value={source.sourceKind}>
+                            {source.displayName}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>{t("filter.from")}</span>
+                      <input
+                        className="text-input"
+                        onChange={(event) => setDeleteEventsFrom(event.currentTarget.value)}
+                        placeholder="2026-05-21T00:00:00.000Z"
+                        value={deleteEventsFrom}
+                      />
+                    </label>
+                    <label>
+                      <span>{t("filter.to")}</span>
+                      <input
+                        className="text-input"
+                        onChange={(event) => setDeleteEventsTo(event.currentTarget.value)}
+                        placeholder="2026-05-22T00:00:00.000Z"
+                        value={deleteEventsTo}
+                      />
+                    </label>
+                    <button
+                      className="secondary-button"
+                      data-cleanup-action="delete-events-dry-run"
+                      onClick={() => void runPerceptionEventDelete(true)}
+                      type="button"
+                    >
+                      {t("action.previewDeleteEvents")}
+                    </button>
+                    <button
+                      className="danger-button"
+                      data-cleanup-action="delete-events-execute"
+                      onClick={() => void runPerceptionEventDelete(false)}
+                      type="button"
+                    >
+                      {t("action.deletePerceptionEvents")}
+                    </button>
+                  </div>
+                  <p className="muted">{t("settings.cleanupControlsNote")}</p>
                 </div>
                 <p className="muted">{t("settings.screenOcrRuntimeNote")}</p>
               </div>

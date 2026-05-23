@@ -32,6 +32,8 @@ export interface EvidenceRef {
   sourcePointer: string;
   timestamp: string;
   excerpt?: string;
+  availability?: "available" | "unavailable";
+  unavailableReason?: "source_events_deleted" | "raw_sidecar_deleted" | "source_disabled";
 }
 
 export interface AttachmentRef {

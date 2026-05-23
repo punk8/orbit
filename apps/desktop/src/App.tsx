@@ -237,6 +237,32 @@ export function App(): ReactElement {
     );
   }
 
+  async function cleanupPerceptionSidecarsDryRun(): Promise<void> {
+    await runDesktopAction(
+      () => window.orbit.cleanupPerceptionSidecars({ dryRun: true }),
+      t("error.sourceRuntime")
+    );
+  }
+
+  async function disablePerceptionSourceAndDeleteRaw(
+    sourceKind: PerceptionSourceKind
+  ): Promise<void> {
+    await runDesktopAction(
+      () => window.orbit.disablePerceptionSourceAndDeleteRaw(sourceKind),
+      t("error.sourceRuntime")
+    );
+  }
+
+  async function deletePerceptionEvents(input: {
+    sourceKind?: PerceptionSourceKind;
+    sourceAdapterId?: string;
+    from?: string;
+    to?: string;
+    dryRun?: boolean;
+  }): Promise<void> {
+    await runDesktopAction(() => window.orbit.deletePerceptionEvents(input), t("error.sourceRuntime"));
+  }
+
   async function captureScreenOcr(): Promise<void> {
     await runDesktopAction(() => window.orbit.captureScreenOcr(), t("error.perceptionCapture"));
   }
@@ -420,6 +446,9 @@ export function App(): ReactElement {
                 resetSourceCursor,
                 cleanupLegacyEventPrivacy,
                 cleanupPerceptionSidecars,
+                cleanupPerceptionSidecarsDryRun,
+                disablePerceptionSourceAndDeleteRaw,
+                deletePerceptionEvents,
                 captureScreenOcr,
                 captureScreenOcrBurst,
                 reindexLocalData,
@@ -483,6 +512,15 @@ interface PageActions {
   resetSourceCursor(sourceId: string): Promise<void>;
   cleanupLegacyEventPrivacy(): Promise<void>;
   cleanupPerceptionSidecars(): Promise<void>;
+  cleanupPerceptionSidecarsDryRun(): Promise<void>;
+  disablePerceptionSourceAndDeleteRaw(sourceKind: PerceptionSourceKind): Promise<void>;
+  deletePerceptionEvents(input: {
+    sourceKind?: PerceptionSourceKind;
+    sourceAdapterId?: string;
+    from?: string;
+    to?: string;
+    dryRun?: boolean;
+  }): Promise<void>;
   captureScreenOcr(): Promise<void>;
   captureScreenOcrBurst(): Promise<void>;
   reindexLocalData(): Promise<void>;
@@ -575,6 +613,9 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
           onIgnoreCurrentContext={actions.ignoreCurrentContext}
           onCaptureScreenOcrBurst={actions.captureScreenOcrBurst}
           onCleanupPerceptionSidecars={actions.cleanupPerceptionSidecars}
+          onCleanupPerceptionSidecarsDryRun={actions.cleanupPerceptionSidecarsDryRun}
+          onDisablePerceptionSourceAndDeleteRaw={actions.disablePerceptionSourceAndDeleteRaw}
+          onDeletePerceptionEvents={actions.deletePerceptionEvents}
         />
       );
   }

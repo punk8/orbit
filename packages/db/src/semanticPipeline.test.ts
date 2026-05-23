@@ -235,6 +235,48 @@ describe("semantic pipeline AI provider integration", () => {
     }
   });
 
+  it("does not overwrite Knowledge whose source evidence has been deleted", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-evidence-unavailable-test-"));
+    tempDirs.push(orbitHome);
+    const database = openOrbitDatabase({ orbitHome });
+    try {
+      upsertFixtureSource(database.db);
+      const event = makeEvent("1", "message");
+      new EventRepository(database.db).upsertEvent(event);
+      runSemanticPipeline(database);
+      const knowledgeRepository = new KnowledgeRepository(database.db);
+      const artifact = knowledgeRepository.listKnowledgeArtifacts()[0]!;
+      knowledgeRepository.upsertKnowledgeArtifact({
+        ...artifact,
+        status: "confirmed",
+        metadata: {
+          ...artifact.metadata,
+          evidenceState: "unavailable",
+          evidenceUnavailableReason: "source_events_deleted"
+        },
+        evidence: artifact.evidence.map((ref) => {
+          const next = {
+            ...ref,
+            availability: "unavailable" as const,
+            unavailableReason: "source_events_deleted" as const
+          };
+          delete next.eventId;
+          return next;
+        })
+      });
+      new EventRepository(database.db).deleteEventsByIds([event.id]);
+
+      runSemanticPipeline(database);
+
+      const updated = knowledgeRepository.getKnowledgeArtifact(artifact.id);
+      expect(updated?.status).toBe("confirmed");
+      expect(updated?.metadata.evidenceState).toBe("unavailable");
+      expect(updated?.evidence[0]?.eventId).toBeUndefined();
+    } finally {
+      database.close();
+    }
+  });
+
   it("filters provider input by source permission and writes AI audit logs", async () => {
     const orbitHome = mkdtempSync(join(tmpdir(), "orbit-provider-policy-test-"));
     tempDirs.push(orbitHome);
