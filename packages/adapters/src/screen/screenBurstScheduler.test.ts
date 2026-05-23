@@ -144,6 +144,86 @@ describe("screen burst scheduler", () => {
     ]);
   });
 
+  it("audits protected skips with rule id and reason without private window text", async () => {
+    const helper = new MockScreenCaptureNativeHelper({
+      frames: [frame("scheduler_frame_secret")],
+      permission: screenPermission("granted")
+    });
+    const observing = createDefaultPerceptionStatus([
+      {
+        sourceKind: "screen",
+        enabled: true,
+        userIntent: "auto",
+        permissionStatuses: { screen: "granted" }
+      }
+    ]);
+    const protectedScope: ScreenCaptureScope = {
+      kind: "app",
+      label: "Private Banking OTP",
+      appName: "Safari",
+      appBundleId: "com.apple.Safari"
+    };
+
+    const result = await runScreenBurstScheduler({
+      helper,
+      perception: observing,
+      scope: protectedScope,
+      runtimeSessionId: "scheduler-runtime",
+      trigger: "timer",
+      protectedApps: defaultProtectedAppRules(),
+      resourceState: { canCapture: true, state: "normal", reasons: [] },
+      now: fixedNow
+    });
+
+    expect(result.status).toBe("skipped");
+    expect(result.audit).toEqual([
+      expect.objectContaining({
+        operation: "perception.burst_skipped",
+        reason: "protected_app",
+        protectedRuleId: expect.any(String),
+        protectedReason: expect.any(String),
+        protectedContentDropped: 0
+      })
+    ]);
+    expect(JSON.stringify(result.audit)).not.toContain("Private Banking OTP");
+    expect(helper.captureCalls).toBe(0);
+  });
+
+  it("uses protected window metadata before invoking the helper", async () => {
+    const helper = new MockScreenCaptureNativeHelper({
+      frames: [frame("scheduler_window_secret")],
+      permission: screenPermission("granted")
+    });
+    const observing = createDefaultPerceptionStatus([
+      {
+        sourceKind: "screen",
+        enabled: true,
+        userIntent: "auto",
+        permissionStatuses: { screen: "granted" }
+      }
+    ]);
+
+    const result = await runScreenBurstScheduler({
+      helper,
+      perception: observing,
+      scope: { kind: "window", label: "Incognito login code", windowId: "42" },
+      runtimeSessionId: "scheduler-runtime-window",
+      trigger: "timer",
+      protectedApps: defaultProtectedAppRules(),
+      resourceState: { canCapture: true, state: "normal", reasons: [] },
+      now: fixedNow
+    });
+
+    expect(result.status).toBe("skipped");
+    expect(result.skipReason).toBe("protected_app");
+    expect(result.audit[0]).toMatchObject({
+      operation: "perception.burst_skipped",
+      protectedContentDropped: 0
+    });
+    expect(JSON.stringify(result.audit)).not.toContain("login code");
+    expect(helper.captureCalls).toBe(0);
+  });
+
   it("re-checks runtime and resource state after scheduling before invoking the helper", async () => {
     const helper = new MockScreenCaptureNativeHelper({
       frames: [frame("scheduler_frame_cancelled")],

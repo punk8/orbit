@@ -2,6 +2,8 @@ import type Database from "better-sqlite3";
 import {
   createDefaultPerceptionStatus,
   defaultPerceptionProviderRoutes,
+  defaultProtectedAppRules,
+  hashObject,
   isPerceptionProviderTask,
   isPerceptionSourceKind,
   normalizePerceptionProviderKind,
@@ -15,6 +17,7 @@ import {
   type PerceptionSourceKind,
   type PerceptionSourcePolicyPatch,
   type PerceptionSourceRuntimeAction,
+  type ProtectedAppRule,
   type StoredPerceptionSourceControl
 } from "@orbit/core";
 import { AuditRepository } from "./repositories/auditRepository";
@@ -24,6 +27,26 @@ import { SourceRepository } from "./repositories/sourceRepository";
 export const PERCEPTION_SOURCES_SETTING_KEY = "perception.sources";
 export const PERCEPTION_PROVIDER_ROUTES_SETTING_KEY = "perception.providerRoutes";
 export const PERCEPTION_SAMPLING_SETTING_KEY = "perception.sampling";
+export const PROTECTED_APP_RULES_SETTING_KEY = "observation.protectedApps";
+
+export interface ProtectedRuleInput {
+  kind:
+    | "bundle_id"
+    | "app_name"
+    | "window_title_pattern"
+    | "domain_pattern"
+    | "url_pattern"
+    | "text_pattern";
+  value: string;
+  reason?: ProtectedAppRule["reason"];
+  enabled?: boolean;
+}
+
+export interface IgnoreCurrentContextInput {
+  appName?: string;
+  bundleId?: string;
+  windowTitle?: string;
+}
 
 export function readPerceptionStatusFromSettings(
   settings: SettingsRepository
@@ -31,7 +54,7 @@ export function readPerceptionStatusFromSettings(
   return createDefaultPerceptionStatus(
     readStoredSources(settings),
     readStoredProviderRoutes(settings),
-    undefined,
+    readProtectedAppRules(settings),
     readStoredSamplingPolicy(settings)
   );
 }
@@ -260,6 +283,87 @@ export function updatePerceptionSamplingPreset(
   return next;
 }
 
+export function readProtectedAppRules(settings: SettingsRepository): ProtectedAppRule[] {
+  const stored = settings.get<ProtectedAppRule[]>(PROTECTED_APP_RULES_SETTING_KEY);
+  if (!Array.isArray(stored)) return defaultProtectedAppRules();
+  return normalizeProtectedRules(stored);
+}
+
+export function upsertProtectedAppRule(
+  db: Database.Database,
+  input: ProtectedRuleInput
+): PerceptionControlPlaneStatus {
+  const settings = new SettingsRepository(db);
+  const audit = new AuditRepository(db);
+  const rule = protectedRuleFromInput(input);
+  const nextRules = upsertProtectedRule(readProtectedAppRules(settings), rule);
+  settings.set(PROTECTED_APP_RULES_SETTING_KEY, nextRules);
+  const next = readPerceptionStatusFromSettings(settings);
+  audit.log("perception.protected_rule_upserted", "protected_rule", rule.id, {
+    policySnapshotId: next.policySnapshot.id,
+    protectedRuleId: rule.id,
+    protectedReason: rule.reason,
+    matchKind: rule.match.kind,
+    enabled: rule.enabled,
+    valueHash: hashObject(rule.match.value).slice(0, 16)
+  });
+  return next;
+}
+
+export function ignoreCurrentPerceptionContextRule(
+  db: Database.Database,
+  input: IgnoreCurrentContextInput
+): PerceptionControlPlaneStatus {
+  const bundleId = input.bundleId?.trim();
+  const appName = input.appName?.trim();
+  const windowTitle = input.windowTitle?.trim();
+  if (!bundleId && !appName && !windowTitle) {
+    throw new Error("Ignoring the current context requires app or window metadata.");
+  }
+  const settings = new SettingsRepository(db);
+  const audit = new AuditRepository(db);
+  let rules = readProtectedAppRules(settings);
+  const added: ProtectedAppRule[] = [];
+  if (bundleId) {
+    added.push(
+      protectedRuleFromInput({
+        kind: "bundle_id",
+        value: bundleId,
+        reason: "user_added"
+      })
+    );
+  } else if (appName) {
+    added.push(
+      protectedRuleFromInput({
+        kind: "app_name",
+        value: appName,
+        reason: "user_added"
+      })
+    );
+  }
+  if (windowTitle) {
+    added.push(
+      protectedRuleFromInput({
+        kind: "window_title_pattern",
+        value: `^${escapeRegExp(windowTitle)}$`,
+        reason: "user_added"
+      })
+    );
+  }
+  for (const rule of added) {
+    rules = upsertProtectedRule(rules, rule);
+  }
+  settings.set(PROTECTED_APP_RULES_SETTING_KEY, rules);
+  const next = readPerceptionStatusFromSettings(settings);
+  audit.log("perception.current_context_ignored", "protected_rule", "current_context", {
+    policySnapshotId: next.policySnapshot.id,
+    addedRuleIds: added.map((rule) => rule.id),
+    protectedContentDropped: 0,
+    valueHashes: added.map((rule) => hashObject(rule.match.value).slice(0, 16))
+  });
+  return next;
+}
+
 function perceptionRuntimeAuditOperation(action: PerceptionSourceRuntimeAction): string {
   if (action === "enable") return "perception.source_enabled";
   if (action === "disable") return "perception.source_disabled";
@@ -286,6 +390,89 @@ function readStoredSources(settings: SettingsRepository): StoredPerceptionSource
   return (settings.get<StoredPerceptionSourceControl[]>(PERCEPTION_SOURCES_SETTING_KEY) ?? [])
     .filter((source) => isPerceptionSourceKind(source.sourceKind))
     .map((source) => ({ ...source }));
+}
+
+function protectedRuleFromInput(input: ProtectedRuleInput): ProtectedAppRule {
+  const value = input.value.trim();
+  if (!value) throw new Error("Protected rule value is required.");
+  return {
+    id: `protected_user_${input.kind}_${hashObject({
+      kind: input.kind,
+      value
+    }).slice(0, 16)}`,
+    match: makeProtectedRuleMatch(input.kind, value),
+    reason: input.reason ?? "user_added",
+    enabled: input.enabled ?? true
+  };
+}
+
+function makeProtectedRuleMatch(
+  kind: ProtectedRuleInput["kind"],
+  value: string
+): ProtectedAppRule["match"] {
+  if (kind === "bundle_id") return { kind, value };
+  if (kind === "app_name") return { kind, value };
+  if (kind === "window_title_pattern") return { kind, value };
+  if (kind === "domain_pattern") return { kind, value };
+  if (kind === "url_pattern") return { kind, value };
+  return { kind, value };
+}
+
+function normalizeProtectedRules(rules: ProtectedAppRule[]): ProtectedAppRule[] {
+  const byId = new Map<string, ProtectedAppRule>();
+  for (const rule of [...defaultProtectedAppRules(), ...rules]) {
+    if (!isProtectedRuleMatch(rule.match) || !isProtectedReason(rule.reason)) continue;
+    byId.set(rule.id, {
+      id: rule.id,
+      match: rule.match,
+      reason: rule.reason,
+      enabled: rule.enabled !== false
+    });
+  }
+  return [...byId.values()];
+}
+
+function upsertProtectedRule(
+  rules: ProtectedAppRule[],
+  rule: ProtectedAppRule
+): ProtectedAppRule[] {
+  const index = rules.findIndex(
+    (candidate) =>
+      candidate.id === rule.id ||
+      (candidate.match.kind === rule.match.kind && candidate.match.value === rule.match.value)
+  );
+  if (index < 0) return [...rules, rule];
+  return rules.map((candidate, candidateIndex) => (candidateIndex === index ? rule : candidate));
+}
+
+function isProtectedRuleMatch(value: unknown): value is ProtectedAppRule["match"] {
+  if (!value || typeof value !== "object") return false;
+  const match = value as { kind?: unknown; value?: unknown };
+  return (
+    typeof match.value === "string" &&
+    (match.kind === "bundle_id" ||
+      match.kind === "app_name" ||
+      match.kind === "window_title_pattern" ||
+      match.kind === "domain_pattern" ||
+      match.kind === "url_pattern" ||
+      match.kind === "text_pattern")
+  );
+}
+
+function isProtectedReason(value: unknown): value is ProtectedAppRule["reason"] {
+  return (
+    value === "default_sensitive_app" ||
+    value === "user_added" ||
+    value === "private_window" ||
+    value === "password_field" ||
+    value === "financial_or_payment" ||
+    value === "authentication_or_otp" ||
+    value === "secret_like_content"
+  );
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function writeStoredSources(

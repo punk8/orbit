@@ -82,11 +82,14 @@ import {
   SettingsRepository,
   SourceRepository,
   syncDogfoodRuntimePermission,
+  upsertProtectedAppRule,
   editKnowledgeArtifact,
   editMemory,
+  ignoreCurrentPerceptionContextRule,
   readBackgroundRuntimePolicy,
   readBackgroundRuntimeSnapshot,
   readBackgroundSourceRuntimeStates,
+  readProtectedAppRules,
   reviewKnowledgeArtifact,
   reviewMemory,
   reviewRecommendation,
@@ -122,6 +125,8 @@ import type {
   DesktopSourceRuntimeAction,
   DesktopSettingKey,
   DesktopSnapshot,
+  DesktopIgnoreCurrentContextInput,
+  DesktopProtectedRuleInput,
   SourceSetupKind
 } from "../src/orbitApi";
 
@@ -501,13 +506,33 @@ export function syncDogfoodRuntimePermissionForDesktop(
   return readDesktopSnapshot();
 }
 
+export function upsertProtectedRuleForDesktop(input: DesktopProtectedRuleInput): DesktopSnapshot {
+  const database = openOrbitDatabase();
+  try {
+    upsertProtectedAppRule(database.db, input);
+  } finally {
+    database.close();
+  }
+  return readDesktopSnapshot();
+}
+
+export function ignoreCurrentContextForDesktop(
+  input: DesktopIgnoreCurrentContextInput
+): DesktopSnapshot {
+  const database = openOrbitDatabase();
+  try {
+    ignoreCurrentPerceptionContextRule(database.db, input);
+  } finally {
+    database.close();
+  }
+  return readDesktopSnapshot();
+}
+
 export function upsertDesktopObservationSourceForDesktop(): void {
   const database = openOrbitDatabase();
   try {
     const settings = new SettingsRepository(database.db);
-    const protectedApps =
-      settings.get<ObservationStatus["protectedApps"]>(SETTING_KEYS.observationProtectedApps) ??
-      defaultProtectedAppRules();
+    const protectedApps = readProtectedAppRules(settings);
     new SourceRepository(database.db).upsertFromAdapter(
       new DesktopObservationAdapter({
         inputs: [],
@@ -848,8 +873,18 @@ export async function captureScreenOcrForDesktop(): Promise<DesktopActionResult>
         inserted: result.inserted,
         skipped: result.skipped,
         rawStored: false,
-        warnings: result.warnings
+        warnings: result.warnings,
+        protectedAudit: result.audit
       });
+      for (const entry of result.audit) {
+        auditRepository.log(entry.operation, "source", adapter.id, {
+          mode: "desktop_manual_live_screen_ocr",
+          kind: adapter.kind,
+          protectedRuleId: entry.protectedRuleId,
+          protectedReason: entry.protectedReason,
+          protectedContentDropped: entry.protectedContentDropped
+        });
+      }
       results.push(result);
     }
 
@@ -927,6 +962,9 @@ export async function captureScreenOcrBurstForDesktop(): Promise<DesktopActionRe
         reason: entry.reason,
         frameId: entry.frameId,
         frameIndex: entry.frameIndex,
+        protectedRuleId: entry.protectedRuleId,
+        protectedReason: entry.protectedReason,
+        protectedContentDropped: entry.protectedContentDropped,
         rawStored: false
       });
     }
@@ -971,8 +1009,18 @@ export async function captureScreenOcrBurstForDesktop(): Promise<DesktopActionRe
           inserted: result.inserted,
           skipped: result.skipped,
           rawStored: false,
-          warnings: result.warnings
+          warnings: result.warnings,
+          protectedAudit: result.audit
         });
+        for (const entry of result.audit) {
+          auditRepository.log(entry.operation, "source", adapter.id, {
+            mode: "desktop_screen_ocr_burst",
+            kind: adapter.kind,
+            protectedRuleId: entry.protectedRuleId,
+            protectedReason: entry.protectedReason,
+            protectedContentDropped: entry.protectedContentDropped
+          });
+        }
       }
       const lastFrame = frames[frames.length - 1]!;
       eventRepository.upsertEvent(
@@ -1280,6 +1328,7 @@ export async function runBackgroundIngestionForDesktop(): Promise<BackgroundInge
           inserted: result.inserted,
           skipped: result.skipped,
           warnings: result.warnings,
+          protectedAudit: result.audit,
           nextCursor: result.nextCursor
         });
       } catch (error) {
@@ -1524,9 +1573,7 @@ function readObservationStatus(settings: SettingsRepository, queueDepth = 0): Ob
     settings.get<ObservationRuntimeStatus>(SETTING_KEYS.observationStatus) ?? "not_configured";
   const enabled = settings.get<boolean>(SETTING_KEYS.observationEnabled) ?? false;
   const paused = settings.get<boolean>(SETTING_KEYS.observationPaused) ?? false;
-  const protectedApps =
-    settings.get<ObservationStatus["protectedApps"]>(SETTING_KEYS.observationProtectedApps) ??
-    defaultProtectedAppRules();
+  const protectedApps = readProtectedAppRules(settings);
   const allowedFolders =
     settings.get<ObservationStatus["allowedFolders"]>(SETTING_KEYS.observationAllowedFolders) ?? [];
   const tier2 = readTier2Status(settings, allowedFolders);

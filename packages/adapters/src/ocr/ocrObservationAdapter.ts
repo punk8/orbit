@@ -1,4 +1,5 @@
 import type {
+  AdapterReadAuditEntry,
   AdapterReadResult,
   ObservationInput,
   ObservationPermissionStatus,
@@ -7,7 +8,7 @@ import type {
   Sensitivity,
   SourceAdapter
 } from "@orbit/core";
-import { isProtectedObservation, normalizeObservationInputs } from "@orbit/core";
+import { getProtectedObservationMatch, normalizeObservationInputs } from "@orbit/core";
 import { perceptionPermissionScope } from "../perception/perceptionAdapterPolicy";
 import {
   frameToScreenObservationInput,
@@ -79,6 +80,7 @@ export class OcrObservationAdapter implements SourceAdapter {
     const safeStart = Number.isFinite(start) && start > 0 ? start : 0;
     const selected = sorted.slice(safeStart, safeStart + (this.options.maxFramesPerRead ?? 10));
     const warnings: string[] = [];
+    const audit: AdapterReadAuditEntry[] = [];
     const inputs: ObservationInput[] = [];
     const seenFrameHashes = new Set<string>();
 
@@ -95,8 +97,15 @@ export class OcrObservationAdapter implements SourceAdapter {
       }
       seenFrameHashes.add(frame.frameHash);
       const screenInput = frameToScreenObservationInput(frame);
-      if (isProtectedObservation(screenInput, this.options.protectedApps)) {
+      const protectedMatch = getProtectedObservationMatch(screenInput, this.options.protectedApps);
+      if (protectedMatch) {
         warnings.push(`Suppressed OCR for protected screen frame ${frame.id}.`);
+        audit.push({
+          operation: "perception.protected_content_dropped",
+          protectedRuleId: protectedMatch.ruleId,
+          protectedReason: protectedMatch.reason,
+          protectedContentDropped: 1
+        });
         continue;
       }
       const result = await this.options.engine.recognize(frame);
@@ -114,7 +123,8 @@ export class OcrObservationAdapter implements SourceAdapter {
     return {
       events: normalizeObservationInputs(inputs, normalizeOptions),
       nextCursor: String(Math.min(sorted.length, safeStart + selected.length)),
-      warnings
+      warnings,
+      ...(audit.length > 0 ? { audit } : {})
     };
   }
 }

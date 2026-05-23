@@ -1,4 +1,4 @@
-import type { SourceAdapter } from "../types/source";
+import type { AdapterReadAuditEntry, SourceAdapter } from "../types/source";
 import type { Event } from "../types/event";
 import type { PermissionScope } from "../types/common";
 
@@ -14,6 +14,7 @@ export interface IngestEventsResult {
   lastEventAt?: string;
   nextCursor?: string;
   warnings: string[];
+  audit: AdapterReadAuditEntry[];
 }
 
 export async function ingestEventsFromAdapter(
@@ -26,6 +27,7 @@ export async function ingestEventsFromAdapter(
   let inserted = 0;
   let skipped = 0;
   const warnings = [...(result.warnings ?? [])];
+  const audit = [...(result.audit ?? [])];
 
   for (const rawEvent of result.events) {
     const { event, warnings: eventWarnings } = applyStoragePolicy(rawEvent, adapter.permissionScope);
@@ -43,7 +45,8 @@ export async function ingestEventsFromAdapter(
     read: result.events.length,
     inserted,
     skipped,
-    warnings
+    warnings,
+    audit
   };
   const lastEventAt = result.events
     .map((event) => event.occurredAt)

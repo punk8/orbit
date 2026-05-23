@@ -43,16 +43,19 @@ import {
   cleanupPerceptionSidecars,
   EventRepository,
   openOrbitDatabase,
+  ignoreCurrentPerceptionContextRule,
   readPerceptionProviderKind,
   readPerceptionProviderTask,
   readPerceptionSourceKind,
   readPerceptionStatus,
   SourceRepository,
   syncDogfoodRuntimePermission,
+  upsertProtectedAppRule,
   updatePerceptionProviderRoute,
   updatePerceptionSamplingPreset,
   updatePerceptionSourcePolicy
 } from "@orbit/db";
+import type { IgnoreCurrentContextInput, ProtectedRuleInput } from "@orbit/db";
 import {
   evaluatePerceptionReleaseGate,
   type ManualSmokeScenario,
@@ -283,6 +286,36 @@ export function setPerceptionSamplingPreset(
   }
 }
 
+export function setPerceptionProtectedRule(input: ProtectedRuleInput): PerceptionStatusResult {
+  const config = getCliConfig();
+  const database = openOrbitDatabase({ orbitHome: config.orbitHome });
+  try {
+    return {
+      orbitHome: database.orbitHome,
+      dbPath: database.dbPath,
+      perception: upsertProtectedAppRule(database.db, input)
+    };
+  } finally {
+    database.close();
+  }
+}
+
+export function ignoreCurrentPerceptionContext(
+  input: IgnoreCurrentContextInput
+): PerceptionStatusResult {
+  const config = getCliConfig();
+  const database = openOrbitDatabase({ orbitHome: config.orbitHome });
+  try {
+    return {
+      orbitHome: database.orbitHome,
+      dbPath: database.dbPath,
+      perception: ignoreCurrentPerceptionContextRule(database.db, input)
+    };
+  } finally {
+    database.close();
+  }
+}
+
 export async function runScreenOcrSmoke(
   scopeKind: ScreenCaptureScope["kind"]
 ): Promise<ScreenOcrSmokeResult> {
@@ -464,8 +497,18 @@ export async function captureScreenOcrOnce(
         inserted: result.inserted,
         skipped: result.skipped,
         rawStored: false,
-        warnings: sourceWarnings
+        warnings: sourceWarnings,
+        protectedAudit: result.audit
       });
+      for (const entry of result.audit) {
+        auditRepository.log(entry.operation, "source", adapter.id, {
+          mode: "manual_live_screen_ocr",
+          kind: adapter.kind,
+          protectedRuleId: entry.protectedRuleId,
+          protectedReason: entry.protectedReason,
+          protectedContentDropped: entry.protectedContentDropped
+        });
+      }
       results.push({
         adapterId: result.adapterId,
         read: result.read,
@@ -560,7 +603,10 @@ export async function captureScreenOcrBurstNow(
         schedulerStatus: schedulerResult.status,
         reason: entry.reason,
         frameId: entry.frameId,
-        frameIndex: entry.frameIndex
+        frameIndex: entry.frameIndex,
+        protectedRuleId: entry.protectedRuleId,
+        protectedReason: entry.protectedReason,
+        protectedContentDropped: entry.protectedContentDropped
       });
     }
 
@@ -602,6 +648,15 @@ export async function captureScreenOcrBurstNow(
         const result = await ingestEventsFromAdapter(adapter, eventRepository, cursor);
         sourceRepository.setCursor(adapter.id, result.nextCursor);
         sourceRepository.recordSyncSuccess(adapter.id, { lastEventAt: result.lastEventAt });
+        for (const entry of result.audit) {
+          auditRepository.log(entry.operation, "source", adapter.id, {
+            mode: "manual_mock_screen_burst",
+            kind: adapter.kind,
+            protectedRuleId: entry.protectedRuleId,
+            protectedReason: entry.protectedReason,
+            protectedContentDropped: entry.protectedContentDropped
+          });
+        }
         results.push({
           adapterId: result.adapterId,
           read: result.read,

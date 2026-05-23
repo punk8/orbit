@@ -34,6 +34,8 @@ import {
   setupSourceForDesktop,
   syncDogfoodRuntimePermissionForDesktop,
   testAIProviderForDesktop,
+  ignoreCurrentContextForDesktop,
+  upsertProtectedRuleForDesktop,
   updateSourceRuntimeForDesktop,
   updateSettingForDesktop
 } from "./data";
@@ -44,6 +46,7 @@ import {
 } from "@orbit/db";
 import type { PerceptionSamplingPresetName } from "@orbit/core";
 import type { DesktopLanguage, DesktopSnapshot } from "../src/orbitApi";
+import type { DesktopIgnoreCurrentContextInput, DesktopProtectedRuleInput } from "../src/orbitApi";
 import { DesktopObservationService } from "./observation/observationService";
 import { detectScreenRecordingPermissionStatus } from "./observation/permissionStatus";
 
@@ -166,6 +169,16 @@ ipcMain.handle("orbit:updatePerceptionProviderRoute", (_event, task: string, pro
 ipcMain.handle("orbit:updatePerceptionSamplingPreset", (_event, preset: string) =>
   updatePerceptionSamplingPresetForDesktop(requireSamplingPreset(preset))
 );
+ipcMain.handle("orbit:upsertProtectedRule", (_event, input: DesktopProtectedRuleInput) => {
+  const snapshot = upsertProtectedRuleForDesktop(input);
+  applyRuntimeSettings();
+  return snapshot;
+});
+ipcMain.handle("orbit:ignoreCurrentContext", (_event, input: DesktopIgnoreCurrentContextInput) => {
+  const snapshot = ignoreCurrentContextForDesktop(input);
+  applyRuntimeSettings();
+  return snapshot;
+});
 ipcMain.handle("orbit:setupSource", (_event, kind: string, path?: string) =>
   setupSourceForDesktop(requireSourceSetupKind(kind), path)
 );
@@ -342,6 +355,11 @@ function ensureTray(): void {
         click: () => {
           void handleTrayScreenOcrToggle();
         }
+      },
+      {
+        label: runtimeLocale.tray.ignoreCurrentAppWindow,
+        enabled: false,
+        toolTip: runtimeLocale.tray.ignoreCurrentAppWindowUnavailable
       },
       {
         label: runtimeLocale.tray.stopScreenOcr,
@@ -728,6 +746,8 @@ function readDesktopRuntimeLocale(language: DesktopLanguage) {
         stopObservation: "停止观察",
         resumeScreenOcr: "恢复屏幕 / OCR",
         pauseScreenOcr: "暂停屏幕 / OCR",
+        ignoreCurrentAppWindow: "忽略当前应用/窗口",
+        ignoreCurrentAppWindowUnavailable: "当前没有可用的前台应用/窗口元数据",
         stopScreenOcr: "停止屏幕 / OCR",
         captureScreenOcrNow: "立即捕获屏幕 / OCR burst",
         openActivity: "打开活动",
@@ -752,6 +772,8 @@ function readDesktopRuntimeLocale(language: DesktopLanguage) {
         stopObservation: "Stop Observation",
         resumeScreenOcr: "Resume Screen/OCR",
         pauseScreenOcr: "Pause Screen/OCR",
+        ignoreCurrentAppWindow: "Ignore Current App/Window",
+        ignoreCurrentAppWindowUnavailable: "No foreground app/window metadata is available",
         stopScreenOcr: "Stop Screen/OCR",
         captureScreenOcrNow: "Capture Screen/OCR Burst Now",
         openActivity: "Open Activity",

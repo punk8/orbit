@@ -101,7 +101,8 @@ export class InProcessObservationQueue {
       inserted: result.inserted,
       skipped: result.skipped,
       dropped: this.dropped,
-      warnings: drainWarnings
+      warnings: drainWarnings,
+      ...(result.audit.length > 0 ? { audit: result.audit } : {})
     };
     if (result.lastEventAt) {
       output.lastEventAt = result.lastEventAt;

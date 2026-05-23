@@ -14,6 +14,7 @@ import type {
   PerceptionSourcePolicyPatch,
   PerceptionSourceRuntimeAction,
   ObservationStatus,
+  ProtectedAppRule,
   Recommendation,
   SourceRecord,
   TodayContext
@@ -151,6 +152,18 @@ export type DesktopSourceRuntimeAction = "pause" | "resume" | "enable" | "disabl
 
 export type SourceSetupKind = "fixtures" | "codex" | "local_agent" | "seatalk";
 
+export interface DesktopProtectedRuleInput {
+  kind: ProtectedAppRule["match"]["kind"];
+  value: string;
+  reason?: ProtectedAppRule["reason"];
+}
+
+export interface DesktopIgnoreCurrentContextInput {
+  appName?: string;
+  bundleId?: string;
+  windowTitle?: string;
+}
+
 export interface DesktopSourceAdapterConfig {
   setupKind: SourceSetupKind;
   path?: string;
@@ -231,6 +244,8 @@ export interface OrbitDesktopApi {
     provider: PerceptionProviderKind
   ): Promise<DesktopSnapshot>;
   updatePerceptionSamplingPreset(preset: PerceptionSamplingPresetName): Promise<DesktopSnapshot>;
+  upsertProtectedRule(input: DesktopProtectedRuleInput): Promise<DesktopSnapshot>;
+  ignoreCurrentContext(input: DesktopIgnoreCurrentContextInput): Promise<DesktopSnapshot>;
   setupSource(kind: SourceSetupKind, path?: string): Promise<DesktopActionResult>;
   reconfigureSource(
     sourceId: string,

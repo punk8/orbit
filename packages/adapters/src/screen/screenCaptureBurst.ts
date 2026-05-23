@@ -1,5 +1,6 @@
 import {
-  isProtectedObservation,
+  getProtectedObservationMatch,
+  type ProtectedObservationMatch,
   type ProtectedAppRule
 } from "@orbit/core";
 import type {
@@ -28,6 +29,9 @@ export interface ScreenCaptureBurstAuditEntry {
   reason?: ScreenCaptureBurstSkipReason;
   frameId?: string;
   frameIndex?: number;
+  protectedRuleId?: string;
+  protectedReason?: string;
+  protectedContentDropped?: number;
 }
 
 export interface ScreenCaptureBurstFrame {
@@ -68,9 +72,17 @@ export async function captureScreenBurst(
   const now = options.now ?? (() => new Date());
   const startedAt = now().toISOString();
   const id = `burst_${options.runtimeSessionId}_${startedAt.replaceAll(/[^0-9A-Za-z]/g, "")}`;
-  const protectedReason = protectedScopeReason(options.scope, options.protectedApps);
-  if (protectedReason) {
-    return skippedBurst(options, id, startedAt, now().toISOString(), "protected_app");
+  const protectedScopeMatch = getProtectedScopeMatch(options.scope, options.protectedApps);
+  if (protectedScopeMatch) {
+    return skippedBurst(
+      options,
+      id,
+      startedAt,
+      now().toISOString(),
+      "protected_app",
+      protectedScopeMatch,
+      0
+    );
   }
 
   const permission = await options.helper.getScreenRecordingPermission();
@@ -83,7 +95,17 @@ export async function captureScreenBurst(
   try {
     const capturedFrames = await options.helper.captureFrames(options.scope, burstBudget(options));
     for (const frame of capturedFrames.slice(0, options.frameCount)) {
-      if (isProtectedFrame(frame, options.protectedApps)) continue;
+      const protectedFrameMatch = getProtectedFrameMatch(frame, options.protectedApps);
+      if (protectedFrameMatch) {
+        audit.push({
+          operation: "perception.burst_skipped",
+          reason: "protected_app",
+          protectedRuleId: protectedFrameMatch.ruleId,
+          protectedReason: protectedFrameMatch.reason,
+          protectedContentDropped: 1
+        });
+        continue;
+      }
       const frameIndex = frames.length;
       frames.push({
         frame: {
@@ -151,8 +173,16 @@ function skippedBurst(
   id: string,
   startedAt: string,
   endedAt: string,
-  reason: ScreenCaptureBurstSkipReason
+  reason: ScreenCaptureBurstSkipReason,
+  protectedMatch?: ProtectedObservationMatch,
+  protectedContentDropped?: number
 ): ScreenCaptureBurst {
+  const audit: ScreenCaptureBurstAuditEntry = { operation: "perception.burst_skipped", reason };
+  if (protectedMatch) {
+    audit.protectedRuleId = protectedMatch.ruleId;
+    audit.protectedReason = protectedMatch.reason;
+    audit.protectedContentDropped = protectedContentDropped ?? 0;
+  }
   return {
     id,
     runtimeSessionId: options.runtimeSessionId,
@@ -163,7 +193,7 @@ function skippedBurst(
     status: "skipped",
     skipReason: reason,
     frames: [],
-    audit: [{ operation: "perception.burst_skipped", reason }]
+    audit: [audit]
   };
 }
 
@@ -174,12 +204,12 @@ function burstBudget(options: CaptureScreenBurstOptions): ScreenCaptureBudget {
   };
 }
 
-function protectedScopeReason(
+function getProtectedScopeMatch(
   scope: ScreenCaptureScope,
   protectedApps: ProtectedAppRule[] | undefined
-): boolean {
-  if (!scope.appBundleId && !scope.appName) return false;
-  return isProtectedObservation(
+): ProtectedObservationMatch | undefined {
+  if (!scope.appBundleId && !scope.appName && scope.kind === "display") return undefined;
+  return getProtectedObservationMatch(
     {
       type: "screen_observation",
       tier: "tier3",
@@ -191,6 +221,13 @@ function protectedScopeReason(
         name: scope.appName ?? scope.label,
         ...(scope.appBundleId ? { bundleId: scope.appBundleId } : {})
       },
+      ...(scope.kind !== "display" && scope.label
+        ? {
+            window: {
+              title: scope.label
+            }
+          }
+        : {}),
       screen: {
         scopeKind: scope.kind,
         scopeLabel: scope.label,
@@ -201,11 +238,11 @@ function protectedScopeReason(
   );
 }
 
-function isProtectedFrame(
+function getProtectedFrameMatch(
   frame: ScreenCaptureFrame,
   protectedApps: ProtectedAppRule[] | undefined
-): boolean {
-  return isProtectedObservation(frameToScreenObservationInput(frame), protectedApps);
+): ProtectedObservationMatch | undefined {
+  return getProtectedObservationMatch(frameToScreenObservationInput(frame), protectedApps);
 }
 
 function cloneScope(scope: ScreenCaptureScope): ScreenCaptureScope {

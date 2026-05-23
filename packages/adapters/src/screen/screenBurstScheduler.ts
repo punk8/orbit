@@ -1,8 +1,9 @@
 import {
-  isProtectedObservation,
+  getProtectedObservationMatch,
   type PerceptionControlPlaneStatus,
   type PerceptionResourceState,
-  type ProtectedAppRule
+  type ProtectedAppRule,
+  type ProtectedObservationMatch
 } from "@orbit/core";
 import {
   captureScreenBurst,
@@ -29,6 +30,15 @@ export interface ScreenBurstSchedulerAuditEntry {
   reason?: ScreenBurstSchedulerSkipReason | ScreenCaptureBurstAuditEntry["reason"];
   frameId?: string;
   frameIndex?: number;
+  protectedRuleId?: string;
+  protectedReason?: string;
+  protectedContentDropped?: number;
+}
+
+interface ScreenBurstSchedulerSkip {
+  reason: ScreenBurstSchedulerSkipReason;
+  protectedMatch?: ProtectedObservationMatch;
+  protectedContentDropped?: number;
 }
 
 export interface RunScreenBurstSchedulerInput {
@@ -62,11 +72,11 @@ export async function runScreenBurstScheduler(
     ? addMs(input.lastBurstAt, input.perception.samplingPolicy.minimumBurstIntervalSeconds * 1000)
     : undefined;
 
-  const initialSkipReason = checkEligibility(input.perception, input.resourceState);
-  if (initialSkipReason) return skipped(initialSkipReason, nextEligibleAt);
+  const initialSkip = checkEligibility(input.perception, input.resourceState);
+  if (initialSkip) return skipped(initialSkip, nextEligibleAt);
 
   if (nextEligibleAt && nextEligibleAt > nowDate.toISOString()) {
-    return skipped("interval_not_due", nextEligibleAt);
+    return skipped({ reason: "interval_not_due" }, nextEligibleAt);
   }
 
   const scheduled: ScreenBurstSchedulerAuditEntry = {
@@ -74,9 +84,9 @@ export async function runScreenBurstScheduler(
   };
   const beforeCapturePerception = input.readPerception?.() ?? input.perception;
   const beforeCaptureResource = input.readResourceState?.() ?? input.resourceState;
-  const beforeCaptureSkipReason = checkEligibility(beforeCapturePerception, beforeCaptureResource);
-  if (beforeCaptureSkipReason) {
-    return skipped(beforeCaptureSkipReason, nextEligibleAt, [scheduled]);
+  const beforeCaptureSkip = checkEligibility(beforeCapturePerception, beforeCaptureResource);
+  if (beforeCaptureSkip) {
+    return skipped(beforeCaptureSkip, nextEligibleAt, [scheduled]);
   }
 
   const burst = await captureScreenBurst({
@@ -99,14 +109,23 @@ export async function runScreenBurstScheduler(
   };
 
   function skipped(
-    reason: ScreenBurstSchedulerSkipReason,
+    skip: ScreenBurstSchedulerSkip,
     eligibleAt: string | undefined,
     auditPrefix: ScreenBurstSchedulerAuditEntry[] = []
   ): ScreenBurstSchedulerResult {
+    const audit: ScreenBurstSchedulerAuditEntry = {
+      operation: "perception.burst_skipped",
+      reason: skip.reason
+    };
+    if (skip.protectedMatch) {
+      audit.protectedRuleId = skip.protectedMatch.ruleId;
+      audit.protectedReason = skip.protectedMatch.reason;
+      audit.protectedContentDropped = skip.protectedContentDropped ?? 0;
+    }
     return {
       status: "skipped",
-      skipReason: reason,
-      audit: [...auditPrefix, { operation: "perception.burst_skipped", reason }],
+      skipReason: skip.reason,
+      audit: [...auditPrefix, audit],
       ...(eligibleAt ? { nextEligibleAt: eligibleAt } : {})
     };
   }
@@ -114,38 +133,42 @@ export async function runScreenBurstScheduler(
   function checkEligibility(
     perception: PerceptionControlPlaneStatus,
     resourceState: PerceptionResourceState
-  ): ScreenBurstSchedulerSkipReason | undefined {
+  ): ScreenBurstSchedulerSkip | undefined {
     if (
       perception.dogfoodRuntime.state === "paused_user" ||
       perception.dogfoodRuntime.state === "stopped"
     ) {
-      return "runtime_paused";
+      return { reason: "runtime_paused" };
     }
     if (
       perception.dogfoodRuntime.state === "needs_permission" ||
       perception.dogfoodRuntime.permission !== "granted"
     ) {
-      return "permission_missing";
+      return { reason: "permission_missing" };
     }
     if (perception.dogfoodRuntime.state === "paused_resource" || !resourceState.canCapture) {
-      return "resource_limited";
+      return { reason: "resource_limited" };
     }
-    if (
-      perception.dogfoodRuntime.state === "protected" ||
-      isProtectedScope(input.scope, input.protectedApps ?? perception.protectedApps)
-    ) {
-      return "protected_app";
+    const protectedMatch = getProtectedScopeMatch(
+      input.scope,
+      input.protectedApps ?? perception.protectedApps
+    );
+    if (perception.dogfoodRuntime.state === "protected" || protectedMatch) {
+      return {
+        reason: "protected_app",
+        ...(protectedMatch ? { protectedMatch, protectedContentDropped: 0 } : {})
+      };
     }
     return undefined;
   }
 }
 
-function isProtectedScope(
+function getProtectedScopeMatch(
   scope: ScreenCaptureScope,
   protectedApps: ProtectedAppRule[] | undefined
-): boolean {
-  if (!scope.appBundleId && !scope.appName) return false;
-  return isProtectedObservation(
+): ProtectedObservationMatch | undefined {
+  if (!scope.appBundleId && !scope.appName && scope.kind === "display") return undefined;
+  return getProtectedObservationMatch(
     {
       type: "screen_observation",
       tier: "tier3",
@@ -157,6 +180,13 @@ function isProtectedScope(
         name: scope.appName ?? scope.label,
         ...(scope.appBundleId ? { bundleId: scope.appBundleId } : {})
       },
+      ...(scope.kind !== "display" && scope.label
+        ? {
+            window: {
+              title: scope.label
+            }
+          }
+        : {}),
       screen: {
         scopeKind: scope.kind,
         scopeLabel: scope.label,

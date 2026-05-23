@@ -12,6 +12,14 @@ export interface AdapterReadResult {
   events: Event[];
   nextCursor?: string;
   warnings?: string[];
+  audit?: AdapterReadAuditEntry[];
+}
+
+export interface AdapterReadAuditEntry {
+  operation: string;
+  protectedRuleId?: string;
+  protectedReason?: string;
+  protectedContentDropped?: number;
 }
 
 export interface SourceAdapter {

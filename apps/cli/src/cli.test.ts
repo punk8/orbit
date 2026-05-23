@@ -14,7 +14,8 @@ import {
   getObservePermissions,
   getObserveProtectedApps,
   getObserveStatus,
-  ingestMockDesktopObservations
+  ingestMockDesktopObservations,
+  upsertObserveProtectedRule
 } from "./commands/observe";
 import {
   cleanupPerceptionRawSidecars,
@@ -22,6 +23,8 @@ import {
   captureScreenOcrOnce,
   getPerceptionReleaseGate,
   getPerceptionStatus,
+  ignoreCurrentPerceptionContext,
+  setPerceptionProtectedRule,
   runScreenOcrSmoke,
   setPerceptionSamplingPreset,
   syncPerceptionDogfoodPermission,
@@ -286,6 +289,20 @@ describe("cli commands", () => {
     expect(status.observation.tiers.tier1.sourceKinds).toContain("desktop");
     expect(status.observation.protectedApps.length).toBeGreaterThan(0);
     expect(getObserveProtectedApps().protectedApps.length).toBeGreaterThan(0);
+    const userProtected = upsertObserveProtectedRule({
+      kind: "domain_pattern",
+      value: "private.example.com",
+      reason: "user_added"
+    });
+    expect(userProtected.protectedApps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          match: { kind: "domain_pattern", value: "private.example.com" },
+          reason: "user_added",
+          enabled: true
+        })
+      ])
+    );
     expect(listActivitySessions()).toHaveLength(2);
 
     const program = buildProgram();
@@ -295,6 +312,7 @@ describe("cli commands", () => {
     expect(observeHelp).toContain("status");
     expect(observeHelp).toContain("permissions");
     expect(observeHelp).toContain("protected-apps");
+    expect(observeHelp).toContain("protect");
     expect(observeHelp).toContain("ingest-mock");
   });
 
@@ -326,6 +344,37 @@ describe("cli commands", () => {
       "transcription"
     ]);
 
+    const protectedRule = setPerceptionProtectedRule({
+      kind: "window_title_pattern",
+      value: "Customer OTP",
+      reason: "user_added"
+    });
+    expect(protectedRule.perception.protectedApps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          match: { kind: "window_title_pattern", value: "Customer OTP" },
+          reason: "user_added"
+        })
+      ])
+    );
+    const ignored = ignoreCurrentPerceptionContext({
+      appName: "Preview",
+      bundleId: "com.apple.Preview",
+      windowTitle: "Private contract"
+    });
+    expect(ignored.perception.protectedApps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          match: { kind: "bundle_id", value: "com.apple.Preview" },
+          reason: "user_added"
+        }),
+        expect.objectContaining({
+          match: { kind: "window_title_pattern", value: "^Private contract$" },
+          reason: "user_added"
+        })
+      ])
+    );
+
     const program = buildProgram();
     const perceptionHelp = program.commands
       .find((command) => command.name() === "perception")
@@ -333,6 +382,8 @@ describe("cli commands", () => {
     expect(perceptionHelp).toContain("status");
     expect(perceptionHelp).toContain("screen");
     expect(perceptionHelp).toContain("sampling-preset");
+    expect(perceptionHelp).toContain("protected-rule");
+    expect(perceptionHelp).toContain("ignore-current");
   });
 
   it("updates Screen/OCR sampling presets without starting capture", () => {

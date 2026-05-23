@@ -17,6 +17,8 @@ import type {
   DesktopAIProviderTestConfig,
   DesktopAIProviderTestResult,
   DesktopHandoffResult,
+  DesktopIgnoreCurrentContextInput,
+  DesktopProtectedRuleInput,
   DesktopSettingKey,
   DesktopSourceRuntimeAction,
   SourceSetupKind
@@ -176,6 +178,14 @@ export function App(): ReactElement {
       () => window.orbit.updatePerceptionSamplingPreset(preset),
       t("error.perception")
     );
+  }
+
+  async function upsertProtectedRule(input: DesktopProtectedRuleInput): Promise<void> {
+    await runReviewAction(() => window.orbit.upsertProtectedRule(input), t("error.perception"));
+  }
+
+  async function ignoreCurrentContext(input: DesktopIgnoreCurrentContextInput): Promise<void> {
+    await runReviewAction(() => window.orbit.ignoreCurrentContext(input), t("error.perception"));
   }
 
   async function setupSource(kind: SourceSetupKind, path?: string): Promise<void> {
@@ -402,6 +412,8 @@ export function App(): ReactElement {
                 updatePerceptionSourcePolicy,
                 updatePerceptionProviderRoute,
                 updatePerceptionSamplingPreset,
+                upsertProtectedRule,
+                ignoreCurrentContext,
                 setupSource,
                 reconfigureSource,
                 deleteSource,
@@ -463,6 +475,8 @@ interface PageActions {
     provider: PerceptionProviderKind
   ): Promise<void>;
   updatePerceptionSamplingPreset(preset: PerceptionSamplingPresetName): Promise<void>;
+  upsertProtectedRule(input: DesktopProtectedRuleInput): Promise<void>;
+  ignoreCurrentContext(input: DesktopIgnoreCurrentContextInput): Promise<void>;
   setupSource(kind: SourceSetupKind, path?: string): Promise<void>;
   reconfigureSource(sourceId: string, kind: SourceSetupKind, path?: string): Promise<void>;
   deleteSource(sourceId: string): Promise<void>;
@@ -557,6 +571,8 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
           onUpdatePerceptionSourcePolicy={actions.updatePerceptionSourcePolicy}
           onUpdatePerceptionProviderRoute={actions.updatePerceptionProviderRoute}
           onUpdatePerceptionSamplingPreset={actions.updatePerceptionSamplingPreset}
+          onUpsertProtectedRule={actions.upsertProtectedRule}
+          onIgnoreCurrentContext={actions.ignoreCurrentContext}
           onCaptureScreenOcrBurst={actions.captureScreenOcrBurst}
           onCleanupPerceptionSidecars={actions.cleanupPerceptionSidecars}
         />

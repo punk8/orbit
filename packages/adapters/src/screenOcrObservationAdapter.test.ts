@@ -72,6 +72,54 @@ describe("screen/OCR perception adapters", () => {
     expect(JSON.stringify([...screen.events, ...ocr.events])).not.toContain("abc123");
   });
 
+  it("reports protected suppression audit counts without protected title or OCR payload", async () => {
+    const protectedFrame = frame("frame_bank_otp", {
+      app: {
+        name: "Safari",
+        bundleId: "com.apple.Safari"
+      },
+      window: {
+        title: "Example Bank OTP 123456"
+      },
+      ocrText: "one time password 123456"
+    });
+    const options = {
+      frames: [protectedFrame],
+      scope: displayScope,
+      permission: screenPermission("granted"),
+      protectedApps: defaultProtectedAppRules()
+    };
+
+    const screen = await readAdapter(new ScreenObservationAdapter(options));
+    const ocr = await readAdapter(
+      new OcrObservationAdapter({
+        ...options,
+        engine: new MockOcrEngine()
+      })
+    );
+
+    expect(screen.result.audit).toEqual([
+      expect.objectContaining({
+        operation: "perception.protected_content_dropped",
+        protectedRuleId: expect.any(String),
+        protectedReason: expect.any(String),
+        protectedContentDropped: 1
+      })
+    ]);
+    expect(ocr.result.audit).toEqual([
+      expect.objectContaining({
+        operation: "perception.protected_content_dropped",
+        protectedRuleId: expect.any(String),
+        protectedReason: expect.any(String),
+        protectedContentDropped: 1
+      })
+    ]);
+    expect(JSON.stringify([screen.result.audit, ocr.result.audit])).not.toContain("OTP 123456");
+    expect(JSON.stringify([screen.result.audit, ocr.result.audit])).not.toContain(
+      "one time password"
+    );
+  });
+
   it("stores bounded screen and OCR summaries without raw screenshots by default", async () => {
     const frames = [
       frame("frame_goal_8", {

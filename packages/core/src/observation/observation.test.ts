@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   assertObservationStatusTransition,
+  defaultProtectedAppRules,
+  getProtectedObservationMatch,
+  isProtectedObservation,
   normalizeObservationInput,
   ObservationInputDeduper,
   observationSourcePointer
@@ -123,6 +126,61 @@ describe("observation normalization", () => {
     expect(duplicate.accepted).toBe(false);
     if (duplicate.accepted) throw new Error("Expected duplicate protected observation to be rejected.");
     expect(duplicate.reason).toBe("duplicate");
+  });
+
+  it("matches production protected defaults without leaking matched private text", () => {
+    const rules = defaultProtectedAppRules();
+
+    expect(
+      rules.map((rule) => rule.id)
+    ).toEqual(
+      expect.arrayContaining([
+        "protected_bundle_com.apple.keychainaccess",
+        "protected_bundle_com.1password.1password",
+        "protected_bundle_com.apple.Passwords",
+        "protected_domain_financial_and_payment",
+        "protected_domain_authentication",
+        "protected_window_private_browser",
+        "protected_window_auth_otp_secret",
+        "protected_text_secret_like_terminal_or_config"
+      ])
+    );
+
+    const privateBrowserInput: ObservationInput = {
+      type: "browser_navigation",
+      tier: "tier2",
+      sourceKind: "browser",
+      occurredAt: "2026-05-21T01:08:00.000Z",
+      runtimeSessionId: "protected-defaults",
+      sequence: 1,
+      app: { name: "Safari", bundleId: "com.apple.Safari" },
+      window: { title: "Private Browsing - Banking OTP" },
+      browser: { url: "https://bank.example.com/login?otp=123456", title: "Bank OTP" }
+    };
+    const secretTerminalInput: ObservationInput = {
+      type: "terminal_output_summary",
+      tier: "tier2",
+      sourceKind: "terminal",
+      occurredAt: "2026-05-21T01:09:00.000Z",
+      runtimeSessionId: "protected-defaults",
+      sequence: 2,
+      app: { name: "Terminal", bundleId: "com.apple.Terminal" },
+      terminal: { sessionId: "term", commandIndex: 1, command: "cat .env", cwd: "/repo" },
+      raw: { text: "OPENAI_API_KEY=sk-test-secret" }
+    };
+
+    expect(isProtectedObservation(privateBrowserInput, rules)).toBe(true);
+    expect(isProtectedObservation(secretTerminalInput, rules)).toBe(true);
+    expect(getProtectedObservationMatch(privateBrowserInput, rules)).toMatchObject({
+      ruleId: expect.any(String),
+      reason: expect.any(String)
+    });
+    expect(JSON.stringify(getProtectedObservationMatch(privateBrowserInput, rules))).not.toContain(
+      "Banking OTP"
+    );
+    expect(JSON.stringify(getProtectedObservationMatch(secretTerminalInput, rules))).not.toContain(
+      "sk-test-secret"
+    );
   });
 
   it("generates canonical pointers for observation inputs", () => {

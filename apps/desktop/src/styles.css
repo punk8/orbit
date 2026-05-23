@@ -1693,6 +1693,20 @@ button {
   gap: 8px;
 }
 
+.protected-rule-controls {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.protected-rule-controls label {
+  display: grid;
+  gap: 4px;
+  color: #4f5759;
+  font-size: 12px;
+}
+
 .connection-status {
   display: grid;
   gap: 4px;
@@ -1830,6 +1844,10 @@ button {
 
   .settings-subnav {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .protected-rule-controls {
+    grid-template-columns: 1fr;
   }
 }
 

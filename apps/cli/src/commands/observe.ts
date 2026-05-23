@@ -2,7 +2,6 @@ import { join } from "node:path";
 import {
   DESKTOP_OBSERVATION_ADAPTER_ID,
   createDefaultObservationStatus,
-  defaultProtectedAppRules,
   type AllowedFolderRule,
   type ObservationPermissionStatus,
   type ObservationRuntimeStatus,
@@ -17,9 +16,11 @@ import {
   AuditRepository,
   EventRepository,
   openOrbitDatabase,
+  readProtectedAppRules,
   SettingsRepository,
   SourceRepository
 } from "@orbit/db";
+import { upsertProtectedAppRule, type ProtectedRuleInput } from "@orbit/db";
 import { getCliConfig } from "../config";
 import { runSemanticPipeline, type SemanticPipelineResult } from "./semanticPipeline";
 
@@ -36,6 +37,12 @@ export interface ObservePermissionsResult {
 }
 
 export interface ObserveProtectedAppsResult {
+  orbitHome: string;
+  dbPath: string;
+  protectedApps: ObservationStatus["protectedApps"];
+}
+
+export interface UpsertObserveProtectedRuleResult {
   orbitHome: string;
   dbPath: string;
   protectedApps: ObservationStatus["protectedApps"];
@@ -90,6 +97,23 @@ export function getObserveProtectedApps(): ObserveProtectedAppsResult {
   };
 }
 
+export function upsertObserveProtectedRule(
+  input: ProtectedRuleInput
+): UpsertObserveProtectedRuleResult {
+  const config = getCliConfig();
+  const database = openOrbitDatabase({ orbitHome: config.orbitHome });
+  try {
+    const perception = upsertProtectedAppRule(database.db, input);
+    return {
+      orbitHome: database.orbitHome,
+      dbPath: database.dbPath,
+      protectedApps: perception.protectedApps
+    };
+  } finally {
+    database.close();
+  }
+}
+
 export async function ingestMockDesktopObservations(): Promise<IngestMockObservationResult> {
   const config = getCliConfig();
   const database = openOrbitDatabase({ orbitHome: config.orbitHome });
@@ -98,9 +122,7 @@ export async function ingestMockDesktopObservations(): Promise<IngestMockObserva
     const sourceRepository = new SourceRepository(database.db);
     const eventRepository = new EventRepository(database.db);
     const auditRepository = new AuditRepository(database.db);
-    const protectedApps =
-      settingsRepository.get<ObservationStatus["protectedApps"]>("observation.protectedApps") ??
-      defaultProtectedAppRules();
+    const protectedApps = readProtectedAppRules(settingsRepository);
     const adapter = new DesktopObservationAdapter({
       inputs: [],
       id: DESKTOP_OBSERVATION_ADAPTER_ID,
@@ -182,9 +204,7 @@ function readObservationStatus(
     status,
     enabled,
     paused,
-    protectedApps:
-      settingsRepository.get<ObservationStatus["protectedApps"]>("observation.protectedApps") ??
-      defaultProtectedAppRules(),
+    protectedApps: readProtectedAppRules(settingsRepository),
     allowedFolders,
     permissions: tier2.permissions,
     queueDepth

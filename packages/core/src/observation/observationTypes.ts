@@ -1,4 +1,5 @@
 import type { SourceKind, Sensitivity } from "../types/common";
+import type { AdapterReadAuditEntry } from "../types/source";
 
 export type ObservationTier = "tier1" | "tier2" | "tier3";
 
@@ -142,6 +143,7 @@ export interface ObservationDrainResult {
   skipped: number;
   dropped: number;
   warnings: string[];
+  audit?: AdapterReadAuditEntry[];
   lastEventAt?: string;
 }
 
@@ -182,8 +184,18 @@ export interface ProtectedAppRule {
   match:
     | { kind: "bundle_id"; value: string }
     | { kind: "app_name"; value: string }
-    | { kind: "window_title_pattern"; value: string };
-  reason: "default_sensitive_app" | "user_added" | "private_window" | "password_field";
+    | { kind: "window_title_pattern"; value: string }
+    | { kind: "domain_pattern"; value: string }
+    | { kind: "url_pattern"; value: string }
+    | { kind: "text_pattern"; value: string };
+  reason:
+    | "default_sensitive_app"
+    | "user_added"
+    | "private_window"
+    | "password_field"
+    | "financial_or_payment"
+    | "authentication_or_otp"
+    | "secret_like_content";
   enabled: boolean;
 }
 

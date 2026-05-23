@@ -39,7 +39,8 @@ import {
   getObservePermissions,
   getObserveProtectedApps,
   getObserveStatus,
-  ingestMockDesktopObservations
+  ingestMockDesktopObservations,
+  upsertObserveProtectedRule
 } from "./commands/observe";
 import {
   cleanupPerceptionRawSidecars,
@@ -47,7 +48,9 @@ import {
   captureScreenOcrOnce,
   getPerceptionReleaseGate,
   getPerceptionStatus,
+  ignoreCurrentPerceptionContext,
   runScreenOcrSmoke,
+  setPerceptionProtectedRule,
   setPerceptionSamplingPreset,
   setPerceptionProviderRoute,
   setPerceptionSourcePolicy,
@@ -520,6 +523,24 @@ export function buildProgram(): Command {
       });
     });
   observe
+    .command("protect")
+    .description("Add or update a protected observation rule")
+    .requiredOption(
+      "--kind <kind>",
+      "bundle_id, app_name, window_title_pattern, domain_pattern, url_pattern, or text_pattern"
+    )
+    .requiredOption("--value <value>", "Protected rule value or pattern")
+    .option("--reason <reason>", "Protected rule reason", "user_added")
+    .option("--json", "output JSON")
+    .action((options: { kind: string; value: string; reason?: string; json?: boolean }) => {
+      const result = upsertObserveProtectedRule({
+        kind: requireProtectedRuleKind(options.kind),
+        value: options.value,
+        reason: requireProtectedRuleReason(options.reason)
+      });
+      writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
+    });
+  observe
     .command("ingest-mock")
     .description("Ingest deterministic mock desktop observation fixtures")
     .option("--json", "output JSON")
@@ -540,6 +561,48 @@ export function buildProgram(): Command {
         json: options.json ?? program.opts<{ json?: boolean }>().json
       });
     });
+  perception
+    .command("protected-rule")
+    .description("Add or update a protected Screen/OCR rule")
+    .requiredOption(
+      "--kind <kind>",
+      "bundle_id, app_name, window_title_pattern, domain_pattern, url_pattern, or text_pattern"
+    )
+    .requiredOption("--value <value>", "Protected rule value or pattern")
+    .option("--reason <reason>", "Protected rule reason", "user_added")
+    .option("--json", "output JSON")
+    .action((options: { kind: string; value: string; reason?: string; json?: boolean }) => {
+      const result = setPerceptionProtectedRule({
+        kind: requireProtectedRuleKind(options.kind),
+        value: options.value,
+        reason: requireProtectedRuleReason(options.reason)
+      });
+      writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
+    });
+  perception
+    .command("ignore-current")
+    .description("Add protected rules for current app/window metadata supplied by the caller")
+    .option("--app-name <name>", "Current foreground app name")
+    .option("--bundle-id <bundleId>", "Current foreground app bundle identifier")
+    .option("--window-title <title>", "Current foreground window title")
+    .option("--json", "output JSON")
+    .action(
+      (options: {
+        appName?: string;
+        bundleId?: string;
+        windowTitle?: string;
+        json?: boolean;
+      }) => {
+        const result = ignoreCurrentPerceptionContext(
+          omitUndefined({
+            appName: options.appName,
+            bundleId: options.bundleId,
+            windowTitle: options.windowTitle
+          })
+        );
+        writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
+      }
+    );
   perception
     .command("dogfood-permission")
     .description("Sync macOS Screen Recording permission into the Alpha dogfood auto-start runtime")
@@ -714,6 +777,53 @@ function requireScreenScopeKind(
     return value;
   }
   throw new Error(`Unsupported screen/OCR scope: ${value ?? ""}`);
+}
+
+function requireProtectedRuleKind(
+  value: string
+):
+  | "bundle_id"
+  | "app_name"
+  | "window_title_pattern"
+  | "domain_pattern"
+  | "url_pattern"
+  | "text_pattern" {
+  if (
+    value === "bundle_id" ||
+    value === "app_name" ||
+    value === "window_title_pattern" ||
+    value === "domain_pattern" ||
+    value === "url_pattern" ||
+    value === "text_pattern"
+  ) {
+    return value;
+  }
+  throw new Error(`Unsupported protected rule kind: ${value}`);
+}
+
+function requireProtectedRuleReason(
+  value: string | undefined
+):
+  | "default_sensitive_app"
+  | "user_added"
+  | "private_window"
+  | "password_field"
+  | "financial_or_payment"
+  | "authentication_or_otp"
+  | "secret_like_content" {
+  if (
+    value === undefined ||
+    value === "user_added" ||
+    value === "default_sensitive_app" ||
+    value === "private_window" ||
+    value === "password_field" ||
+    value === "financial_or_payment" ||
+    value === "authentication_or_otp" ||
+    value === "secret_like_content"
+  ) {
+    return value ?? "user_added";
+  }
+  throw new Error(`Unsupported protected rule reason: ${value}`);
 }
 
 function parseBooleanOption(value: string | undefined): boolean | undefined {

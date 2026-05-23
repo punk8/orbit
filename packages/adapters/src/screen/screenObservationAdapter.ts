@@ -1,4 +1,5 @@
 import type {
+  AdapterReadAuditEntry,
   AdapterReadResult,
   ObservationInput,
   ObservationPermissionStatus,
@@ -7,7 +8,7 @@ import type {
   Sensitivity,
   SourceAdapter
 } from "@orbit/core";
-import { isProtectedObservation, normalizeObservationInputs } from "@orbit/core";
+import { getProtectedObservationMatch, normalizeObservationInputs } from "@orbit/core";
 import { perceptionPermissionScope } from "../perception/perceptionAdapterPolicy";
 import type { ScreenCaptureFrame, ScreenCaptureScope } from "./screenCaptureTypes";
 import { screenPermission } from "./screenCaptureTypes";
@@ -66,6 +67,7 @@ export class ScreenObservationAdapter implements SourceAdapter {
     const safeStart = Number.isFinite(start) && start > 0 ? start : 0;
     const selected = sorted.slice(safeStart, safeStart + (this.options.maxFramesPerRead ?? 10));
     const warnings: string[] = [];
+    const audit: AdapterReadAuditEntry[] = [];
     const inputs: ObservationInput[] = [];
     const seenFrameHashes = new Set<string>();
 
@@ -85,8 +87,15 @@ export class ScreenObservationAdapter implements SourceAdapter {
         frame,
         this.options.allowRawFrameStorage ?? false
       );
-      if (isProtectedObservation(input, this.options.protectedApps)) {
+      const protectedMatch = getProtectedObservationMatch(input, this.options.protectedApps);
+      if (protectedMatch) {
         warnings.push(`Suppressed protected screen frame ${frame.id}.`);
+        audit.push({
+          operation: "perception.protected_content_dropped",
+          protectedRuleId: protectedMatch.ruleId,
+          protectedReason: protectedMatch.reason,
+          protectedContentDropped: 1
+        });
         continue;
       }
       inputs.push(input);
@@ -99,7 +108,8 @@ export class ScreenObservationAdapter implements SourceAdapter {
     return {
       events: normalizeObservationInputs(inputs, normalizeOptions),
       nextCursor: String(Math.min(sorted.length, safeStart + selected.length)),
-      warnings
+      warnings,
+      ...(audit.length > 0 ? { audit } : {})
     };
   }
 }

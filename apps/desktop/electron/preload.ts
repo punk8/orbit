@@ -27,6 +27,8 @@ const orbitApi: OrbitDesktopApi = {
     ipcRenderer.invoke("orbit:updatePerceptionProviderRoute", task, provider),
   updatePerceptionSamplingPreset: (preset) =>
     ipcRenderer.invoke("orbit:updatePerceptionSamplingPreset", preset),
+  upsertProtectedRule: (input) => ipcRenderer.invoke("orbit:upsertProtectedRule", input),
+  ignoreCurrentContext: (input) => ipcRenderer.invoke("orbit:ignoreCurrentContext", input),
   setupSource: (kind, path) => ipcRenderer.invoke("orbit:setupSource", kind, path),
   reconfigureSource: (sourceId, kind, path) =>
     ipcRenderer.invoke("orbit:reconfigureSource", sourceId, kind, path),

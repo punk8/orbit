@@ -4,8 +4,10 @@ import type {
   DesktopAIProviderKind,
   DesktopAIProviderTestConfig,
   DesktopAIProviderTestResult,
+  DesktopIgnoreCurrentContextInput,
   DesktopLanguage,
   DesktopOpenAITokenLimitParameter,
+  DesktopProtectedRuleInput,
   DesktopSettingKey,
   DesktopSnapshot
 } from "../orbitApi";
@@ -39,6 +41,8 @@ export function SettingsPage({
   onUpdatePerceptionSourcePolicy,
   onUpdatePerceptionProviderRoute,
   onUpdatePerceptionSamplingPreset,
+  onUpsertProtectedRule,
+  onIgnoreCurrentContext,
   onCaptureScreenOcrBurst,
   onCleanupPerceptionSidecars
 }: {
@@ -67,6 +71,8 @@ export function SettingsPage({
     provider: PerceptionProviderKind
   ): Promise<void>;
   onUpdatePerceptionSamplingPreset(preset: PerceptionSamplingPresetName): Promise<void>;
+  onUpsertProtectedRule(input: DesktopProtectedRuleInput): Promise<void>;
+  onIgnoreCurrentContext(input: DesktopIgnoreCurrentContextInput): Promise<void>;
   onCaptureScreenOcrBurst(): Promise<void>;
   onCleanupPerceptionSidecars(): Promise<void>;
 }): ReactElement {
@@ -85,6 +91,9 @@ export function SettingsPage({
     useState<DesktopOpenAITokenLimitParameter>(snapshot.settings.aiTokenLimitParameter);
   const [aiMaxTokens, setAiMaxTokens] = useState(String(snapshot.settings.aiMaxTokens));
   const [aiTestMaxTokens, setAiTestMaxTokens] = useState(String(snapshot.settings.aiTestMaxTokens));
+  const [protectedBundleId, setProtectedBundleId] = useState("");
+  const [protectedWindowTitle, setProtectedWindowTitle] = useState("");
+  const [protectedDomain, setProtectedDomain] = useState("");
   const [providerTestResult, setProviderTestResult] = useState<
     DesktopAIProviderTestResult | undefined
   >();
@@ -668,6 +677,116 @@ export function SettingsPage({
                   value={`${snapshot.perception.resourcePolicy.provider.maxRequestsPerHour} / ${snapshot.perception.resourcePolicy.provider.maxTokensPerHour}`}
                 />
               </dl>
+              <div className="settings-policy-block protected-rules-panel">
+                <h3>{t("settings.protectedRulesTitle")}</h3>
+                <div className="protected-rule-controls">
+                  <label>
+                    <span>{t("settings.protectedRuleBundle")}</span>
+                    <input
+                      className="text-input"
+                      onChange={(event) => setProtectedBundleId(event.currentTarget.value)}
+                      placeholder="com.example.App"
+                      value={protectedBundleId}
+                    />
+                  </label>
+                  <button
+                    className="secondary-button"
+                    data-protected-rule-action="bundle"
+                    disabled={!protectedBundleId.trim()}
+                    onClick={() => {
+                      void onUpsertProtectedRule({
+                        kind: "bundle_id",
+                        value: protectedBundleId.trim(),
+                        reason: "user_added"
+                      });
+                      setProtectedBundleId("");
+                    }}
+                    type="button"
+                  >
+                    {t("action.addProtectedRule")}
+                  </button>
+                  <label>
+                    <span>{t("settings.protectedRuleWindow")}</span>
+                    <input
+                      className="text-input"
+                      onChange={(event) => setProtectedWindowTitle(event.currentTarget.value)}
+                      placeholder="^Private"
+                      value={protectedWindowTitle}
+                    />
+                  </label>
+                  <button
+                    className="secondary-button"
+                    data-protected-rule-action="window"
+                    disabled={!protectedWindowTitle.trim()}
+                    onClick={() => {
+                      void onUpsertProtectedRule({
+                        kind: "window_title_pattern",
+                        value: protectedWindowTitle.trim(),
+                        reason: "user_added"
+                      });
+                      setProtectedWindowTitle("");
+                    }}
+                    type="button"
+                  >
+                    {t("action.addProtectedRule")}
+                  </button>
+                  <label>
+                    <span>{t("settings.protectedRuleDomain")}</span>
+                    <input
+                      className="text-input"
+                      onChange={(event) => setProtectedDomain(event.currentTarget.value)}
+                      placeholder="private.example.com"
+                      value={protectedDomain}
+                    />
+                  </label>
+                  <button
+                    className="secondary-button"
+                    data-protected-rule-action="domain"
+                    disabled={!protectedDomain.trim()}
+                    onClick={() => {
+                      void onUpsertProtectedRule({
+                        kind: "domain_pattern",
+                        value: protectedDomain.trim(),
+                        reason: "user_added"
+                      });
+                      setProtectedDomain("");
+                    }}
+                    type="button"
+                  >
+                    {t("action.addProtectedRule")}
+                  </button>
+                  <button
+                    className="secondary-button"
+                    data-protected-rule-action="ignore-current"
+                    disabled={!protectedBundleId.trim() && !protectedWindowTitle.trim()}
+                    onClick={() => {
+                      const input: DesktopIgnoreCurrentContextInput = {};
+                      const bundleId = protectedBundleId.trim();
+                      const windowTitle = protectedWindowTitle.trim();
+                      if (bundleId) input.bundleId = bundleId;
+                      if (windowTitle) input.windowTitle = windowTitle;
+                      void onIgnoreCurrentContext(input);
+                      setProtectedBundleId("");
+                      setProtectedWindowTitle("");
+                    }}
+                    type="button"
+                  >
+                    {t("action.ignoreCurrentContext")}
+                  </button>
+                </div>
+                <dl className="mini-grid">
+                  <DetailRow
+                    label={t("settings.protectedRuleTotal")}
+                    value={String(snapshot.perception.protectedApps.length)}
+                  />
+                  <DetailRow
+                    label={t("settings.protectedRuleEnabled")}
+                    value={String(
+                      snapshot.perception.protectedApps.filter((rule) => rule.enabled).length
+                    )}
+                  />
+                </dl>
+              </div>
             </Section>
             <Section title={t("section.auditReview")}>
               <dl className="settings-grid">

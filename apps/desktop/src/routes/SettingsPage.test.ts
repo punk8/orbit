@@ -20,6 +20,10 @@ describe("SettingsPage privacy and provider hardening", () => {
     expect(source).toContain("settings.burstInterval");
     expect(source).toContain("settings.rawRetention");
     expect(source).toContain("settings.protectedApps");
+    expect(source).toContain("settings.protectedRulesTitle");
+    expect(source).toContain("data-protected-rule-action=\"ignore-current\"");
+    expect(source).toContain("onUpsertProtectedRule");
+    expect(source).toContain("onIgnoreCurrentContext");
     expect(source).toContain("settings.auditReviewCoverage");
     expect(source).toContain("snapshot.auditReview");
     expect(source).toContain("snapshot.perception.policySnapshot.id");
@@ -54,6 +58,8 @@ describe("SettingsPage privacy and provider hardening", () => {
     const i18n = readFileSync(new URL("../i18n.tsx", import.meta.url), "utf8");
 
     expect(i18n).toContain('"settings.screenOcrRuntimeTitle"');
+    expect(i18n).toContain('"settings.protectedRulesTitle"');
+    expect(i18n).toContain('"action.ignoreCurrentContext"');
     expect(i18n).toContain('"settings.screenOcrOnboardingTitle"');
     expect(i18n).toContain('"settings.screenOcrOnboardingOpenPermission"');
     expect(i18n).toContain('"dogfoodRuntime.observing"');
