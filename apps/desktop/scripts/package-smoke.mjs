@@ -10,6 +10,7 @@ if (!existsSync(appEntry)) {
   throw new Error(`Packaged Orbit executable is missing: ${appEntry}`);
 }
 assertPackagedScreenOcrHelper(appPath);
+assertPackagedMacObserverHelper(appPath);
 const privateScan = scanPackagedPrivateData(appPath);
 if (privateScan.violations.length > 0) {
   throw new Error(
@@ -108,6 +109,17 @@ function assertPackagedScreenOcrHelper(root) {
   const helperSource = readFileSync(helperPath, "utf8");
   if (/write\s*\(|FileManager\.default/.test(helperSource)) {
     throw new Error("Packaged Screen/OCR helper must not persist raw images by itself.");
+  }
+}
+
+function assertPackagedMacObserverHelper(root) {
+  const helperPath = join(root, "Contents/Resources/native/macos-observer/Sources/main.swift");
+  if (!existsSync(helperPath)) {
+    throw new Error(`Packaged macOS observer helper is missing: ${helperPath}`);
+  }
+  const helperSource = readFileSync(helperPath, "utf8");
+  if (!helperSource.includes("NSWorkspace.didActivateApplicationNotification")) {
+    throw new Error("Packaged macOS observer helper does not include foreground app observation.");
   }
 }
 

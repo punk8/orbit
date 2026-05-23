@@ -26,6 +26,13 @@ extraResources:
       - "**/*"
       - "!**/.tmp/**"
       - "!**/fixtures/**"
+  - from: native/macos-observer
+    to: native/macos-observer
+    filter:
+      # Packaged resource path: native/macos-observer/**
+      - "**/*"
+      - "!**/.tmp/**"
+      - "!**/fixtures/**"
 
 asar: true
 
