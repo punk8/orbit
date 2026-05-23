@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
@@ -54,8 +54,18 @@ import { getActivityFrames, getActivityPlayback } from "./commands/activityPlayb
 import { getStatus } from "./commands/status";
 import { getAIStatus, testAITask } from "./commands/ai";
 import { screenPermission } from "@orbit/adapters";
+import type { PipelineWithQualityResult } from "./commands/pipelineQuality";
 
 const tempDirs: string[] = [];
+
+function expectPipelineQuality(pipeline: unknown): PipelineWithQualityResult["quality"] {
+  expect(pipeline).toBeTypeOf("object");
+  expect(pipeline).not.toBeNull();
+  expect("quality" in (pipeline as Record<string, unknown>)).toBe(true);
+  const quality = (pipeline as PipelineWithQualityResult).quality;
+  expect(quality).toBeDefined();
+  return quality;
+}
 
 afterEach(() => {
   delete process.env.ORBIT_HOME;
@@ -836,6 +846,80 @@ describe("cli commands", () => {
     expect(JSON.stringify(handoff)).not.toContain("hunter2");
     expect(JSON.stringify(handoff)).not.toContain("sk-test");
     expect(JSON.stringify(handoff)).not.toContain("person@example.com");
+  });
+
+  it("uses a realistic multi-hour source-install dogfood fixture pack for quality gates", async () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-source-dogfood-quality-test-"));
+    tempDirs.push(orbitHome);
+    process.env.ORBIT_HOME = orbitHome;
+
+    expect(existsSync(join(process.cwd(), "fixtures/source-install-dogfood/screen-ocr/workday.jsonl"))).toBe(
+      true
+    );
+
+    const result = await ingestPerceptionFixtures({
+      pack: "source-install-dogfood"
+    });
+
+    expect(result.fixturePack).toBe("source-install-dogfood");
+    expect(result.totals.inserted).toBeGreaterThanOrEqual(14);
+    const quality = expectPipelineQuality(result.pipeline);
+    expect(quality).toMatchObject({
+      fixturePack: "source-install-dogfood",
+      activity: {
+        total: expect.any(Number),
+        lowQuality: expect.any(Number),
+        highQuality: expect.any(Number)
+      },
+      knowledge: {
+        englishDrafts: expect.any(Number),
+        chineseDrafts: expect.any(Number)
+      },
+      recommendations: {
+        followUps: expect.any(Number),
+        risks: expect.any(Number),
+        contextGaps: expect.any(Number)
+      },
+      handoff: {
+        safeSummaryPointersOnly: true
+      }
+    });
+    expect(quality.activity.total).toBeGreaterThanOrEqual(3);
+    expect(quality.activity.highQuality).toBeGreaterThanOrEqual(2);
+    expect(quality.activity.lowQuality).toBeGreaterThanOrEqual(1);
+    expect(quality.knowledge.generatedFromLowQuality).toBe(0);
+    expect(quality.recommendations.followUps).toBeGreaterThan(0);
+    expect(quality.recommendations.risks).toBeGreaterThan(0);
+    expect(quality.recommendations.contextGaps).toBeGreaterThan(0);
+    expect(quality.handoff.rawLeakCount).toBe(0);
+
+    const sessions = listActivitySessions();
+    expect(sessions.filter((session) => session.localState.qualitySignals?.isLowQuality)).not
+      .toHaveLength(0);
+    expect(listKnowledgeArtifacts().every((artifact) => artifact.metadata.language === "en")).toBe(
+      true
+    );
+    const handoff = getTodayHandoff({ date: "2026-05-21" });
+    expect(
+      JSON.stringify({
+        currentState: handoff.currentState,
+        recentActivity: handoff.recentActivity,
+        confirmedKnowledge: handoff.confirmedKnowledge,
+        recommendedNextActions: handoff.recommendedNextActions,
+        nextSteps: handoff.nextSteps,
+        evidenceIndex: handoff.evidenceIndex
+      })
+    ).not.toMatch(/RAW_|raw-ocr|raw-screen|hunter2|sk-test|api[-_\s]?key|password/i);
+
+    const zhOrbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-source-dogfood-zh-quality-test-"));
+    tempDirs.push(zhOrbitHome);
+    process.env.ORBIT_HOME = zhOrbitHome;
+    const zh = await ingestPerceptionFixtures({
+      pack: "source-install-dogfood",
+      language: "zh-CN"
+    });
+    expect(expectPipelineQuality(zh.pipeline).knowledge.chineseDrafts).toBeGreaterThan(0);
+    expect(JSON.stringify(listKnowledgeArtifacts())).toContain("## 关键洞察");
   });
 
   it("runs a mock screen/OCR start pause resume stop smoke", async () => {

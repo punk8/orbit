@@ -32,11 +32,15 @@ import {
   EventRepository,
   openOrbitDatabase,
   readPerceptionStatus,
+  runSemanticPipeline,
   SettingsRepository,
   SourceRepository
 } from "@orbit/db";
 import { getCliConfig } from "../config";
-import { runSemanticPipeline, type SemanticPipelineResult } from "./semanticPipeline";
+import { attachQuality, type PipelineWithQualityResult } from "./pipelineQuality";
+import type { SemanticPipelineResult } from "./semanticPipeline";
+
+type FixtureKnowledgeLanguage = "en" | "zh-CN";
 
 export interface IngestPerceptionFixturesResult {
   orbitHome: string;
@@ -54,13 +58,18 @@ export interface IngestPerceptionFixturesResult {
     inserted: number;
     skipped: number;
   };
-  pipeline: SemanticPipelineResult;
+  fixturePack: PerceptionFixturePackName;
+  pipeline: SemanticPipelineResult | PipelineWithQualityResult;
 }
 
 export interface IngestPerceptionFixturesOptions {
   includeVision?: boolean;
   includeAudio?: boolean;
+  pack?: PerceptionFixturePackName;
+  language?: FixtureKnowledgeLanguage;
 }
+
+export type PerceptionFixturePackName = "default" | "source-install-dogfood";
 
 export async function ingestPerceptionFixtures(
   options: IngestPerceptionFixturesOptions = {}
@@ -78,9 +87,12 @@ export async function ingestPerceptionFixtures(
     const perceptionStatus = readPerceptionStatus(database.db);
     const screenPolicy = perceptionSourcePolicy(perceptionStatus, "screen");
     const ocrPolicy = perceptionSourcePolicy(perceptionStatus, "ocr");
+    const fixturePack = options.pack ?? "default";
     const fixtureRead = readScreenCaptureFixtures(
-      join(config.fixturesRoot, "perception/screen-ocr")
+      screenOcrFixtureDirectory(config.fixturesRoot, fixturePack)
     );
+    const maxFramesPerRead =
+      fixturePack === "source-install-dogfood" ? fixtureRead.frames.length : undefined;
     const scope = fixtureRead.frames[0]?.scope ?? defaultFixtureScope;
     const permission = screenPermission("granted");
     const adapters = [
@@ -90,6 +102,7 @@ export async function ingestPerceptionFixtures(
         scope,
         permission,
         protectedApps,
+        ...(maxFramesPerRead ? { maxFramesPerRead } : {}),
         allowRawFrameStorage: screenPolicy.policy.canStoreRaw,
         canUseForAI: screenPolicy.policy.canUseForAI,
         canExportToAgent: screenPolicy.policy.canExportToAgent
@@ -101,6 +114,7 @@ export async function ingestPerceptionFixtures(
         engine: new MockOcrEngine(),
         permission,
         protectedApps,
+        ...(maxFramesPerRead ? { maxFramesPerRead } : {}),
         canUseForAI: ocrPolicy.policy.canUseForAI,
         canExportToAgent: ocrPolicy.policy.canExportToAgent
       })
@@ -230,7 +244,18 @@ export async function ingestPerceptionFixtures(
       }
     }
 
-    const pipeline = runSemanticPipeline(database);
+    const pipelineResult = runSemanticPipeline(
+      database,
+      fixturePack === "source-install-dogfood"
+        ? { language: options.language ?? "en" }
+        : options.language
+          ? { language: options.language }
+          : {}
+    );
+    const pipeline =
+      fixturePack === "source-install-dogfood"
+        ? attachQuality(pipelineResult, { database, fixturePack })
+        : pipelineResult;
 
     return {
       orbitHome: database.orbitHome,
@@ -241,6 +266,7 @@ export async function ingestPerceptionFixtures(
         inserted: results.reduce((total, result) => total + result.inserted, 0),
         skipped: results.reduce((total, result) => total + result.skipped, 0)
       },
+      fixturePack,
       pipeline
     };
   } finally {
@@ -253,6 +279,13 @@ const defaultFixtureScope: ScreenCaptureScope = {
   label: "Fixture Display",
   displayId: "fixture-display"
 };
+
+function screenOcrFixtureDirectory(fixturesRoot: string, pack: PerceptionFixturePackName): string {
+  if (pack === "source-install-dogfood") {
+    return join(fixturesRoot, "source-install-dogfood/screen-ocr");
+  }
+  return join(fixturesRoot, "perception/screen-ocr");
+}
 
 const defaultAudioFixtureScope = {
   kind: "microphone" as const,

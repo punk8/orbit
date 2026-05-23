@@ -134,6 +134,64 @@ describe("semantic pipeline AI provider integration", () => {
     }
   });
 
+  it("refreshes unreviewed deterministic drafts when the requested Knowledge language changes", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-language-refresh-test-"));
+    tempDirs.push(orbitHome);
+    const database = openOrbitDatabase({ orbitHome });
+    try {
+      upsertFixtureSource(database.db);
+      new EventRepository(database.db).upsertEvent(makeEvent("1", "message"));
+
+      runSemanticPipeline(database, { language: "en" });
+      const knowledgeRepository = new KnowledgeRepository(database.db);
+      const english = knowledgeRepository.listKnowledgeArtifacts()[0]!;
+      expect(english.status).toBe("draft");
+      expect(english.metadata.language).toBe("en");
+      expect(english.content.markdown).toContain("## Key Insights");
+
+      runSemanticPipeline(database, { language: "zh-CN" });
+
+      const refreshed = knowledgeRepository.getKnowledgeArtifact(english.id)!;
+      expect(refreshed.id).toBe(english.id);
+      expect(refreshed.status).toBe("draft");
+      expect(refreshed.createdAt).toBe(english.createdAt);
+      expect(refreshed.metadata.language).toBe("zh-CN");
+      expect(refreshed.title).toContain("知识");
+      expect(refreshed.content.markdown).toContain("## 关键洞察");
+    } finally {
+      database.close();
+    }
+  });
+
+  it("does not refresh reviewed Knowledge when the requested language changes", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-language-reviewed-test-"));
+    tempDirs.push(orbitHome);
+    const database = openOrbitDatabase({ orbitHome });
+    try {
+      upsertFixtureSource(database.db);
+      new EventRepository(database.db).upsertEvent(makeEvent("1", "message"));
+
+      runSemanticPipeline(database, { language: "en" });
+      const knowledgeRepository = new KnowledgeRepository(database.db);
+      const artifact = knowledgeRepository.listKnowledgeArtifacts()[0]!;
+      knowledgeRepository.upsertKnowledgeArtifact({
+        ...artifact,
+        status: "confirmed",
+        title: "Reviewed English title"
+      });
+
+      runSemanticPipeline(database, { language: "zh-CN" });
+
+      const preserved = knowledgeRepository.getKnowledgeArtifact(artifact.id)!;
+      expect(preserved.status).toBe("confirmed");
+      expect(preserved.title).toBe("Reviewed English title");
+      expect(preserved.metadata.language).toBe("en");
+      expect(preserved.content.markdown).toContain("## Key Insights");
+    } finally {
+      database.close();
+    }
+  });
+
   it("uses provider drafts and filters unknown evidence IDs", async () => {
     const orbitHome = mkdtempSync(join(tmpdir(), "orbit-provider-pipeline-test-"));
     tempDirs.push(orbitHome);

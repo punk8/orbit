@@ -60,14 +60,14 @@ import {
   summarizeVisionFixture,
   transcribeAudioFixture
 } from "./commands/perception";
-import { runSemanticPipeline } from "./commands/semanticPipeline";
+import {
+  runPipelineWithProviderAndQuality,
+  runPipelineWithQuality
+} from "./commands/pipelineQuality";
 import { getStatus } from "./commands/status";
 import { getAIStatus, testAITask } from "./commands/ai";
 import { buildAIProvider, isAIProviderConfigured, readAIProviderConfigFromEnv } from "@orbit/ai";
 import { getLocalDateKey } from "@orbit/core";
-import { openOrbitDatabase } from "@orbit/db";
-import { runSemanticPipelineWithProvider } from "@orbit/db";
-import { getCliConfig } from "./config";
 import { writeOutput } from "./output";
 
 export function buildProgram(): Command {
@@ -150,14 +150,28 @@ export function buildProgram(): Command {
     .description("Ingest explicit screen/OCR perception fixtures")
     .option("--vision", "also run mock vision summarization when perception policy allows it")
     .option("--audio", "also run mock meeting audio/transcript fixtures when policy allows it")
+    .option("--pack <pack>", "Fixture pack: default or source-install-dogfood")
+    .option("--language <language>", "Knowledge draft language: en or zh-CN")
     .option("--json", "output JSON")
-    .action(async (options: { vision?: boolean; audio?: boolean; json?: boolean }) => {
-      const result = await ingestPerceptionFixtures({
-        includeVision: options.vision ?? false,
-        includeAudio: options.audio ?? false
-      });
-      writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
-    });
+    .action(
+      async (options: {
+        vision?: boolean;
+        audio?: boolean;
+        pack?: string;
+        language?: string;
+        json?: boolean;
+      }) => {
+        const fixturePack = readPerceptionFixturePack(options.pack);
+        const language = readKnowledgeLanguage(options.language);
+        const result = await ingestPerceptionFixtures({
+          includeVision: options.vision ?? false,
+          includeAudio: options.audio ?? false,
+          ...(fixturePack ? { pack: fixturePack } : {}),
+          ...(language ? { language } : {})
+        });
+        writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
+      }
+    );
 
   const pipeline = program.command("pipeline").description("Run local processing pipelines");
   pipeline
@@ -167,22 +181,16 @@ export function buildProgram(): Command {
     .option("--language <language>", "Knowledge draft language: en or zh-CN")
     .option("--json", "output JSON")
     .action(async (options: { ai?: boolean; language?: string; json?: boolean }) => {
-      const config = getCliConfig();
-      const database = openOrbitDatabase({ orbitHome: config.orbitHome });
-      try {
-        const providerConfig = readAIProviderConfigFromEnv();
-        const useProvider = Boolean(options.ai) || isAIProviderConfigured(providerConfig);
-        const language = readKnowledgeLanguage(options.language);
-        const result = useProvider
-          ? await runSemanticPipelineWithProvider(database, {
-              aiProvider: buildAIProvider(providerConfig),
-              ...(language ? { language } : {})
-            })
-          : runSemanticPipeline(database, language ? { language } : {});
-        writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
-      } finally {
-        database.close();
-      }
+      const providerConfig = readAIProviderConfigFromEnv();
+      const useProvider = Boolean(options.ai) || isAIProviderConfigured(providerConfig);
+      const language = readKnowledgeLanguage(options.language);
+      const result = useProvider
+        ? await runPipelineWithProviderAndQuality({
+            aiProvider: buildAIProvider(providerConfig),
+            ...(language ? { language } : {})
+          })
+        : runPipelineWithQuality(language ? { language } : {});
+      writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
     });
 
   const ai = program.command("ai").description("Inspect AI provider runtime routing");
@@ -920,6 +928,14 @@ function readKnowledgeLanguage(value: string | undefined): "en" | "zh-CN" | unde
   if (value === undefined) return undefined;
   if (value === "en" || value === "zh-CN") return value;
   throw new Error(`Unsupported knowledge language: ${value}`);
+}
+
+function readPerceptionFixturePack(
+  value: string | undefined
+): "default" | "source-install-dogfood" | undefined {
+  if (value === undefined) return undefined;
+  if (value === "default" || value === "source-install-dogfood") return value;
+  throw new Error(`Unsupported perception fixture pack: ${value}`);
 }
 
 function withHandoffLanguage<T extends Record<string, unknown>>(

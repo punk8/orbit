@@ -169,16 +169,24 @@ function runSemanticPipelineCore(
       for (const input of draftInputs) {
         const fallback = draftKnowledgeArtifact({ ...input, language: readKnowledgeLanguage(options) });
         const existing = knowledgeRepository.getKnowledgeArtifact(fallback.id);
-        const artifact = existing ? fallback : await buildArtifact(input);
+        const shouldRefresh = existing
+          ? shouldRefreshKnowledgeDraft(existing, readKnowledgeLanguage(options))
+          : false;
+        const artifact = existing && !shouldRefresh ? existing : await buildArtifact(input);
         draftArtifacts.push(artifact);
-        if (!existing) {
+        if (!existing || shouldRefresh) {
           knowledgeRepository.upsertKnowledgeArtifact(artifact);
-          auditRepository.log("knowledge.generated", "knowledge_artifact", artifact.id, {
-            sourceSessionIds: artifact.metadata.sourceSessionIds,
-            generatedBy: artifact.metadata.generatedBy ?? enabledAiProvider.id,
-            status: artifact.status,
-            language: artifact.metadata.language ?? readKnowledgeLanguage(options)
-          });
+          auditRepository.log(
+            existing ? "knowledge.refreshed" : "knowledge.generated",
+            "knowledge_artifact",
+            artifact.id,
+            {
+              sourceSessionIds: artifact.metadata.sourceSessionIds,
+              generatedBy: artifact.metadata.generatedBy ?? enabledAiProvider.id,
+              status: artifact.status,
+              language: artifact.metadata.language ?? readKnowledgeLanguage(options)
+            }
+          );
         }
       }
       return finishSemanticPipeline({
@@ -200,14 +208,22 @@ function runSemanticPipelineCore(
 
   for (const artifact of draftArtifacts) {
     const existing = knowledgeRepository.getKnowledgeArtifact(artifact.id);
-    if (!existing) {
+    const shouldRefresh = existing
+      ? shouldRefreshKnowledgeDraft(existing, readKnowledgeLanguage(options))
+      : false;
+    if (!existing || shouldRefresh) {
       knowledgeRepository.upsertKnowledgeArtifact(artifact);
-      auditRepository.log("knowledge.generated", "knowledge_artifact", artifact.id, {
-        sourceSessionIds: artifact.metadata.sourceSessionIds,
-        generatedBy: artifact.metadata.generatedBy ?? "deterministic_local",
-        status: artifact.status,
-        language: artifact.metadata.language ?? "en"
-      });
+      auditRepository.log(
+        existing ? "knowledge.refreshed" : "knowledge.generated",
+        "knowledge_artifact",
+        artifact.id,
+        {
+          sourceSessionIds: artifact.metadata.sourceSessionIds,
+          generatedBy: artifact.metadata.generatedBy ?? "deterministic_local",
+          status: artifact.status,
+          language: artifact.metadata.language ?? "en"
+        }
+      );
     }
   }
 
@@ -270,6 +286,17 @@ function shouldGenerateKnowledgeDraft(
       event.privacy.redactionState === "none"
   );
   return session.durationSeconds >= 600 && hasSemanticWindowEvidence;
+}
+
+function shouldRefreshKnowledgeDraft(
+  existing: KnowledgeArtifact,
+  requestedLanguage: NonNullable<KnowledgeArtifact["metadata"]["language"]>
+): boolean {
+  if (existing.status !== "draft") return false;
+  if (existing.metadata.evidenceState !== undefined && existing.metadata.evidenceState !== "available") {
+    return false;
+  }
+  return (existing.metadata.language ?? "en") !== requestedLanguage;
 }
 
 function readKnowledgeLanguage(options: SemanticPipelineOptions): "en" | "zh-CN" {
