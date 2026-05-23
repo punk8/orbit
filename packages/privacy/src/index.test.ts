@@ -152,4 +152,56 @@ describe("perception release gate", () => {
       signingBlocker: "missing_apple_developer_credentials"
     });
   });
+
+  it("reports Alpha dogfood manual smoke coverage without failing automated release gates", () => {
+    const report = evaluatePerceptionReleaseGate({
+      perception: createDefaultPerceptionStatus(),
+      cleanup: {
+        scannedEvents: 0,
+        cleanedEvents: 0,
+        removedRawRefs: 0,
+        removedAttachments: 0,
+        deletedLocalSidecars: 0,
+        preservedSummaries: 0
+      },
+      auditOperations: [],
+      packaging: {
+        excludesTmp: true,
+        excludesFixtures: true,
+        nativeHelperMode: "unsigned",
+        signed: false,
+        notarized: false,
+        privateDataScan: { scanned: 3, violations: [] }
+      },
+      manualSmoke: {
+        screenRecordingPermission: "passed",
+        autoStart: "passed",
+        pauseResumeStop: "passed",
+        permissionRevoke: "needs_data",
+        restartAutoResume: "needs_data",
+        resourcePause: "needs_data",
+        protectedContext: "passed",
+        auditReview: "passed",
+        cleanup: "passed"
+      }
+    });
+
+    expect(report.status).toBe("pass");
+    expect(report.manualSmoke.completed).toEqual([
+      "screenRecordingPermission",
+      "autoStart",
+      "pauseResumeStop",
+      "protectedContext",
+      "auditReview",
+      "cleanup"
+    ]);
+    expect(report.manualSmoke.missing).toEqual([
+      "permissionRevoke",
+      "restartAutoResume",
+      "resourcePause"
+    ]);
+    expect(report.checks.find((check) => check.id === "manual_smoke")?.status).toBe(
+      "needs_data"
+    );
+  });
 });

@@ -48,12 +48,14 @@ export interface PerceptionReleaseGateInput {
     signed: boolean;
     notarized: boolean;
   };
+  manualSmoke?: Partial<Record<ManualSmokeScenario, ManualSmokeStatus>>;
 }
 
 export interface PerceptionReleaseGateReport {
   status: "pass" | "fail";
   checks: ReleaseGateCheck[];
   auditReview: PerceptionAuditReview;
+  manualSmoke: PerceptionManualSmokeReview;
   packaging: {
     excludesTmp: boolean;
     excludesFixtures: boolean;
@@ -71,6 +73,26 @@ export interface PerceptionAuditReview {
   operationCounts: Record<string, number>;
   requiredGroups: string[];
   missingGroups: string[];
+}
+
+export type ManualSmokeScenario =
+  | "screenRecordingPermission"
+  | "autoStart"
+  | "pauseResumeStop"
+  | "permissionRevoke"
+  | "restartAutoResume"
+  | "resourcePause"
+  | "protectedContext"
+  | "auditReview"
+  | "cleanup";
+
+export type ManualSmokeStatus = "passed" | "failed" | "needs_data";
+
+export interface PerceptionManualSmokeReview {
+  required: ManualSmokeScenario[];
+  completed: ManualSmokeScenario[];
+  failed: ManualSmokeScenario[];
+  missing: ManualSmokeScenario[];
 }
 
 const requiredAuditOperationGroups: Array<{
@@ -104,10 +126,23 @@ const requiredAuditOperationGroups: Array<{
   { id: "handoff", operations: ["handoff.generate"], mode: "any" }
 ];
 
+const requiredManualSmokeScenarios: ManualSmokeScenario[] = [
+  "screenRecordingPermission",
+  "autoStart",
+  "pauseResumeStop",
+  "permissionRevoke",
+  "restartAutoResume",
+  "resourcePause",
+  "protectedContext",
+  "auditReview",
+  "cleanup"
+];
+
 export function evaluatePerceptionReleaseGate(
   input: PerceptionReleaseGateInput
 ): PerceptionReleaseGateReport {
   const auditReview = buildAuditReview(input.auditOperations ?? []);
+  const manualSmoke = buildManualSmokeReview(input.manualSmoke);
   const packaging = buildPackagingSummary(input.packaging);
   const checks = [
     noDefaultCaptureCheck(input.perception),
@@ -116,12 +151,14 @@ export function evaluatePerceptionReleaseGate(
     resourceBudgetCheck(input.perception),
     cleanupCheck(input.cleanup),
     auditCoverageCheck(auditReview),
+    manualSmokeCheck(manualSmoke),
     packagingCheck(input.packaging)
   ];
   return {
     status: checks.some((check) => check.status === "fail") ? "fail" : "pass",
     checks,
     auditReview,
+    manualSmoke,
     packaging
   };
 }
@@ -257,6 +294,31 @@ function auditCoverageCheck(auditReview: PerceptionAuditReview): ReleaseGateChec
   };
 }
 
+function manualSmokeCheck(manualSmoke: PerceptionManualSmokeReview): ReleaseGateCheck {
+  if (manualSmoke.failed.length > 0) {
+    return {
+      id: "manual_smoke",
+      status: "fail",
+      message: "One or more required Alpha dogfood manual smoke scenarios failed.",
+      details: { manualSmoke }
+    };
+  }
+  if (manualSmoke.missing.length > 0) {
+    return {
+      id: "manual_smoke",
+      status: "needs_data",
+      message: "Some required Alpha dogfood manual smoke scenarios still need real macOS evidence.",
+      details: { manualSmoke }
+    };
+  }
+  return {
+    id: "manual_smoke",
+    status: "pass",
+    message: "Required Alpha dogfood manual smoke scenarios have been recorded.",
+    details: { manualSmoke }
+  };
+}
+
 function packagingCheck(
   packaging: PerceptionReleaseGateInput["packaging"] | undefined
 ): ReleaseGateCheck {
@@ -291,6 +353,26 @@ function packagingCheck(
         ? { signingBlocker: "missing_apple_developer_credentials" }
         : {})
     }
+  };
+}
+
+function buildManualSmokeReview(
+  manualSmoke: PerceptionReleaseGateInput["manualSmoke"] | undefined
+): PerceptionManualSmokeReview {
+  const completed: ManualSmokeScenario[] = [];
+  const failed: ManualSmokeScenario[] = [];
+  const missing: ManualSmokeScenario[] = [];
+  for (const scenario of requiredManualSmokeScenarios) {
+    const status = manualSmoke?.[scenario] ?? "needs_data";
+    if (status === "passed") completed.push(scenario);
+    else if (status === "failed") failed.push(scenario);
+    else missing.push(scenario);
+  }
+  return {
+    required: requiredManualSmokeScenarios,
+    completed,
+    failed,
+    missing
   };
 }
 

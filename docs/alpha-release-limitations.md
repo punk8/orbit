@@ -5,7 +5,11 @@ release.
 
 ## Perception Defaults
 
-- Screen/OCR, vision, microphone, system audio, and transcript sources are disabled by default.
+- Screen/OCR low-frequency observation auto-starts only after macOS Screen Recording permission is
+  granted, unless the user paused, stopped, disabled, revoked permission, or entered a protected or
+  resource-paused context.
+- Vision, microphone, system audio, transcript sources, external AI providers, and raw sidecar
+  storage are disabled by default.
 - Raw screenshots, raw OCR dumps, audio, and transcript sidecars are not exported to Handoff by
   default.
 - Raw sidecars, when explicitly enabled, are short-TTL data and must be cleaned before packaging or
@@ -25,9 +29,12 @@ release.
 
 ## Manual Smoke Requirements
 
-- Verify macOS Screen Recording permission prompts on a clean account.
-- Verify protected app suppression before capture and no retained raw sidecar after suppression.
-- Verify pause, resume, stop, cleanup, Handoff exclusion, and audit review outputs.
+- Run `docs/alpha-dogfood-manual-smoke.md` on a clean macOS dogfood account.
+- Verify macOS Screen Recording permission grant, auto-start, pause, resume, stop, revoke, and
+  restart auto-resume behavior.
+- Verify resource pause and protected app/window/domain suppression happen before capture, with no
+  retained raw sidecar after suppression.
+- Verify cleanup, Handoff exclusion, and audit review outputs.
 - Record any `needs_data` release-gate audit groups before sharing an Alpha build.
 
 ## Known Gaps

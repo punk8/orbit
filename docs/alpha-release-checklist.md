@@ -49,6 +49,9 @@ Before shipping an Alpha build with perception controls:
   smoke tests.
 - Generate a Handoff Pack and verify it excludes raw media, failed-redaction Events, secret content,
   and non-exportable perception sources.
+- Review `manualSmoke` in `orbit perception release-gate --json`; unresolved entries are
+  `needs_data` until `docs/alpha-dogfood-manual-smoke.md` has been run on a real macOS dogfood
+  account.
 
 ## Resource Budgets
 
@@ -66,15 +69,17 @@ Initial Alpha budgets are intentionally conservative until dogfood data exists:
 
 Run these on a clean macOS Alpha account before external dogfood:
 
-- Fresh install: open Settings/Sources and verify no screen, OCR, vision, microphone, system audio,
-  or transcript source starts collecting.
-- Screen Recording: enable screen/OCR, grant permission, run the mock smoke, pause, resume, stop,
-  then disable and run sidecar cleanup.
-- Microphone: enable microphone/transcript with a mock/local provider, verify permission copy,
-  protected app suppression, pause, stop, and cleanup.
-- Protected apps: open a protected app/window and verify perception warnings are audited and no raw
-  sidecar is retained.
-- Delete: delete or disable a perception source and verify raw sidecars are removed while Activity,
+- Follow `docs/alpha-dogfood-manual-smoke.md` for the required Screen Recording grant, auto-start,
+  pause, resume, stop, revoke, restart auto-resume, resource pause, protected context, audit,
+  cleanup, and Handoff checks.
+- Fresh install: open Settings/Sources and verify only Screen/OCR may auto-start after macOS Screen
+  Recording is granted; vision, microphone, system audio, transcript, external providers, and raw
+  sidecar storage remain off by default.
+- Screen/OCR dogfood: grant permission, verify automatic observing, run a low-frequency burst,
+  pause, resume, stop, revoke permission, restart, then run sidecar cleanup.
+- Protected apps/windows/domains: open a protected context and verify suppression happens before
+  helper capture, audit records the skip, and no raw sidecar is retained.
+- Delete/cleanup: disable a perception source and verify raw sidecars are removed while Activity,
   Knowledge, Recommendation, and Handoff summaries remain usable.
 
 ## Signing And Notarization Gate
@@ -90,9 +95,12 @@ Before broader distribution:
 ## Known Alpha Limitations
 
 - Perception fixture ingestion uses mock providers and sanitized fixtures only.
-- Real raw screen recording, OCR, microphone, system audio, and browser scraping remain opt-in and
-  disabled by default.
-- No signed standalone native perception helper is shipped in this checkpoint. The existing Tier 1
-  macOS observer source is a development helper and is not silently trusted as a packaged helper.
+- Screen/OCR low-frequency observation auto-starts after macOS Screen Recording is granted, unless
+  the user paused, stopped, disabled, revoked permission, or entered a protected/resource-paused
+  context.
+- Raw screen recording, raw screenshot storage, microphone, system audio, external providers, and
+  browser scraping remain opt-in and disabled by default.
+- The packaged Screen/OCR helper is included as an unsigned Alpha resource. Signing and
+  notarization remain a release blocker until Apple Developer credentials are available.
 - If Computer Use cannot attach to the packaged Electron window, rely on `package:smoke` as the
   deterministic window-control baseline and record the manual attachment limitation separately.

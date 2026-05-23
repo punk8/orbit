@@ -58,6 +58,7 @@ afterEach(() => {
   delete process.env.ORBIT_OPENAI_BASE_URL;
   delete process.env.ORBIT_OPENAI_MODEL;
   delete process.env.ORBIT_OPENAI_API_KEY;
+  delete process.env.ORBIT_ALPHA_MANUAL_SMOKE;
   for (const dir of tempDirs.splice(0)) {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -939,6 +940,7 @@ describe("cli commands", () => {
 
     const gate = getPerceptionReleaseGate();
     expect(gate.releaseGate.status).toBe("pass");
+    expect(gate.releaseGate.manualSmoke.missing).toContain("screenRecordingPermission");
     expect(gate.releaseGate.auditReview).toEqual(
       expect.objectContaining({
         operationCounts: expect.any(Object),
@@ -965,6 +967,20 @@ describe("cli commands", () => {
       .find((command) => command.name() === "perception")
       ?.helpInformation();
     expect(perceptionHelp).toContain("audit-review");
+  });
+
+  it("accepts environment-recorded Alpha manual smoke statuses in the release gate", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-manual-smoke-gate-test-"));
+    tempDirs.push(orbitHome);
+    process.env.ORBIT_HOME = orbitHome;
+    process.env.ORBIT_ALPHA_MANUAL_SMOKE =
+      "screenRecordingPermission=passed,autoStart=passed,pauseResumeStop=passed,permissionRevoke=passed,restartAutoResume=passed,resourcePause=passed,protectedContext=passed,auditReview=passed,cleanup=passed";
+
+    const gate = getPerceptionReleaseGate();
+    expect(gate.releaseGate.manualSmoke.missing).toEqual([]);
+    expect(gate.releaseGate.checks.find((check) => check.id === "manual_smoke")?.status).toBe(
+      "pass"
+    );
   });
 
   it("scans packaged desktop output from the repo root even when CLI cwd is a workspace package", () => {

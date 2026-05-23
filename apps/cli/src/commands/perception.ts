@@ -53,7 +53,11 @@ import {
   updatePerceptionSamplingPreset,
   updatePerceptionSourcePolicy
 } from "@orbit/db";
-import { evaluatePerceptionReleaseGate } from "@orbit/privacy";
+import {
+  evaluatePerceptionReleaseGate,
+  type ManualSmokeScenario,
+  type ManualSmokeStatus
+} from "@orbit/privacy";
 import { getCliConfig } from "../config";
 import { runSemanticPipeline, type SemanticPipelineResult } from "./semanticPipeline";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
@@ -695,7 +699,8 @@ export function getPerceptionReleaseGate(): PerceptionReleaseGateCommandResult {
           nativeHelperMode: readPackagedNativeHelperMode(),
           signed: false,
           notarized: false
-        }
+        },
+        manualSmoke: readManualSmokeStatusFromEnv()
       })
     };
   } finally {
@@ -709,6 +714,37 @@ function readPackagedNativeHelperMode(): "none" | "mock" | "unsigned" | "signed"
     return value;
   }
   return "unsigned";
+}
+
+function readManualSmokeStatusFromEnv(): Partial<Record<ManualSmokeScenario, ManualSmokeStatus>> {
+  const raw = process.env.ORBIT_ALPHA_MANUAL_SMOKE?.trim();
+  if (!raw) return {};
+  const result: Partial<Record<ManualSmokeScenario, ManualSmokeStatus>> = {};
+  for (const entry of raw.split(",")) {
+    const [scenario, status] = entry.split("=").map((item) => item?.trim());
+    if (isManualSmokeScenario(scenario) && isManualSmokeStatus(status)) {
+      result[scenario] = status;
+    }
+  }
+  return result;
+}
+
+function isManualSmokeScenario(value: string | undefined): value is ManualSmokeScenario {
+  return (
+    value === "screenRecordingPermission" ||
+    value === "autoStart" ||
+    value === "pauseResumeStop" ||
+    value === "permissionRevoke" ||
+    value === "restartAutoResume" ||
+    value === "resourcePause" ||
+    value === "protectedContext" ||
+    value === "auditReview" ||
+    value === "cleanup"
+  );
+}
+
+function isManualSmokeStatus(value: string | undefined): value is ManualSmokeStatus {
+  return value === "passed" || value === "failed" || value === "needs_data";
 }
 
 function scanPackagedPrivateData(root: string): { scanned: number; violations: string[] } {
