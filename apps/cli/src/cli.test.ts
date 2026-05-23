@@ -593,15 +593,18 @@ describe("cli commands", () => {
 
     const status = getAIStatus();
     expect(status.providerRegistry.tasks.map((task) => task.task)).toEqual([
+      "activity_overview_summary",
       "knowledge_draft",
       "vision_summary",
       "ocr_postprocess",
       "transcription",
       "memory_candidate",
       "recommendation",
+      "embedding",
+      "redaction",
       "context_compression"
     ]);
-    expect(status.providerRegistry.summary.disabled).toBe(7);
+    expect(status.providerRegistry.summary.disabled).toBe(10);
 
     process.env.ORBIT_AI_PROVIDER = "mock";
     const mockTest = await testAITask("knowledge_draft");

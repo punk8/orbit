@@ -9,15 +9,18 @@ describe("AI provider runtime registry", () => {
     });
 
     expect(registry.tasks.map((task) => task.task)).toEqual([
+      "activity_overview_summary",
       "knowledge_draft",
       "vision_summary",
       "ocr_postprocess",
       "transcription",
       "memory_candidate",
       "recommendation",
+      "embedding",
+      "redaction",
       "context_compression"
     ]);
-    expect(registry.summary.disabled).toBe(7);
+    expect(registry.summary.disabled).toBe(10);
     expect(registry.tasks.every((task) => task.enabled === false)).toBe(true);
   });
 

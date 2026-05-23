@@ -405,6 +405,105 @@ describe("semantic pipeline AI provider integration", () => {
       database.close();
     }
   });
+
+  it("sends redacted perception evidence packets to providers without raw frame or OCR dumps", async () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-provider-packet-test-"));
+    tempDirs.push(orbitHome);
+    const database = openOrbitDatabase({ orbitHome });
+    try {
+      new SourceRepository(database.db).upsertSource({
+        id: "perception_screen",
+        kind: "screen",
+        displayName: "Screen",
+        enabled: true,
+        paused: false,
+        defaultSensitivity: "confidential",
+        permissionScope: {
+          ...defaultPermissionScopeForSource("screen", "confidential"),
+          canUseForAI: true,
+          canExportToAgent: false
+        },
+        createdAt: "2026-05-21T09:00:00.000Z",
+        updatedAt: "2026-05-21T09:00:00.000Z"
+      });
+      new SourceRepository(database.db).upsertSource({
+        id: "perception_ocr",
+        kind: "ocr",
+        displayName: "OCR",
+        enabled: true,
+        paused: false,
+        defaultSensitivity: "internal",
+        permissionScope: {
+          ...defaultPermissionScopeForSource("ocr", "internal"),
+          canUseForAI: true,
+          canExportToAgent: false
+        },
+        createdAt: "2026-05-21T09:00:00.000Z",
+        updatedAt: "2026-05-21T09:00:00.000Z"
+      });
+      const screen = makeProviderScreenEvent("screen_1", {
+        summary: "Screen summary: Orbit settings are visible.",
+        rawLocalRef: "/private/orbit/raw-screen.png"
+      });
+      const ocr = makeProviderOcrEvent("ocr_1", {
+        summary: "OCR summary: safe settings text.",
+        text: "RAW_OCR_DUMP password=hunter2 api_key=sk-test"
+      });
+      const eventRepository = new EventRepository(database.db);
+      eventRepository.upsertEvent(screen);
+      eventRepository.upsertEvent(ocr);
+
+      const providerInputs: unknown[] = [];
+      await runSemanticPipelineWithProvider(database, {
+        aiProvider: {
+          id: "packet_provider",
+          kind: "openai-compatible",
+          enabled: true,
+          name: "packet_provider",
+          model: "packet-model",
+          async draftKnowledge(input) {
+            providerInputs.push(input);
+            return {
+              title: "Packet draft",
+              description: "Provider used redacted packet.",
+              keyInsights: [{ text: "Safe packet insight", evidenceIds: [screen.id] }],
+              decisions: [],
+              blockers: [],
+              followUps: [],
+              confidence: 0.8
+            };
+          }
+        } satisfies AIProvider & { model: string }
+      });
+
+      const serialized = JSON.stringify(providerInputs);
+      expect(serialized).toContain("perceptionEvidencePacket");
+      expect(serialized).toContain("Screen summary: Orbit settings are visible.");
+      expect(serialized).toContain("OCR summary: safe settings text.");
+      expect(serialized).not.toContain("raw-screen.png");
+      expect(serialized).not.toContain("RAW_OCR_DUMP");
+      expect(serialized).not.toContain("hunter2");
+      expect(serialized).not.toContain("sk-test");
+
+      const aiLogs = new AuditRepository(database.db)
+        .listAuditLogs()
+        .filter((log) => log.operation === "ai.provider_call");
+      expect(aiLogs[0]?.details).toMatchObject({
+        provider: "packet_provider",
+        model: "packet-model",
+        task: "knowledge_draft",
+        payloadClass: "redacted_evidence_packet",
+        sourceObjectIds: [expect.any(String)],
+        sourcePolicyDecision: "allowed_redacted_packet",
+        redactionStatus: "none",
+        resultObjectIds: [expect.any(String)]
+      });
+      expect(JSON.stringify(aiLogs[0]?.details)).not.toContain("raw-screen.png");
+      expect(JSON.stringify(aiLogs[0]?.details)).not.toContain("RAW_OCR_DUMP");
+    } finally {
+      database.close();
+    }
+  });
 });
 
 function upsertFixtureSource(
@@ -580,6 +679,104 @@ function makePerceptionScreenEvent(id: string, occurredAt: string): Event {
     },
     privacy: {
       sensitivity: "confidential",
+      retentionPolicyId: "perception_summary_only",
+      redactionState: "none"
+    },
+    hash: hashObject({ source, occurredAt })
+  };
+}
+
+function makeProviderScreenEvent(
+  id: string,
+  overrides: { summary: string; rawLocalRef: string }
+): Event {
+  const occurredAt = "2026-05-21T09:00:00.000Z";
+  const source = {
+    kind: "screen" as const,
+    adapterId: "perception_screen",
+    externalId: id,
+    pointer: `screen://capture/provider/${id}`
+  };
+  return {
+    id: createStableId("event", { source, occurredAt }),
+    schemaVersion: 1,
+    source,
+    occurredAt,
+    observedAt: occurredAt,
+    context: {
+      app: "Orbit",
+      project: "orbit",
+      threadId: "provider-packet"
+    },
+    type: "screen_observation",
+    content: {
+      title: "Screen frame",
+      summary: overrides.summary,
+      rawRef: overrides.rawLocalRef,
+      metadata: {
+        frameHash: id,
+        rawFrameStored: true,
+        rawFrameLocalRef: overrides.rawLocalRef,
+        rawFrameState: "available",
+        rawFrameSizeBytes: 42_000,
+        retentionPolicyId: "perception_raw_ttl_72h",
+        rawFrameExpiresAt: "2026-05-24T09:00:00.000Z"
+      }
+    },
+    classification: {
+      topics: ["provider-routing"],
+      entities: [],
+      confidence: 0.8
+    },
+    privacy: {
+      sensitivity: "confidential",
+      retentionPolicyId: "perception_raw_ttl_72h",
+      redactionState: "none"
+    },
+    hash: hashObject({ source, occurredAt })
+  };
+}
+
+function makeProviderOcrEvent(
+  id: string,
+  overrides: { summary: string; text: string }
+): Event {
+  const occurredAt = "2026-05-21T09:01:00.000Z";
+  const source = {
+    kind: "ocr" as const,
+    adapterId: "perception_ocr",
+    externalId: id,
+    pointer: `ocr://capture/provider/${id}`
+  };
+  return {
+    id: createStableId("event", { source, occurredAt }),
+    schemaVersion: 1,
+    source,
+    occurredAt,
+    observedAt: occurredAt,
+    context: {
+      app: "Orbit",
+      project: "orbit",
+      threadId: "provider-packet"
+    },
+    type: "ocr_text",
+    content: {
+      title: "OCR text",
+      summary: overrides.summary,
+      text: overrides.text,
+      metadata: {
+        sourceFrameHash: "screen_1",
+        rawTextStored: true,
+        rawTextRef: "/private/orbit/raw-ocr.txt"
+      }
+    },
+    classification: {
+      topics: ["provider-routing"],
+      entities: [],
+      confidence: 0.8
+    },
+    privacy: {
+      sensitivity: "internal",
       retentionPolicyId: "perception_summary_only",
       redactionState: "none"
     },
