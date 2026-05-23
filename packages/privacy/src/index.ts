@@ -267,20 +267,30 @@ function packagingCheck(
       message: "Packaging policy was not provided to the release-gate evaluator."
     };
   }
-  const safe =
+  const privateDataSafe =
     packaging.excludesTmp &&
     packaging.excludesFixtures &&
-    (packaging.privateDataScan?.violations.length ?? 0) === 0 &&
-    (packaging.nativeHelperMode === "none" ||
-      packaging.nativeHelperMode === "mock" ||
-      packaging.nativeHelperMode === "signed");
+    (packaging.privateDataScan?.violations.length ?? 0) === 0;
+  const signedHelperSafe =
+    packaging.nativeHelperMode === "none" ||
+    packaging.nativeHelperMode === "mock" ||
+    packaging.nativeHelperMode === "signed";
+  const unsignedAlphaHelper = privateDataSafe && packaging.nativeHelperMode === "unsigned";
+  const safe = privateDataSafe && signedHelperSafe;
   return {
     id: "packaging_policy",
-    status: safe ? "pass" : "fail",
+    status: safe ? "pass" : unsignedAlphaHelper ? "needs_data" : "fail",
     message: safe
       ? "Package policy excludes private fixture/tmp data and has no silently trusted unsigned helper."
-      : "Package policy can include private data or an unsigned native helper.",
-    details: { packaging }
+      : unsignedAlphaHelper
+        ? "Alpha package uses an unsigned native helper; signing and notarization require Apple Developer credentials."
+        : "Package policy can include private data or an unsigned native helper.",
+    details: {
+      packaging,
+      ...(unsignedAlphaHelper
+        ? { signingBlocker: "missing_apple_developer_credentials" }
+        : {})
+    }
   };
 }
 

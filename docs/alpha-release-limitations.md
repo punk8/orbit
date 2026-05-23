@@ -19,8 +19,9 @@ release.
   supplied.
 - The packaged smoke path scans for `.tmp`, fixture, perception sidecar, and common private marker
   leakage before launch.
-- No silently trusted standalone native perception helper is shipped in this checkpoint; helper
-  behavior remains explicit and smoke-tested.
+- The Screen/OCR helper is packaged in the Alpha app resources and smoke-tested before launch.
+- Packaged helper mode is `unsigned` until Apple Developer signing and notarization credentials are
+  supplied; the release gate reports this as `needs_data`, not as a silent pass.
 
 ## Manual Smoke Requirements
 

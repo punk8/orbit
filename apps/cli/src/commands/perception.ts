@@ -57,7 +57,7 @@ import { evaluatePerceptionReleaseGate } from "@orbit/privacy";
 import { getCliConfig } from "../config";
 import { runSemanticPipeline, type SemanticPipelineResult } from "./semanticPipeline";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type {
   PerceptionControlPlaneStatus,
   PerceptionPermissionStatus,
@@ -676,8 +676,8 @@ export function getPerceptionReleaseGate(): PerceptionReleaseGateCommandResult {
         packaging: {
           excludesTmp: true,
           excludesFixtures: true,
-          privateDataScan: scanPackagedPrivateData(join(process.cwd(), "apps/desktop")),
-          nativeHelperMode: "mock",
+          privateDataScan: scanPackagedPrivateData(join(dirname(config.fixturesRoot), "apps/desktop")),
+          nativeHelperMode: readPackagedNativeHelperMode(),
           signed: false,
           notarized: false
         }
@@ -686,6 +686,14 @@ export function getPerceptionReleaseGate(): PerceptionReleaseGateCommandResult {
   } finally {
     database.close();
   }
+}
+
+function readPackagedNativeHelperMode(): "none" | "mock" | "unsigned" | "signed" {
+  const value = process.env.ORBIT_PACKAGED_NATIVE_HELPER_MODE;
+  if (value === "none" || value === "mock" || value === "unsigned" || value === "signed") {
+    return value;
+  }
+  return "unsigned";
 }
 
 function scanPackagedPrivateData(root: string): { scanned: number; violations: string[] } {

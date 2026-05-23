@@ -10,6 +10,7 @@ export interface ScreenOcrCaptureResult {
   frame?: ScreenCaptureFrame;
   ocr?: ScreenOcrTextResult;
   permission: ObservationPermissionStatus;
+  error?: ScreenOcrCaptureError;
   warnings: string[];
 }
 
@@ -17,6 +18,19 @@ export interface ScreenOcrTextResult {
   text: string;
   confidence?: number;
   languages: string[];
+}
+
+export type ScreenOcrCaptureErrorKind =
+  | "permission_denied"
+  | "unsupported_macos"
+  | "timeout"
+  | "ocr_failed"
+  | "unknown_failure";
+
+export interface ScreenOcrCaptureError {
+  kind: ScreenOcrCaptureErrorKind;
+  reason?: string;
+  message?: string;
 }
 
 export interface ScreenOcrCaptureHelper {
@@ -45,6 +59,8 @@ interface HelperSuccessPayload {
   ocrText?: string;
   ocrConfidence?: number;
   languages?: string[];
+  errorKind?: ScreenOcrCaptureErrorKind;
+  message?: string;
   warnings?: string[];
 }
 
@@ -67,11 +83,20 @@ export class MacScreenOcrCaptureHelper implements ScreenOcrCaptureHelper {
   }
 
   async captureOnce(): Promise<ScreenOcrCaptureResult> {
-    const output = await runSwiftHelper(this.helperPath, this.timeoutMs);
     const parseOptions: Pick<MacScreenOcrCaptureHelperOptions, "runtimeSessionId" | "sequence"> = {};
     if (this.options.runtimeSessionId) parseOptions.runtimeSessionId = this.options.runtimeSessionId;
     if (this.options.sequence !== undefined) parseOptions.sequence = this.options.sequence;
-    return parseMacScreenOcrCapturePayload(output, parseOptions);
+    try {
+      const output = await runSwiftHelper(this.helperPath, this.timeoutMs);
+      return parseMacScreenOcrCapturePayload(output, parseOptions);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const reason = message.toLowerCase().includes("timed out") ? "timeout" : "helper_exited";
+      return parseMacScreenOcrCapturePayload(
+        JSON.stringify({ ok: false, reason, message }),
+        parseOptions
+      );
+    }
   }
 }
 
@@ -103,6 +128,7 @@ export function parseMacScreenOcrCapturePayload(
   if (!payload.ok) {
     return {
       permission: permissionFromFailure(payload),
+      error: errorFromHelperPayload(payload),
       warnings: [...(payload.warnings ?? []), payload.message ?? payload.reason ?? "Capture failed."]
     };
   }
@@ -145,6 +171,12 @@ export function parseMacScreenOcrCapturePayload(
     permission: screenPermission("granted"),
     warnings: payload.warnings ?? []
   };
+  if (payload.errorKind) {
+    result.error = {
+      kind: payload.errorKind,
+      ...(payload.message ? { message: payload.message } : {})
+    };
+  }
   if (payload.ocrText?.trim()) {
     result.ocr = {
       text: payload.ocrText,
@@ -156,6 +188,13 @@ export function parseMacScreenOcrCapturePayload(
 }
 
 export function defaultMacScreenOcrHelperPath(): string {
+  const packagedRelativePath = "native/screen-ocr-helper/Sources/main.swift";
+  const resourcesPath = (process as typeof process & { resourcesPath?: string }).resourcesPath;
+  if (resourcesPath) {
+    const packagedCandidate = join(resourcesPath, packagedRelativePath);
+    if (existsSync(packagedCandidate)) return packagedCandidate;
+  }
+
   const relativePath = "apps/desktop/native/screen-ocr-helper/Sources/main.swift";
   let current = process.cwd();
   for (let depth = 0; depth < 6; depth += 1) {
@@ -174,6 +213,28 @@ function permissionFromFailure(payload: HelperFailurePayload): ObservationPermis
     return screenPermission("not_determined");
   }
   return screenPermission("unknown");
+}
+
+function errorFromHelperPayload(
+  payload: Pick<HelperFailurePayload, "reason" | "message">
+): ScreenOcrCaptureError {
+  const reason = payload.reason;
+  const kind: ScreenOcrCaptureErrorKind =
+    reason === "screen_recording_permission_denied" ||
+    reason === "screen_recording_permission_not_determined"
+      ? "permission_denied"
+      : reason === "unsupported_macos"
+        ? "unsupported_macos"
+        : reason === "timeout"
+          ? "timeout"
+          : reason === "ocr_failed"
+            ? "ocr_failed"
+            : "unknown_failure";
+  return {
+    kind,
+    ...(reason ? { reason } : {}),
+    ...(payload.message ? { message: payload.message } : {})
+  };
 }
 
 async function runSwiftHelper(helperPath: string, timeoutMs: number): Promise<string> {

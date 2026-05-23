@@ -18,6 +18,15 @@ files:
   - "!**/fixtures/**"
   - "!**/*.map"
 
+extraResources:
+  - from: native/screen-ocr-helper
+    to: native/screen-ocr-helper
+    filter:
+      # Packaged resource path: native/screen-ocr-helper/**
+      - "**/*"
+      - "!**/.tmp/**"
+      - "!**/fixtures/**"
+
 asar: true
 
 mac:

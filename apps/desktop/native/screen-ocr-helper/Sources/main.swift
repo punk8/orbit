@@ -22,6 +22,7 @@ struct HelperOutput: Encodable {
   let ocrText: String?
   let ocrConfidence: Double?
   let languages: [String]?
+  let errorKind: String?
   let warnings: [String]?
 }
 
@@ -153,14 +154,20 @@ Task {
         ocrText: ocr.text,
         ocrConfidence: ocr.confidence,
         languages: ["en-US", "zh-Hans"],
+        errorKind: warnings.isEmpty ? nil : "ocr_failed",
         warnings: warnings
       )
     )
   } catch {
     let description = (error as NSError).localizedDescription
-    let reason = description.localizedCaseInsensitiveContains("permission")
-      ? "screen_recording_permission_denied"
-      : "capture_failed"
+    let reason: String
+    if description.localizedCaseInsensitiveContains("permission") {
+      reason = "screen_recording_permission_denied"
+    } else if description.localizedCaseInsensitiveContains("ScreenCaptureKit requires") {
+      reason = "unsupported_macos"
+    } else {
+      reason = "capture_failed"
+    }
     emit(
       HelperOutput(
         ok: false,
@@ -179,6 +186,7 @@ Task {
         ocrText: nil,
         ocrConfidence: nil,
         languages: nil,
+        errorKind: nil,
         warnings: nil
       )
     )

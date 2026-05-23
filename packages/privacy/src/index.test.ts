@@ -118,4 +118,38 @@ describe("perception release gate", () => {
       "fail"
     );
   });
+
+  it("allows an explicitly unsigned packaged Alpha helper while still reporting signing blockers", () => {
+    const report = evaluatePerceptionReleaseGate({
+      perception: createDefaultPerceptionStatus(),
+      cleanup: {
+        scannedEvents: 0,
+        cleanedEvents: 0,
+        removedRawRefs: 0,
+        removedAttachments: 0,
+        deletedLocalSidecars: 0,
+        preservedSummaries: 0
+      },
+      auditOperations: [],
+      packaging: {
+        excludesTmp: true,
+        excludesFixtures: true,
+        nativeHelperMode: "unsigned",
+        signed: false,
+        notarized: false,
+        privateDataScan: { scanned: 3, violations: [] }
+      }
+    });
+
+    expect(report.status).toBe("pass");
+    expect(report.packaging.nativeHelperMode).toBe("unsigned");
+    expect(report.checks.find((check) => check.id === "packaging_policy")?.status).toBe(
+      "needs_data"
+    );
+    expect(
+      report.checks.find((check) => check.id === "packaging_policy")?.details
+    ).toMatchObject({
+      signingBlocker: "missing_apple_developer_credentials"
+    });
+  });
 });

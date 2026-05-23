@@ -9,6 +9,7 @@ const appEntry = join(appPath, "Contents/MacOS/Orbit");
 if (!existsSync(appEntry)) {
   throw new Error(`Packaged Orbit executable is missing: ${appEntry}`);
 }
+assertPackagedScreenOcrHelper(appPath);
 const privateScan = scanPackagedPrivateData(appPath);
 if (privateScan.violations.length > 0) {
   throw new Error(
@@ -22,7 +23,7 @@ const env = {
   ...process.env,
   ORBIT_HOME: orbitHome,
   ORBIT_PACKAGED_SMOKE: "1",
-  ORBIT_PACKAGED_NATIVE_HELPER_MODE: "mock",
+  ORBIT_PACKAGED_NATIVE_HELPER_MODE: "unsigned",
   ORBIT_SKIP_LOGIN_ITEM_SETTINGS: "1"
 };
 delete env.ELECTRON_RUN_AS_NODE;
@@ -96,6 +97,17 @@ function resolveAppPath(input) {
 function cleanup() {
   if (cleanupOrbitHome) {
     rmSync(orbitHome, { recursive: true, force: true });
+  }
+}
+
+function assertPackagedScreenOcrHelper(root) {
+  const helperPath = join(root, "Contents/Resources/native/screen-ocr-helper/Sources/main.swift");
+  if (!existsSync(helperPath)) {
+    throw new Error(`Packaged Screen/OCR helper is missing: ${helperPath}`);
+  }
+  const helperSource = readFileSync(helperPath, "utf8");
+  if (/write\s*\(|FileManager\.default/.test(helperSource)) {
+    throw new Error("Packaged Screen/OCR helper must not persist raw images by itself.");
   }
 }
 

@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
@@ -936,6 +936,27 @@ describe("cli commands", () => {
       .find((command) => command.name() === "perception")
       ?.helpInformation();
     expect(perceptionHelp).toContain("audit-review");
+  });
+
+  it("scans packaged desktop output from the repo root even when CLI cwd is a workspace package", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-package-scan-test-"));
+    const originalCwd = process.cwd();
+    const releaseRoot = join(originalCwd, "apps/desktop/release/test-scan");
+    const releaseFile = join(releaseRoot, "Contents/Resources/package-smoke-marker.txt");
+    tempDirs.push(orbitHome);
+    process.env.ORBIT_HOME = orbitHome;
+    mkdirSync(join(releaseFile, ".."), { recursive: true });
+    writeFileSync(releaseFile, "packaged smoke marker");
+
+    process.chdir(join(originalCwd, "apps/cli"));
+    try {
+      const gate = getPerceptionReleaseGate();
+      expect(gate.releaseGate.packaging.privateDataScan.scanned).toBeGreaterThan(0);
+      expect(gate.releaseGate.packaging.privateDataScan.violations).toEqual([]);
+    } finally {
+      process.chdir(originalCwd);
+      rmSync(releaseRoot, { recursive: true, force: true });
+    }
   });
 
   it("syncs Alpha dogfood Screen Recording permission into auto-start runtime status", () => {

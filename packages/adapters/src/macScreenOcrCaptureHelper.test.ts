@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { parseMacScreenOcrCapturePayload } from "./screen/macScreenOcrCaptureHelper";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  defaultMacScreenOcrHelperPath,
+  parseMacScreenOcrCapturePayload
+} from "./screen/macScreenOcrCaptureHelper";
 
 describe("macOS screen/OCR capture helper parsing", () => {
   it("converts one-shot helper JSON into a screen frame and OCR result", () => {
@@ -47,6 +53,74 @@ describe("macOS screen/OCR capture helper parsing", () => {
 
     expect(parsed.frame).toBeUndefined();
     expect(parsed.permission.status).toBe("denied");
+    expect(parsed.error).toMatchObject({
+      kind: "permission_denied",
+      reason: "screen_recording_permission_denied"
+    });
     expect(parsed.warnings).toContain("Screen Recording permission is required.");
+  });
+
+  it("maps structured helper failures for unsupported macOS, timeout, OCR, and unknown errors", () => {
+    expect(
+      parseMacScreenOcrCapturePayload(
+        JSON.stringify({
+          ok: false,
+          reason: "unsupported_macos",
+          message: "ScreenCaptureKit requires macOS 12.3 or later."
+        })
+      ).error
+    ).toMatchObject({ kind: "unsupported_macos" });
+
+    expect(
+      parseMacScreenOcrCapturePayload(
+        JSON.stringify({
+          ok: false,
+          reason: "timeout",
+          message: "Screen/OCR helper timed out."
+        })
+      ).error
+    ).toMatchObject({ kind: "timeout" });
+
+    expect(
+      parseMacScreenOcrCapturePayload(
+        JSON.stringify({
+          ok: true,
+          capturedAt: "2026-05-22T01:02:03.000Z",
+          frameHash: "ocrfail123",
+          errorKind: "ocr_failed",
+          message: "Vision OCR failed.",
+          warnings: ["Vision OCR failed."]
+        })
+      ).error
+    ).toMatchObject({ kind: "ocr_failed" });
+
+    expect(
+      parseMacScreenOcrCapturePayload(
+        JSON.stringify({
+          ok: false,
+          reason: "helper_exited",
+          message: "Unexpected helper exit."
+        })
+      ).error
+    ).toMatchObject({ kind: "unknown_failure" });
+  });
+
+  it("prefers the packaged app-relative screen/OCR helper path when available", () => {
+    const root = mkdtempSync(join(tmpdir(), "orbit-packaged-helper-path-"));
+    const helperPath = join(root, "native/screen-ocr-helper/Sources/main.swift");
+    mkdirSync(join(root, "native/screen-ocr-helper/Sources"), { recursive: true });
+    writeFileSync(helperPath, "print(\"helper\")");
+    const original = (process as typeof process & { resourcesPath?: string }).resourcesPath;
+    (process as typeof process & { resourcesPath?: string }).resourcesPath = root;
+    try {
+      expect(defaultMacScreenOcrHelperPath()).toBe(helperPath);
+    } finally {
+      if (original === undefined) {
+        Reflect.deleteProperty(process, "resourcesPath");
+      } else {
+        (process as typeof process & { resourcesPath?: string }).resourcesPath = original;
+      }
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

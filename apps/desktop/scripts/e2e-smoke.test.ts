@@ -43,9 +43,13 @@ describe("desktop e2e smoke script", () => {
     const builderConfig = readFileSync(new URL("../electron-builder.yml", import.meta.url), "utf8");
 
     expect(packageSmoke).toContain("scanPackagedPrivateData");
+    expect(packageSmoke).toContain("assertPackagedScreenOcrHelper");
     expect(packageSmoke).toContain("ORBIT_PACKAGED_NATIVE_HELPER_MODE");
+    expect(packageSmoke).toContain("ORBIT_PACKAGED_NATIVE_HELPER_MODE: \"unsigned\"");
     expect(packageSmoke).toContain("fixtures");
     expect(packageSmoke).toContain("perception-sidecars");
+    expect(builderConfig).toContain("native/screen-ocr-helper/**");
+    expect(builderConfig).toContain("extraResources");
     expect(builderConfig).toContain("!**/fixtures/**");
     expect(builderConfig).toContain("!**/.tmp/**");
   });
