@@ -97,7 +97,7 @@ export async function runScreenBurstScheduler(
     frameCount: input.perception.samplingPolicy.framesPerBurst,
     frameSpacingMs: input.perception.samplingPolicy.frameSpacingMs,
     protectedApps: input.protectedApps ?? input.perception.protectedApps,
-    allowRawFrameStorage: false,
+    allowRawFrameStorage: input.perception.samplingPolicy.rawFrameRetention === "short_ttl",
     now
   });
   return {

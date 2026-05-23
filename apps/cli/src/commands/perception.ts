@@ -33,6 +33,7 @@ import {
   type VisionProvider
 } from "@orbit/ai";
 import {
+  DEFAULT_RAW_FRAME_TTL_MINUTES,
   evaluatePerceptionResourceState,
   ingestEventsFromAdapter,
   normalizeObservationInput
@@ -65,7 +66,7 @@ import {
 } from "@orbit/privacy";
 import { getCliConfig } from "../config";
 import { runSemanticPipeline, type SemanticPipelineResult } from "./semanticPipeline";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type {
   PerceptionControlPlaneStatus,
@@ -595,7 +596,10 @@ export async function captureScreenOcrBurstNow(
     const runtimeSessionId = `manual-mock-screen-burst-${Date.now()}`;
     const helper = new MockScreenCaptureNativeHelper({
       permission: screenPermission("granted"),
-      frames: makeMockBurstFrames(scope, runtimeSessionId, perception.samplingPolicy.framesPerBurst)
+      frames: materializeMockRawFrameSidecars(
+        makeMockBurstFrames(scope, runtimeSessionId, perception.samplingPolicy.framesPerBurst),
+        database.orbitHome
+      )
     });
     const schedulerResult = await runScreenBurstScheduler({
       helper,
@@ -628,19 +632,21 @@ export async function captureScreenOcrBurstNow(
     const frames = burst?.frames.map((candidate) => candidate.frame) ?? [];
     const results: CaptureScreenOcrCommandResult["sources"] = [];
     if (frames.length > 0) {
+      const screenPolicy = perception.sources.find(
+        (source) => source.sourceKind === "screen"
+      )?.policy;
+      const ocrPolicy = perception.sources.find((source) => source.sourceKind === "ocr")?.policy;
       const screenAdapter = new ScreenObservationAdapter({
         id: SCREEN_OBSERVATION_ADAPTER_ID,
         frames,
         scope,
         permission: screenPermission("granted"),
         protectedApps: perception.protectedApps,
-        allowRawFrameStorage: false,
-        canUseForAI:
-          perception.sources.find((source) => source.sourceKind === "screen")?.policy.canUseForAI ===
-          true,
-        canExportToAgent:
-          perception.sources.find((source) => source.sourceKind === "screen")?.policy
-            .canExportToAgent === true
+        allowRawFrameStorage: screenPolicy?.canStoreRaw === true,
+        rawRetentionTtlMinutes:
+          screenPolicy?.rawRetentionTtlMinutes ?? DEFAULT_RAW_FRAME_TTL_MINUTES,
+        canUseForAI: screenPolicy?.canUseForAI === true,
+        canExportToAgent: screenPolicy?.canExportToAgent === true
       });
       const ocrAdapter = new OcrObservationAdapter({
         id: OCR_OBSERVATION_ADAPTER_ID,
@@ -649,12 +655,8 @@ export async function captureScreenOcrBurstNow(
         engine: new MockOcrEngine(),
         permission: screenPermission("granted"),
         protectedApps: perception.protectedApps,
-        canUseForAI:
-          perception.sources.find((source) => source.sourceKind === "ocr")?.policy.canUseForAI ===
-          true,
-        canExportToAgent:
-          perception.sources.find((source) => source.sourceKind === "ocr")?.policy
-            .canExportToAgent === true
+        canUseForAI: ocrPolicy?.canUseForAI === true,
+        canExportToAgent: ocrPolicy?.canExportToAgent === true
       });
 
       for (const adapter of [screenAdapter, ocrAdapter]) {
@@ -1207,6 +1209,35 @@ function makeMockBurstFrames(
     redactedSummary: `Mock Screen/OCR burst frame ${index + 1}.`,
     ocrText: `Mock Screen/OCR burst frame ${index + 1} 支持中文 and English.`
   }));
+}
+
+function materializeMockRawFrameSidecars(
+  frames: ScreenCaptureFrame[],
+  orbitHome: string
+): ScreenCaptureFrame[] {
+  const sidecarRoot = join(orbitHome, "perception-sidecars");
+  mkdirSync(sidecarRoot, { recursive: true });
+  return frames.map((frame) => {
+    const path = join(sidecarRoot, `${frame.frameHash}.mock-frame.txt`);
+    const bytes = Buffer.from(
+      JSON.stringify(
+        {
+          id: frame.id,
+          frameHash: frame.frameHash,
+          capturedAt: frame.capturedAt,
+          redactedSummary: frame.redactedSummary
+        },
+        null,
+        2
+      )
+    );
+    writeFileSync(path, bytes);
+    return {
+      ...frame,
+      rawLocalRef: path,
+      sizeBytes: bytes.byteLength
+    };
+  });
 }
 
 function readSamplingPreset(value: string): PerceptionSamplingPresetName {

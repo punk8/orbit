@@ -92,13 +92,43 @@ describe("perception release gate", () => {
     expect(report.checks.find((check) => check.id === "no_default_capture")?.status).toBe("pass");
   });
 
-  it("fails when raw sidecars or external providers are enabled by default", () => {
+  it("allows default local short-TTL screen evidence while failing unsafe raw retention or external providers", () => {
+    const localEvidenceReport = evaluatePerceptionReleaseGate({
+      perception: createDefaultPerceptionStatus(),
+      cleanup: {
+        scannedEvents: 0,
+        cleanedEvents: 0,
+        removedRawRefs: 0,
+        removedAttachments: 0,
+        deletedLocalSidecars: 0,
+        preservedSummaries: 0
+      },
+      auditOperations: [],
+      packaging: {
+        excludesTmp: true,
+        excludesFixtures: true,
+        nativeHelperMode: "mock",
+        signed: false,
+        notarized: false
+      }
+    });
+
+    expect(localEvidenceReport.status).toBe("pass");
+    expect(
+      localEvidenceReport.checks.find((check) => check.id === "raw_evidence_local_short_ttl")
+        ?.status
+    ).toBe("pass");
+
     const perception = createDefaultPerceptionStatus(
       [
         {
           sourceKind: "screen",
           enabled: true,
-          policy: { canStoreRaw: true, rawRetentionTtlMinutes: 60 }
+          policy: {
+            canStoreRaw: true,
+            rawRetentionTtlMinutes: 14 * 24 * 60,
+            retentionPolicyId: "perception_raw_ttl_14d"
+          }
         }
       ],
       [
@@ -114,7 +144,7 @@ describe("perception release gate", () => {
 
     expect(report.status).toBe("fail");
     expect(report.checks.find((check) => check.id === "no_default_capture")?.status).toBe("fail");
-    expect(report.checks.find((check) => check.id === "raw_storage_default_off")?.status).toBe(
+    expect(report.checks.find((check) => check.id === "raw_evidence_local_short_ttl")?.status).toBe(
       "fail"
     );
   });

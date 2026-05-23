@@ -158,9 +158,14 @@ function buildSession(
     .join(" / ");
 
   const quality = scoreActivityQuality(events, durationSeconds);
+  const rawStorageBytes = events.reduce((total, event) => {
+    const sizeBytes = readNumber(event.content.metadata?.rawFrameSizeBytes);
+    return total + (sizeBytes ?? 0);
+  }, 0);
   const localState: ActivitySession["localState"] = {
-    rawAvailable: false,
+    rawAvailable: events.some((event) => event.content.metadata?.rawFrameState === "available"),
     indexed: true,
+    ...(rawStorageBytes > 0 ? { storageBytes: rawStorageBytes } : {}),
     closed: state.closed,
     qualityScore: quality.qualityScore,
     qualitySignals: quality.qualitySignals
@@ -360,4 +365,8 @@ function unique<T extends string>(values: T[]): T[] {
 
 function isPresent<T>(value: T | undefined | null | ""): value is T {
   return value !== undefined && value !== null && value !== "";
+}
+
+function readNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }

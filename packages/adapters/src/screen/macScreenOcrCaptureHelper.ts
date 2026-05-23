@@ -52,6 +52,8 @@ interface HelperSuccessPayload {
   width?: number;
   height?: number;
   frameHash: string;
+  rawLocalRef?: string;
+  rawSizeBytes?: number;
   appName?: string;
   bundleId?: string;
   pid?: number;
@@ -165,6 +167,8 @@ export function parseMacScreenOcrCapturePayload(
   }
   if (payload.width) frame.width = payload.width;
   if (payload.height) frame.height = payload.height;
+  if (payload.rawLocalRef) frame.rawLocalRef = payload.rawLocalRef;
+  if (payload.rawSizeBytes) frame.sizeBytes = payload.rawSizeBytes;
 
   const result: ScreenOcrCaptureResult = {
     frame,

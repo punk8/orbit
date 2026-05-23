@@ -629,7 +629,7 @@ export function SettingsPage({
                         onChange={(checked) =>
                           void onUpdatePerceptionSourcePolicy(source.sourceKind, {
                             canStoreRaw: checked,
-                            rawRetentionTtlMinutes: checked ? 60 : null
+                            rawRetentionTtlMinutes: checked ? 72 * 60 : null
                           })
                         }
                       />

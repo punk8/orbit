@@ -2,11 +2,13 @@ import type Database from "better-sqlite3";
 import {
   createDefaultPerceptionStatus,
   defaultPerceptionProviderRoutes,
+  DEFAULT_RAW_FRAME_TTL_MINUTES,
   defaultProtectedAppRules,
   hashObject,
   isPerceptionProviderTask,
   isPerceptionSourceKind,
   normalizePerceptionProviderKind,
+  perceptionRawRetentionPolicyId,
   type PerceptionControlPlaneStatus,
   type PerceptionProviderKind,
   type PerceptionProviderRoute,
@@ -560,10 +562,16 @@ function normalizePolicyPatch(patch: PerceptionSourcePolicyPatch): PerceptionSou
     next.rawRetentionTtlMinutes = Number.isFinite(ttl) && ttl > 0 ? Math.round(ttl) : null;
   }
   if (next.canStoreRaw === true && next.rawRetentionTtlMinutes === undefined) {
-    next.rawRetentionTtlMinutes = 60;
+    next.rawRetentionTtlMinutes = DEFAULT_RAW_FRAME_TTL_MINUTES;
   }
   if (next.canStoreRaw === false) {
     next.rawRetentionTtlMinutes = null;
+    next.retentionPolicyId = "perception_summary_only";
+  }
+  if (next.canStoreRaw === true) {
+    next.retentionPolicyId = perceptionRawRetentionPolicyId(
+      next.rawRetentionTtlMinutes ?? DEFAULT_RAW_FRAME_TTL_MINUTES
+    );
   }
   return next;
 }

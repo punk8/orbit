@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -22,6 +22,8 @@ describe("macOS screen/OCR capture helper parsing", () => {
         bundleId: "com.todesktop.230313mzl4w4u92",
         pid: 123,
         windowTitle: "Orbit - Screen OCR",
+        rawLocalRef: "/Users/paul/Library/Application Support/Orbit/perception-sidecars/abc123.png",
+        rawSizeBytes: 3456,
         ocrText: "Orbit 支持 screen OCR",
         ocrConfidence: 0.91,
         languages: ["zh-Hans", "en-US"]
@@ -36,7 +38,10 @@ describe("macOS screen/OCR capture helper parsing", () => {
     expect(frame.app?.name).toBe("Cursor");
     expect(frame.window?.title).toBe("Orbit - Screen OCR");
     expect(frame.frameHash).toBe("abc123");
-    expect(frame.rawLocalRef).toBeUndefined();
+    expect(frame.rawLocalRef).toBe(
+      "/Users/paul/Library/Application Support/Orbit/perception-sidecars/abc123.png"
+    );
+    expect(frame.sizeBytes).toBe(3456);
     expect(parsed.ocr?.text).toBe("Orbit 支持 screen OCR");
     expect(parsed.ocr?.confidence).toBe(0.91);
     expect(parsed.ocr?.languages).toEqual(["zh-Hans", "en-US"]);
@@ -122,5 +127,18 @@ describe("macOS screen/OCR capture helper parsing", () => {
       }
       rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  it("keeps raw sidecar writing local to ORBIT_HOME in the Swift helper source", () => {
+    const helperSource = readFileSync(
+      new URL("../../../apps/desktop/native/screen-ocr-helper/Sources/main.swift", import.meta.url),
+      "utf8"
+    );
+
+    expect(helperSource).toContain("ORBIT_HOME");
+    expect(helperSource).toContain("perception-sidecars");
+    expect(helperSource).toContain("rawLocalRef");
+    expect(helperSource).toContain("rawSizeBytes");
+    expect(helperSource).not.toContain("/tmp");
   });
 });

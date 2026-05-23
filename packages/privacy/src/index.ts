@@ -205,7 +205,7 @@ export function evaluatePerceptionReleaseGate(
   const packaging = buildPackagingSummary(input.packaging);
   const checks = [
     noDefaultCaptureCheck(input.perception),
-    rawStorageDefaultOffCheck(input.perception),
+    rawEvidenceLocalShortTtlCheck(input.perception),
     protectedAppsCheck(input.perception),
     resourceBudgetCheck(input.perception),
     runtimeHardeningCheck(runtimeHardening),
@@ -263,19 +263,32 @@ function noDefaultCaptureCheck(perception: PerceptionControlPlaneStatus): Releas
   };
 }
 
-function rawStorageDefaultOffCheck(perception: PerceptionControlPlaneStatus): ReleaseGateCheck {
-  const rawEnabled = perception.sources
-    .filter((source) => source.policy.canStoreRaw || source.policy.rawRetentionTtlMinutes !== null)
+function rawEvidenceLocalShortTtlCheck(
+  perception: PerceptionControlPlaneStatus
+): ReleaseGateCheck {
+  const unsafe = perception.sources
+    .filter((source) => {
+      if (!source.policy.canStoreRaw && source.policy.rawRetentionTtlMinutes === null) {
+        return false;
+      }
+      return (
+        source.sourceKind !== "screen" ||
+        source.policy.canExportToAgent ||
+        source.policy.canUseForAI ||
+        source.policy.rawRetentionTtlMinutes === null ||
+        source.policy.rawRetentionTtlMinutes > 7 * 24 * 60
+      );
+    })
     .map((source) => source.sourceKind);
-  const status = rawEnabled.length === 0 ? "pass" : "fail";
+  const status = unsafe.length === 0 ? "pass" : "fail";
   return {
-    id: "raw_storage_default_off",
+    id: "raw_evidence_local_short_ttl",
     status,
     message:
       status === "pass"
-        ? "Raw perception sidecars are off by default."
-        : "One or more perception sources allow raw sidecars.",
-    details: { rawEnabled }
+        ? "Raw frame evidence is local-only, short-retention, and excluded from AI/Handoff by policy."
+        : "One or more raw evidence policies are not local-only, short-retention, and screen-only.",
+    details: { unsafe }
   };
 }
 

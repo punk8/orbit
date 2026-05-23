@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
@@ -487,7 +487,7 @@ describe("cli commands", () => {
     expect(result.mode).toBe("manual_mock_screen_burst");
     expect(result.burst.status).toBe("completed");
     expect(result.burst.frames).toHaveLength(3);
-    expect(result.burst.rawStored).toBe(false);
+    expect(result.burst.rawStored).toBe(true);
     expect(result.burst.auditOperations).toEqual([
       "perception.burst_scheduled",
       "perception.burst_started",
@@ -505,10 +505,15 @@ describe("cli commands", () => {
     const session = listActivitySessions()[0]!;
     expect(session.localState.closed).toBe(true);
     expect(session.localState.closeReason).toBe("explicit_boundary");
+    expect(session.localState.rawAvailable).toBe(true);
     expect(session.localState.qualitySignals).toMatchObject({
       frameCount: 3,
       isLowQuality: false
     });
+
+    const sidecarRoot = join(orbitHome, "perception-sidecars");
+    expect(existsSync(sidecarRoot)).toBe(true);
+    expect(readdirSync(sidecarRoot)).toHaveLength(3);
 
     const artifact = listKnowledgeArtifacts()[0]!;
     expect(artifact.metadata.language).toBe("zh-CN");
@@ -555,9 +560,15 @@ describe("cli commands", () => {
     expect(frames.eventCount).toBe(7);
     expect(frames.frames[0]).toMatchObject({
       frameIndex: 0,
-      rawAvailable: false,
-      rawState: "raw_expired",
+      rawAvailable: true,
+      rawState: "available",
       ocrStatus: "completed"
+    });
+    expect(frames.frames[0]?.localRef).toContain("perception-sidecars");
+    expect(frames.frames[0]?.retention).toMatchObject({
+      policyId: "perception_raw_ttl_72h",
+      cleanupState: "retained",
+      protectionStatus: "allowed"
     });
     expect(frames.frames[0]?.linkedEvents.map((event) => event.type)).toEqual([
       "screen_observation",

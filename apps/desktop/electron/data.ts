@@ -4,6 +4,7 @@ import {
   defaultProtectedAppRules,
   evaluatePerceptionResourceState,
   planBackgroundRuntimeCycle,
+  DEFAULT_RAW_FRAME_TTL_MINUTES,
   DESKTOP_OBSERVATION_ADAPTER_ID,
   formatHandoffMarkdown,
   getLocalDateKey,
@@ -877,7 +878,9 @@ export async function captureScreenOcrForDesktop(): Promise<DesktopActionResult>
         scope: capture.frame.scope,
         permission: capture.permission,
         protectedApps: perception.protectedApps,
-        allowRawFrameStorage: false,
+        allowRawFrameStorage: screenPolicy?.canStoreRaw === true,
+        rawRetentionTtlMinutes:
+          screenPolicy?.rawRetentionTtlMinutes ?? DEFAULT_RAW_FRAME_TTL_MINUTES,
         canUseForAI: screenPolicy?.canUseForAI === true,
         canExportToAgent: screenPolicy?.canExportToAgent === true
       })
@@ -1025,7 +1028,9 @@ export async function captureScreenOcrBurstForDesktop(): Promise<DesktopActionRe
           scope,
           permission: screenPermission("granted"),
           protectedApps: perception.protectedApps,
-          allowRawFrameStorage: false,
+          allowRawFrameStorage: screenPolicy?.canStoreRaw === true,
+          rawRetentionTtlMinutes:
+            screenPolicy?.rawRetentionTtlMinutes ?? DEFAULT_RAW_FRAME_TTL_MINUTES,
           canUseForAI: screenPolicy?.canUseForAI === true,
           canExportToAgent: screenPolicy?.canExportToAgent === true
         }),

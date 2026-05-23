@@ -31,14 +31,30 @@ describe("perception capability descriptors", () => {
     }
   });
 
-  it("builds a disabled-by-default control-plane status with provider routes", () => {
+  it("builds a Yansu-like local frame retention control-plane status with provider routes", () => {
     const status = createDefaultPerceptionStatus();
+    const screen = status.sources.find((source) => source.sourceKind === "screen");
+    const ocr = status.sources.find((source) => source.sourceKind === "ocr");
 
     expect(status.status).toBe("disabled");
     expect(status.enabled).toBe(false);
     expect(status.sources).toHaveLength(6);
     expect(status.sources.every((source) => source.status === "disabled")).toBe(true);
-    expect(status.sources.every((source) => source.policy.canStoreRaw === false)).toBe(true);
+    expect(screen?.policy).toMatchObject({
+      canStoreRaw: true,
+      rawRetentionTtlMinutes: 72 * 60,
+      retentionPolicyId: "perception_raw_ttl_72h"
+    });
+    expect(ocr?.policy).toMatchObject({
+      canStoreRaw: false,
+      rawRetentionTtlMinutes: null,
+      retentionPolicyId: "perception_summary_only"
+    });
+    expect(
+      status.sources
+        .filter((source) => source.sourceKind !== "screen")
+        .every((source) => source.policy.canStoreRaw === false)
+    ).toBe(true);
     expect(status.sources.every((source) => source.policy.canUseForAI === false)).toBe(true);
     expect(status.sources.every((source) => source.policy.canExportToAgent === false)).toBe(true);
     expect(status.samplingPreset.name).toBe("conservative");
@@ -46,10 +62,12 @@ describe("perception capability descriptors", () => {
     expect(status.samplingPolicy.framesPerBurst).toBe(3);
     expect(status.samplingPolicy.frameSpacingMs).toBe(1000);
     expect(status.samplingPolicy.maxOcrFramesPerMinute).toBe(3);
-    expect(status.samplingPolicy.rawFrameRetention).toBe("disabled");
+    expect(status.samplingPolicy.rawFrameRetention).toBe("short_ttl");
+    expect(status.samplingPolicy.rawFrameTtlIfEnabledMinutes).toBe(72 * 60);
     expect(status.resourcePolicy.cpu.minScreenCaptureIntervalMs).toBe(120_000);
     expect(status.resourcePolicy.cpu.maxOcrFramesPerMinute).toBe(3);
-    expect(status.resourcePolicy.storage.defaultRawTtlMinutes).toBe(60);
+    expect(status.resourcePolicy.storage.defaultRawTtlMinutes).toBe(72 * 60);
+    expect(status.resourcePolicy.storage.maxRawSidecarBytes).toBe(2 * 1024 * 1024 * 1024);
     expect(status.resourcePolicy.provider.allowExternalByDefault).toBe(false);
     expect(defaultPerceptionProviderRoutes.map((route) => route.task)).toEqual([
       "ocr",
@@ -72,7 +90,16 @@ describe("perception capability descriptors", () => {
       "system_audio",
       "transcript"
     ]);
-    expect(snapshot.sourcePolicies.every((source) => source.canStoreRaw === false)).toBe(true);
+    expect(snapshot.sourcePolicies.find((source) => source.sourceKind === "screen")).toMatchObject({
+      canStoreRaw: true,
+      rawRetentionTtlMinutes: 72 * 60,
+      retentionPolicyId: "perception_raw_ttl_72h"
+    });
+    expect(
+      snapshot.sourcePolicies
+        .filter((source) => source.sourceKind !== "screen")
+        .every((source) => source.canStoreRaw === false)
+    ).toBe(true);
     expect(snapshot.providerRoutes.every((route) => route.provider === "disabled")).toBe(true);
     expect(snapshot.protectedAppRuleCount).toBeGreaterThan(0);
     expect(createPerceptionPolicySnapshot(status).id).toBe(snapshot.id);
