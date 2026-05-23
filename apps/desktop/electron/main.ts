@@ -17,10 +17,12 @@ import {
   getKnowledgeArtifactDetailForDesktop,
   getMemoryDetailForDesktop,
   getRecommendationDetailForDesktop,
+  deleteKnowledgeForDesktop,
   readDesktopSnapshot,
   readDesktopSettings,
   reconfigureSourceForDesktop,
   reindexForDesktop,
+  regenerateKnowledgeForDesktop,
   resetSourceCursorForDesktop,
   reviewKnowledgeForDesktop,
   reviewMemoryForDesktop,
@@ -36,6 +38,7 @@ import {
   setupSourceForDesktop,
   syncDogfoodRuntimePermissionForDesktop,
   testAIProviderForDesktop,
+  translateKnowledgeForDesktop,
   ignoreCurrentContextForDesktop,
   upsertProtectedRuleForDesktop,
   updateSourceRuntimeForDesktop,
@@ -113,6 +116,13 @@ ipcMain.handle("orbit:editKnowledge", (_event, id: string, patch) =>
 ipcMain.handle("orbit:reviewKnowledge", (_event, id: string, action: string) =>
   reviewKnowledgeForDesktop(id, requireKnowledgeAction(action))
 );
+ipcMain.handle("orbit:regenerateKnowledge", async (_event, id: string) =>
+  regenerateKnowledgeForDesktop(id)
+);
+ipcMain.handle("orbit:translateKnowledge", async (_event, id: string, language: string) =>
+  translateKnowledgeForDesktop(id, requireKnowledgeLanguage(language))
+);
+ipcMain.handle("orbit:deleteKnowledge", (_event, id: string) => deleteKnowledgeForDesktop(id));
 ipcMain.handle("orbit:searchMemory", (_event, query: string, filters = {}) =>
   searchMemoryForDesktop(String(query ?? ""), filters)
 );
@@ -675,6 +685,11 @@ function requireKnowledgeAction(action: string): "confirm" | "reject" | "archive
 function requireMemoryAction(action: string): "confirm" | "reject" | "archive" {
   if (action === "confirm" || action === "reject" || action === "archive") return action;
   throw new Error(`Unsupported memory action: ${action}`);
+}
+
+function requireKnowledgeLanguage(language: string): "en" | "zh-CN" {
+  if (language === "en" || language === "zh-CN") return language;
+  throw new Error(`Unsupported knowledge language: ${language}`);
 }
 
 function requireRecommendationAction(action: string): "accept" | "dismiss" | "snooze" | "resolve" {

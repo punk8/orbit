@@ -323,6 +323,21 @@ export function App(): ReactElement {
     return runReviewAction(() => window.orbit.editKnowledge(id, patch), t("error.knowledgeEdit"));
   }
 
+  function regenerateKnowledge(id: string): Promise<void> {
+    return runReviewAction(() => window.orbit.regenerateKnowledge(id), t("error.knowledgeReview"));
+  }
+
+  function translateKnowledge(id: string, language: "en" | "zh-CN"): Promise<void> {
+    return runReviewAction(
+      () => window.orbit.translateKnowledge(id, language),
+      t("error.knowledgeEdit")
+    );
+  }
+
+  function deleteKnowledge(id: string): Promise<void> {
+    return runReviewAction(() => window.orbit.deleteKnowledge(id), t("error.knowledgeEdit"));
+  }
+
   function reviewMemory(id: string, action: MemoryReviewAction): Promise<void> {
     return runReviewAction(() => window.orbit.reviewMemory(id, action), t("error.memoryReview"));
   }
@@ -424,6 +439,9 @@ export function App(): ReactElement {
             ? renderPage(activePage, snapshot, {
                 reviewKnowledge,
                 editKnowledge,
+                regenerateKnowledge,
+                translateKnowledge,
+                deleteKnowledge,
                 reviewMemory,
                 editMemory,
                 reviewRecommendation,
@@ -477,6 +495,9 @@ function tRuntimeStatus(
 interface PageActions {
   reviewKnowledge(id: string, action: KnowledgeReviewAction): Promise<void>;
   editKnowledge(id: string, patch: KnowledgeEditInput): Promise<void>;
+  regenerateKnowledge(id: string): Promise<void>;
+  translateKnowledge(id: string, language: "en" | "zh-CN"): Promise<void>;
+  deleteKnowledge(id: string): Promise<void>;
   reviewMemory(id: string, action: MemoryReviewAction): Promise<void>;
   editMemory(id: string, patch: MemoryEditInput): Promise<void>;
   reviewRecommendation(
@@ -548,7 +569,10 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
         <KnowledgePage
           artifacts={snapshot.knowledgeArtifacts}
           onEditKnowledge={actions.editKnowledge}
+          onDeleteKnowledge={actions.deleteKnowledge}
+          onRegenerateKnowledge={actions.regenerateKnowledge}
           onReviewKnowledge={actions.reviewKnowledge}
+          onTranslateKnowledge={actions.translateKnowledge}
         />
       );
     case "memory":

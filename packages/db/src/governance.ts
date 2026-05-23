@@ -7,6 +7,7 @@ import { MemoryRepository } from "./repositories/memoryRepository";
 import { RecommendationRepository } from "./repositories/recommendationRepository";
 
 export type KnowledgeReviewAction = "confirm" | "reject" | "archive";
+export type KnowledgeLifecycleAction = "regenerate" | "translate" | "delete";
 export type MemoryReviewAction = "confirm" | "reject" | "archive";
 export type RecommendationReviewAction = "accept" | "dismiss" | "snooze" | "resolve";
 
@@ -77,6 +78,15 @@ export function editKnowledgeArtifact(
   repository.upsertKnowledgeArtifact(updated);
   logAudit(db, "knowledge.edit", "knowledge_artifact", id, { changedFields });
   return updated;
+}
+
+export function deleteKnowledgeArtifact(db: Database.Database, id: string): void {
+  const repository = new KnowledgeRepository(db);
+  requireKnowledge(repository, id);
+  repository.deleteKnowledgeArtifact(id);
+  logAudit(db, "knowledge.delete", "knowledge_artifact", id, {
+    deleted: true
+  });
 }
 
 export function reviewMemory(

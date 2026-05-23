@@ -104,10 +104,12 @@ function makeMemory(): Memory {
     id: "memory_1",
     schemaVersion: 1,
     kind: "decision",
+    dimension: "project",
     title: "Evidence-linked memory",
     body: "A later-confirmed memory should still appear in the source day's context.",
     status: "confirmed",
     scope: { project: "orbit", sourceKinds: ["audio"] },
+    sourceSessionIds: ["activity_1"],
     tags: ["handoff"],
     evidence: [
       {
@@ -118,6 +120,12 @@ function makeMemory(): Memory {
       }
     ],
     confidence: 0.9,
+    version: 1,
+    indexState: {
+      provider: "fts",
+      status: "indexed",
+      fallbackOrder: ["local_embedding", "local_endpoint", "fts"]
+    },
     createdAt: "2026-05-22T08:00:00.000Z",
     updatedAt: "2026-05-22T08:00:00.000Z"
   };

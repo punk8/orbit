@@ -8,9 +8,14 @@ describe("MemoryPage governance workbench", () => {
     expect(source).toContain("searchMemory");
     expect(source).toContain("getMemoryDetail");
     expect(source).toContain("onEditMemory");
+    expect(source).toContain("memory.dimension");
+    expect(source).toContain("memory.version");
+    expect(source).toContain("memory.sourceSessionIds");
+    expect(source).toContain("memory.reindexStatus");
     expect(source).toContain("memory.agentContextPolicy");
     expect(source).toContain("memory.indexState");
-    expect(source).toContain("memory.ftsFallback");
+    expect(source).toContain("memory.indexProvider");
+    expect(source).toContain("fallbackOrder");
     expect(source).toContain("memory.agentContextBlocked");
     expect(source).toContain("changedFields");
   });

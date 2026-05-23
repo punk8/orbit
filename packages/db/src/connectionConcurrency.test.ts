@@ -26,7 +26,8 @@ describe("database connection concurrency", () => {
         expect(getAppliedMigrations(database.db)).toEqual([
           "0001_initial",
           "0002_source_runtime",
-          "0003_source_permissions"
+          "0003_source_permissions",
+          "0004_memory_replication_metadata"
         ]);
         expect(database.db.pragma("busy_timeout", { simple: true })).toBeGreaterThanOrEqual(10_000);
         expect(database.db.pragma("foreign_keys", { simple: true })).toBe(1);

@@ -673,12 +673,17 @@ describe("cli commands", () => {
 
   it("registers pipeline language control for Chinese Knowledge drafts", () => {
     const program = buildProgram();
-    const pipelineHelp = program.commands
-      .find((command) => command.name() === "pipeline")
-      ?.commands.find((command) => command.name() === "run")
+    const pipelineCommand = program.commands.find((command) => command.name() === "pipeline");
+    const runHelp = pipelineCommand?.commands
+      .find((command) => command.name() === "run")
       ?.helpInformation();
-    expect(pipelineHelp).toContain("--language <language>");
-    expect(pipelineHelp).toContain("zh-CN");
+    const qualityHelp = pipelineCommand?.commands
+      .find((command) => command.name() === "quality")
+      ?.helpInformation();
+    expect(runHelp).toContain("--language <language>");
+    expect(runHelp).toContain("zh-CN");
+    expect(qualityHelp).toContain("--language <language>");
+    expect(qualityHelp).toContain("evidence-backed quality gate");
   });
 
   it("feeds mock vision summaries into Events and Knowledge drafts when policy allows", async () => {

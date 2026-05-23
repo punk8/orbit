@@ -192,6 +192,24 @@ export function buildProgram(): Command {
         : runPipelineWithQuality(language ? { language } : {});
       writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
     });
+  pipeline
+    .command("quality")
+    .description("Run the evidence-backed quality gate for the local semantic pipeline")
+    .option("--ai", "force configured AI provider for Knowledge drafting")
+    .option("--language <language>", "Knowledge draft language: en or zh-CN")
+    .option("--json", "output JSON")
+    .action(async (options: { ai?: boolean; language?: string; json?: boolean }) => {
+      const providerConfig = readAIProviderConfigFromEnv();
+      const useProvider = Boolean(options.ai) || isAIProviderConfigured(providerConfig);
+      const language = readKnowledgeLanguage(options.language);
+      const result = useProvider
+        ? await runPipelineWithProviderAndQuality({
+            aiProvider: buildAIProvider(providerConfig),
+            ...(language ? { language } : {})
+          })
+        : runPipelineWithQuality(language ? { language } : {});
+      writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
+    });
 
   const ai = program.command("ai").description("Inspect AI provider runtime routing");
   ai.command("status")

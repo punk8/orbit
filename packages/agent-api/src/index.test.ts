@@ -178,13 +178,21 @@ function makeMemory(event: Event): Memory {
     id: "mem_agent_api",
     schemaVersion: 1,
     kind: "decision",
+    dimension: "project",
     title: "Handoff defaults",
     body: "Handoff excludes raw Event text by default.",
     status: "confirmed",
     scope: { project: "orbit", sourceKinds: ["codex"] },
+    sourceSessionIds: ["act_agent_api"],
     tags: ["handoff"],
     evidence: [evidenceFromEvent(event, "Safe memory summary")],
     confidence: 0.9,
+    version: 1,
+    indexState: {
+      provider: "fts",
+      status: "indexed",
+      fallbackOrder: ["local_embedding", "local_endpoint", "fts"]
+    },
     createdAt: baseTime,
     updatedAt: baseTime
   };

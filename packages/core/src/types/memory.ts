@@ -13,6 +13,7 @@ export interface Memory {
   id: ID;
   schemaVersion: number;
   kind: MemoryKind;
+  dimension: "project" | "user" | "workflow" | "relationship" | "domain" | "global";
   title: string;
   body: string;
   status: ReviewStatus;
@@ -21,9 +22,17 @@ export interface Memory {
     project?: string;
     sourceKinds?: SourceKind[];
   };
+  sourceSessionIds: ID[];
   tags: string[];
   evidence: EvidenceRef[];
   confidence: number;
+  version: number;
+  indexState: {
+    provider: "local_embedding" | "local_endpoint" | "fts";
+    status: "pending" | "indexed" | "failed" | "disabled";
+    fallbackOrder: Array<"local_embedding" | "local_endpoint" | "fts">;
+    updatedAt?: string;
+  };
   validFrom?: string;
   validUntil?: string;
   lastReviewedAt?: string;

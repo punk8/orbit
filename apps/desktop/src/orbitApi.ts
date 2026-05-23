@@ -233,6 +233,9 @@ export interface OrbitDesktopApi {
   getKnowledgeArtifactDetail(id: string): Promise<DesktopKnowledgeArtifactDetail>;
   editKnowledge(id: string, patch: KnowledgeEditInput): Promise<DesktopSnapshot>;
   reviewKnowledge(id: string, action: KnowledgeReviewAction): Promise<DesktopSnapshot>;
+  regenerateKnowledge(id: string): Promise<DesktopSnapshot>;
+  translateKnowledge(id: string, language: "en" | "zh-CN"): Promise<DesktopSnapshot>;
+  deleteKnowledge(id: string): Promise<DesktopSnapshot>;
   searchMemory(query: string, filters?: DesktopMemorySearchFilters): Promise<Memory[]>;
   getMemoryDetail(id: string): Promise<DesktopMemoryDetail>;
   editMemory(id: string, patch: MemoryEditInput): Promise<DesktopSnapshot>;

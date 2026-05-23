@@ -63,6 +63,16 @@ describe("sqlite store", () => {
       const memory = makeMemory(event);
       memoryRepo.upsertMemory(memory);
       expect(memoryRepo.countMemories()).toBe(1);
+      expect(memoryRepo.getMemory(memory.id)).toMatchObject({
+        dimension: "project",
+        sourceSessionIds: ["activity_fixture"],
+        version: 2,
+        indexState: {
+          provider: "fts",
+          status: "indexed",
+          fallbackOrder: ["local_embedding", "local_endpoint", "fts"]
+        }
+      });
       expect(memoryRepo.searchMemory("fixture").map((item) => item.id)).toEqual([memory.id]);
       memoryRepo.deleteMemory(memory.id);
       expect(memoryRepo.countMemories()).toBe(0);
@@ -563,13 +573,21 @@ function makeMemory(event: Event): Memory {
     id: "memory_fixture",
     schemaVersion: 1,
     kind: "project_fact",
+    dimension: "project",
     title: "Fixture memory",
     body: "Synthetic fixture memory.",
     status: "confirmed",
     scope: { project: "orbit", sourceKinds: ["codex"] },
+    sourceSessionIds: ["activity_fixture"],
     tags: ["fixture"],
     evidence: [evidenceFromEvent(event, "Synthetic fixture event")],
     confidence: 0.8,
+    version: 2,
+    indexState: {
+      provider: "fts",
+      status: "indexed",
+      fallbackOrder: ["local_embedding", "local_endpoint", "fts"]
+    },
     createdAt: "2026-05-20T09:06:00.000Z",
     updatedAt: "2026-05-20T09:06:00.000Z"
   };

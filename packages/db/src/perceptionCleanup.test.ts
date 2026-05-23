@@ -265,10 +265,12 @@ function makeDerivedMemory(event: Event) {
     id: "mem_delete_preserve",
     schemaVersion: 1,
     kind: "project_fact" as const,
+    dimension: "project" as const,
     title: "Screen-derived Memory",
     body: "A derived memory should remain reviewable.",
     status: "confirmed" as const,
     scope: { project: "orbit", sourceKinds: ["screen" as const] },
+    sourceSessionIds: ["act_delete_preserve"],
     tags: ["screen"],
     evidence: [
       {
@@ -279,6 +281,12 @@ function makeDerivedMemory(event: Event) {
       }
     ],
     confidence: 0.7,
+    version: 1,
+    indexState: {
+      provider: "fts" as const,
+      status: "indexed" as const,
+      fallbackOrder: ["local_embedding" as const, "local_endpoint" as const, "fts" as const]
+    },
     createdAt: "2026-05-21T00:06:00.000Z",
     updatedAt: "2026-05-21T00:06:00.000Z"
   };

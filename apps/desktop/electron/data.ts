@@ -88,6 +88,7 @@ import {
   editKnowledgeArtifact,
   editMemory,
   ignoreCurrentPerceptionContextRule,
+  deleteKnowledgeArtifact,
   readBackgroundRuntimePolicy,
   readBackgroundRuntimeSnapshot,
   readBackgroundSourceRuntimeStates,
@@ -350,6 +351,51 @@ export function reviewKnowledgeForDesktop(
   const database = openOrbitDatabase();
   try {
     reviewKnowledgeArtifact(database.db, id, action);
+  } finally {
+    database.close();
+  }
+  return readDesktopSnapshot();
+}
+
+export async function regenerateKnowledgeForDesktop(id: string): Promise<DesktopSnapshot> {
+  const database = openOrbitDatabase();
+  try {
+    const repository = new KnowledgeRepository(database.db);
+    const artifact = repository.getKnowledgeArtifact(id);
+    if (!artifact) throw new Error(`Unknown knowledge artifact: ${id}`);
+    await reindexLocalDataWithProvider(
+      database,
+      buildDesktopPipelineOptions(new SettingsRepository(database.db))
+    );
+  } finally {
+    database.close();
+  }
+  return readDesktopSnapshot();
+}
+
+export async function translateKnowledgeForDesktop(
+  id: string,
+  language: "en" | "zh-CN"
+): Promise<DesktopSnapshot> {
+  const database = openOrbitDatabase();
+  try {
+    const repository = new KnowledgeRepository(database.db);
+    const artifact = repository.getKnowledgeArtifact(id);
+    if (!artifact) throw new Error(`Unknown knowledge artifact: ${id}`);
+    await reindexLocalDataWithProvider(database, {
+      ...buildDesktopPipelineOptions(new SettingsRepository(database.db)),
+      language
+    });
+  } finally {
+    database.close();
+  }
+  return readDesktopSnapshot();
+}
+
+export function deleteKnowledgeForDesktop(id: string): DesktopSnapshot {
+  const database = openOrbitDatabase();
+  try {
+    deleteKnowledgeArtifact(database.db, id);
   } finally {
     database.close();
   }

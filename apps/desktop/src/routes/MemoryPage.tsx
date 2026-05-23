@@ -441,10 +441,16 @@ function MemoryDetail({
       {isLoading ? <div className="empty-state compact">{t("memory.loadingDetail")}</div> : null}
 
       <dl className="detail-grid">
+        <DetailField label={t("memory.dimension")} value={memory.dimension} />
+        <DetailField label={t("memory.version")} value={`${memory.version}`} />
         <DetailField label={t("memory.scope")} value={formatScope(memory, t)} />
         <DetailField
           label={t("memory.tags")}
           value={memory.tags.join(", ") || t("fallback.none")}
+        />
+        <DetailField
+          label={t("memory.sourceSessionIds")}
+          value={memory.sourceSessionIds.join(", ") || t("fallback.none")}
         />
         <DetailField label={t("memory.createdAt")} value={formatDateTime(memory.createdAt)} />
         <DetailField label={t("memory.updatedAt")} value={formatDateTime(memory.updatedAt)} />
@@ -543,10 +549,17 @@ function MemoryDetail({
         </DetailBlock>
         <DetailBlock title={t("memory.indexState")}>
           <dl className="mini-grid">
-            <DetailField label={t("memory.ftsIndexed")} value={t("state.yes")} />
+            <DetailField label={t("memory.reindexStatus")} value={memory.indexState.status} />
+            <DetailField
+              label={t("memory.ftsIndexed")}
+              value={memory.indexState.provider === "fts" ? t("state.yes") : t("state.no")}
+            />
             <DetailField label={t("memory.vectorIndexed")} value={t("state.disabled")} />
-            <DetailField label={t("memory.indexProvider")} value={t("memory.ftsFallback")} />
-            <DetailField label={t("memory.embeddingProvider")} value={t("state.disabled")} />
+            <DetailField label={t("memory.indexProvider")} value={memory.indexState.provider} />
+            <DetailField
+              label={t("memory.embeddingProvider")}
+              value={memory.indexState.fallbackOrder.join(" -> ")}
+            />
           </dl>
         </DetailBlock>
       </div>
@@ -836,8 +849,11 @@ function formatMemoryMarkdown(memory: Memory): string {
     `# ${memory.title}`,
     "",
     `- kind: ${memory.kind}`,
+    `- dimension: ${memory.dimension}`,
     `- status: ${memory.status}`,
+    `- version: ${memory.version}`,
     `- scope: ${memory.scope.project ?? (memory.scope.global ? "global" : "unspecified")}`,
+    `- source sessions: ${memory.sourceSessionIds.join(", ") || "none"}`,
     `- tags: ${memory.tags.join(", ") || "none"}`,
     "",
     memory.body
