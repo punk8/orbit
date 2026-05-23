@@ -14,7 +14,8 @@ import type {
   PerceptionProviderTask,
   PerceptionSamplingPresetName,
   PerceptionSourceKind,
-  PerceptionSourcePolicyPatch
+  PerceptionSourcePolicyPatch,
+  PerceptionSourceRuntimeAction
 } from "@orbit/core";
 import { Section } from "../components/Section";
 import { useI18n } from "../i18n";
@@ -33,9 +34,13 @@ export function SettingsPage({
   onPauseObservation,
   onResumeObservation,
   onStopObservation,
+  onRequestScreenRecordingPermission,
+  onUpdatePerceptionSourceRuntime,
   onUpdatePerceptionSourcePolicy,
   onUpdatePerceptionProviderRoute,
-  onUpdatePerceptionSamplingPreset
+  onUpdatePerceptionSamplingPreset,
+  onCaptureScreenOcrBurst,
+  onCleanupPerceptionSidecars
 }: {
   snapshot: DesktopSnapshot;
   onUpdateSetting(key: DesktopSettingKey, value: unknown): Promise<void>;
@@ -48,6 +53,11 @@ export function SettingsPage({
   onPauseObservation(): Promise<void>;
   onResumeObservation(): Promise<void>;
   onStopObservation(): Promise<void>;
+  onRequestScreenRecordingPermission(): Promise<void>;
+  onUpdatePerceptionSourceRuntime(
+    sourceKind: PerceptionSourceKind,
+    action: PerceptionSourceRuntimeAction
+  ): Promise<void>;
   onUpdatePerceptionSourcePolicy(
     sourceKind: PerceptionSourceKind,
     patch: PerceptionSourcePolicyPatch
@@ -57,6 +67,8 @@ export function SettingsPage({
     provider: PerceptionProviderKind
   ): Promise<void>;
   onUpdatePerceptionSamplingPreset(preset: PerceptionSamplingPresetName): Promise<void>;
+  onCaptureScreenOcrBurst(): Promise<void>;
+  onCleanupPerceptionSidecars(): Promise<void>;
 }): ReactElement {
   const { t, sensitivity, sourceKind } = useI18n();
   const [activeSection, setActiveSection] = useState<SettingsSectionId>("provider");
@@ -98,6 +110,13 @@ export function SettingsPage({
   const retentionPolicies = Array.from(
     new Set(snapshot.sources.map((source) => source.permissionScope.retentionPolicyId))
   );
+  const dogfoodRuntime = snapshot.perception.dogfoodRuntime;
+  const screenOcrCanResume =
+    dogfoodRuntime.state === "paused_user" || dogfoodRuntime.state === "stopped";
+  const screenOcrCanPause =
+    dogfoodRuntime.state === "observing" ||
+    dogfoodRuntime.state === "protected" ||
+    dogfoodRuntime.state === "paused_resource";
   const saveAiProvider = async (): Promise<void> => {
     setProviderTestResult(undefined);
     setProviderTestError(undefined);
@@ -675,111 +694,230 @@ export function SettingsPage({
 
         {activeSection === "runtime" ? (
           <Section title={t("section.runtime")}>
-            <dl className="settings-grid">
-              <div>
-                <dt>{t("settings.runtimeStatus")}</dt>
-                <dd>
-                  <span className={`runtime-pill ${snapshot.runtime.status}`}>
-                    {tRuntimeStatus(t, snapshot.runtime.status)}
+            <div className="settings-section-stack runtime-settings-panel">
+              <div className="settings-policy-block screen-ocr-runtime-panel">
+                <div className="settings-panel-heading">
+                  <div>
+                    <h3>{t("settings.screenOcrRuntimeTitle")}</h3>
+                    <p>{t("settings.screenOcrRuntimeDescription")}</p>
+                  </div>
+                  <span className={`runtime-pill ${dogfoodRuntime.state}`}>
+                    {tDogfoodRuntimeState(t, dogfoodRuntime.state)}
                   </span>
-                </dd>
+                </div>
+                {dogfoodRuntime.state === "needs_permission" ? (
+                  <div className="screen-ocr-onboarding">
+                    <h4>{t("settings.screenOcrOnboardingTitle")}</h4>
+                    <p>{t("settings.screenOcrOnboardingBody")}</p>
+                    <button
+                      className="secondary-button"
+                      onClick={() => void onRequestScreenRecordingPermission()}
+                      type="button"
+                    >
+                      {t("settings.screenOcrOnboardingOpenPermission")}
+                    </button>
+                  </div>
+                ) : null}
+                <dl className="mini-grid">
+                  <DetailRow
+                    label={t("settings.screenOcrPermission")}
+                    value={dogfoodRuntime.permission}
+                  />
+                  <DetailRow
+                    label={t("settings.screenOcrReason")}
+                    value={tDogfoodRuntimeReason(t, dogfoodRuntime.reason)}
+                  />
+                  <DetailRow
+                    label={t("settings.screenOcrNextAction")}
+                    value={tDogfoodNextAction(t, dogfoodRuntime.nextAction)}
+                  />
+                  <DetailRow
+                    label={t("settings.screenOcrLastTransition")}
+                    value={dogfoodRuntime.lastTransitionAt ?? t("fallback.none")}
+                  />
+                  <DetailRow
+                    label={t("settings.screenOcrActiveSources")}
+                    value={
+                      dogfoodRuntime.activeSourceKinds.length > 0
+                        ? dogfoodRuntime.activeSourceKinds.map((kind) => sourceKind(kind)).join(", ")
+                        : t("fallback.none")
+                    }
+                  />
+                  <DetailRow
+                    label={t("settings.screenOcrProtectedPolicy")}
+                    value={t("settings.screenOcrProtectedPolicyValue")}
+                  />
+                </dl>
+                <div className="provider-actions">
+                  <button
+                    className="secondary-button"
+                    data-screen-ocr-action="resume"
+                    disabled={!screenOcrCanResume}
+                    onClick={() => {
+                      void onUpdatePerceptionSourceRuntime("screen", "resume");
+                      void onUpdatePerceptionSourceRuntime("ocr", "resume");
+                    }}
+                    type="button"
+                  >
+                    {t("action.resume")}
+                  </button>
+                  <button
+                    className="secondary-button"
+                    data-screen-ocr-action="pause"
+                    disabled={!screenOcrCanPause}
+                    onClick={() => {
+                      void onUpdatePerceptionSourceRuntime("screen", "pause");
+                      void onUpdatePerceptionSourceRuntime("ocr", "pause");
+                    }}
+                    type="button"
+                  >
+                    {t("action.pause")}
+                  </button>
+                  <button
+                    className="secondary-button"
+                    data-screen-ocr-action="stop"
+                    disabled={dogfoodRuntime.state === "stopped"}
+                    onClick={() => {
+                      void onUpdatePerceptionSourceRuntime("screen", "disable");
+                      void onUpdatePerceptionSourceRuntime("ocr", "disable");
+                    }}
+                    type="button"
+                  >
+                    {t("action.stopScreenOcr")}
+                  </button>
+                  <button
+                    className="secondary-button"
+                    data-screen-ocr-action="capture"
+                    disabled={dogfoodRuntime.state !== "observing"}
+                    onClick={() => void onCaptureScreenOcrBurst()}
+                    type="button"
+                  >
+                    {t("action.captureScreenOcrBurst")}
+                  </button>
+                  <button
+                    className="secondary-button"
+                    data-screen-ocr-action="cleanup"
+                    onClick={() => void onCleanupPerceptionSidecars()}
+                    type="button"
+                  >
+                    {t("action.cleanupPerceptionSidecars")}
+                  </button>
+                </div>
+                <p className="muted">{t("settings.screenOcrRuntimeNote")}</p>
               </div>
-              <div>
-                <dt>{t("settings.backgroundCollection")}</dt>
-                <dd>
-                  <label className="toggle-line">
-                    <input
-                      checked={!snapshot.runtime.collectionPaused}
-                      onChange={(event) => void onSetCollectionPaused(!event.currentTarget.checked)}
-                      type="checkbox"
-                    />
-                    <span>
-                      {snapshot.runtime.collectionPaused
-                        ? t("runtime.paused")
-                        : t("runtime.collecting")}
+
+              <dl className="settings-grid">
+                <div>
+                  <dt>{t("settings.runtimeStatus")}</dt>
+                  <dd>
+                    <span className={`runtime-pill ${snapshot.runtime.status}`}>
+                      {tRuntimeStatus(t, snapshot.runtime.status)}
                     </span>
-                  </label>
-                </dd>
-              </div>
-              <div>
-                <dt>{t("settings.lastBackgroundRun")}</dt>
-                <dd>{snapshot.runtime.lastRunAt ?? t("fallback.none")}</dd>
-              </div>
-              <div>
-                <dt>{t("settings.lastBackgroundCompleted")}</dt>
-                <dd>{snapshot.runtime.lastCompletedAt ?? t("fallback.none")}</dd>
-              </div>
-              <div>
-                <dt>{t("settings.lastBackgroundError")}</dt>
-                <dd>{snapshot.runtime.lastError ?? t("fallback.none")}</dd>
-              </div>
-              <div>
-                <dt>{t("settings.orbitHome")}</dt>
-                <dd>{snapshot.orbitHome}</dd>
-              </div>
-              <div>
-                <dt>{t("settings.activeDatabase")}</dt>
-                <dd>{snapshot.dbPath}</dd>
-              </div>
-              <div>
-                <dt>{t("settings.menuBar")}</dt>
-                <dd>
-                  <label className="toggle-line">
-                    <input
-                      checked={snapshot.settings.menuBarEnabled}
-                      onChange={(event) =>
-                        void onUpdateSetting("desktop.menuBarEnabled", event.currentTarget.checked)
-                      }
-                      type="checkbox"
-                    />
-                    <span>
-                      {snapshot.settings.menuBarEnabled ? t("state.enabled") : t("state.disabled")}
-                    </span>
-                  </label>
-                </dd>
-              </div>
-              <div>
-                <dt>{t("settings.launchAtLogin")}</dt>
-                <dd>
-                  <label className="toggle-line">
-                    <input
-                      checked={snapshot.settings.launchAtLoginEnabled}
+                  </dd>
+                </div>
+                <div>
+                  <dt>{t("settings.backgroundCollection")}</dt>
+                  <dd>
+                    <label className="toggle-line">
+                      <input
+                        checked={!snapshot.runtime.collectionPaused}
+                        onChange={(event) =>
+                          void onSetCollectionPaused(!event.currentTarget.checked)
+                        }
+                        type="checkbox"
+                      />
+                      <span>
+                        {snapshot.runtime.collectionPaused
+                          ? t("runtime.paused")
+                          : t("runtime.collecting")}
+                      </span>
+                    </label>
+                  </dd>
+                </div>
+                <div>
+                  <dt>{t("settings.lastBackgroundRun")}</dt>
+                  <dd>{snapshot.runtime.lastRunAt ?? t("fallback.none")}</dd>
+                </div>
+                <div>
+                  <dt>{t("settings.lastBackgroundCompleted")}</dt>
+                  <dd>{snapshot.runtime.lastCompletedAt ?? t("fallback.none")}</dd>
+                </div>
+                <div>
+                  <dt>{t("settings.lastBackgroundError")}</dt>
+                  <dd>{snapshot.runtime.lastError ?? t("fallback.none")}</dd>
+                </div>
+                <div>
+                  <dt>{t("settings.orbitHome")}</dt>
+                  <dd>{snapshot.orbitHome}</dd>
+                </div>
+                <div>
+                  <dt>{t("settings.activeDatabase")}</dt>
+                  <dd>{snapshot.dbPath}</dd>
+                </div>
+                <div>
+                  <dt>{t("settings.menuBar")}</dt>
+                  <dd>
+                    <label className="toggle-line">
+                      <input
+                        checked={snapshot.settings.menuBarEnabled}
+                        onChange={(event) =>
+                          void onUpdateSetting(
+                            "desktop.menuBarEnabled",
+                            event.currentTarget.checked
+                          )
+                        }
+                        type="checkbox"
+                      />
+                      <span>
+                        {snapshot.settings.menuBarEnabled
+                          ? t("state.enabled")
+                          : t("state.disabled")}
+                      </span>
+                    </label>
+                  </dd>
+                </div>
+                <div>
+                  <dt>{t("settings.launchAtLogin")}</dt>
+                  <dd>
+                    <label className="toggle-line">
+                      <input
+                        checked={snapshot.settings.launchAtLoginEnabled}
+                        onChange={(event) =>
+                          void onUpdateSetting(
+                            "desktop.launchAtLoginEnabled",
+                            event.currentTarget.checked
+                          )
+                        }
+                        type="checkbox"
+                      />
+                      <span>
+                        {snapshot.settings.launchAtLoginEnabled
+                          ? t("state.enabled")
+                          : t("state.disabled")}
+                      </span>
+                    </label>
+                  </dd>
+                </div>
+                <div>
+                  <dt>{t("settings.language")}</dt>
+                  <dd>
+                    <select
+                      className="select-input"
                       onChange={(event) =>
                         void onUpdateSetting(
-                          "desktop.launchAtLoginEnabled",
-                          event.currentTarget.checked
+                          "desktop.language",
+                          event.currentTarget.value as DesktopLanguage
                         )
                       }
-                      type="checkbox"
-                    />
-                    <span>
-                      {snapshot.settings.launchAtLoginEnabled
-                        ? t("state.enabled")
-                        : t("state.disabled")}
-                    </span>
-                  </label>
-                </dd>
-              </div>
-              <div>
-                <dt>{t("settings.language")}</dt>
-                <dd>
-                  <select
-                    className="select-input"
-                    onChange={(event) =>
-                      void onUpdateSetting(
-                        "desktop.language",
-                        event.currentTarget.value as DesktopLanguage
-                      )
-                    }
-                    value={snapshot.settings.language}
-                  >
-                    <option value="system">{t("language.system")}</option>
-                    <option value="zh-CN">{t("language.chinese")}</option>
-                    <option value="en">{t("language.english")}</option>
-                  </select>
-                </dd>
-              </div>
-            </dl>
+                      value={snapshot.settings.language}
+                    >
+                      <option value="system">{t("language.system")}</option>
+                      <option value="zh-CN">{t("language.chinese")}</option>
+                      <option value="en">{t("language.english")}</option>
+                    </select>
+                  </dd>
+                </div>
+              </dl>
             <div className="settings-policy-block observation-settings-panel">
               <h3>{t("settings.observationTitle")}</h3>
               <dl className="mini-grid">
@@ -901,6 +1039,7 @@ export function SettingsPage({
                   <div className="empty-state compact">{t("empty.noSources")}</div>
                 ) : null}
               </div>
+            </div>
             </div>
           </Section>
         ) : null}
@@ -1169,6 +1308,27 @@ function tObservationStatus(
   if (status === "warning") return t("observation.warning");
   if (status === "error") return t("observation.error");
   return t("observation.disabled");
+}
+
+function tDogfoodRuntimeState(
+  t: ReturnType<typeof useI18n>["t"],
+  state: DesktopSnapshot["perception"]["dogfoodRuntime"]["state"]
+): string {
+  return t(`dogfoodRuntime.${state}` as Parameters<typeof t>[0]);
+}
+
+function tDogfoodRuntimeReason(
+  t: ReturnType<typeof useI18n>["t"],
+  reason: DesktopSnapshot["perception"]["dogfoodRuntime"]["reason"]
+): string {
+  return t(`dogfoodReason.${reason}` as Parameters<typeof t>[0]);
+}
+
+function tDogfoodNextAction(
+  t: ReturnType<typeof useI18n>["t"],
+  nextAction: DesktopSnapshot["perception"]["dogfoodRuntime"]["nextAction"]
+): string {
+  return t(`dogfoodNextAction.${nextAction}` as Parameters<typeof t>[0]);
 }
 
 function tRuntimeStatus(

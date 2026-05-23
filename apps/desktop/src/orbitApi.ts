@@ -242,6 +242,7 @@ export interface OrbitDesktopApi {
   cleanupLegacyEventPrivacy(): Promise<DesktopActionResult>;
   cleanupPerceptionSidecars(): Promise<DesktopActionResult>;
   captureScreenOcr(): Promise<DesktopActionResult>;
+  captureScreenOcrBurst(): Promise<DesktopActionResult>;
   generateHandoff(input: DesktopHandoffRequest): Promise<DesktopHandoffResult>;
   reindexLocalData(): Promise<DesktopActionResult>;
   clearLocalData(): Promise<DesktopActionResult>;
@@ -252,7 +253,19 @@ export interface OrbitDesktopApi {
   resumeObservation(): Promise<DesktopSnapshot>;
   stopObservation(): Promise<DesktopSnapshot>;
   onSnapshotChanged(callback: () => void): () => void;
+  onNavigate(callback: (page: DesktopPageId) => void): () => void;
 }
+
+export type DesktopPageId =
+  | "today"
+  | "activity"
+  | "knowledge"
+  | "memory"
+  | "recommendations"
+  | "handoff"
+  | "review"
+  | "sources"
+  | "settings";
 
 declare global {
   interface Window {

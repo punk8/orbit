@@ -1,6 +1,7 @@
 import { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage } from "electron";
 import { join } from "node:path";
 import {
+  captureScreenOcrBurstForDesktop,
   captureScreenOcrForDesktop,
   cleanupLegacyEventPrivacyForDesktop,
   cleanupPerceptionSidecarsForDesktop,
@@ -42,6 +43,7 @@ import {
   readPerceptionSourceKind
 } from "@orbit/db";
 import type { PerceptionSamplingPresetName } from "@orbit/core";
+import type { DesktopLanguage, DesktopSnapshot } from "../src/orbitApi";
 import { DesktopObservationService } from "./observation/observationService";
 import { detectScreenRecordingPermissionStatus } from "./observation/permissionStatus";
 
@@ -184,6 +186,12 @@ ipcMain.handle("orbit:captureScreenOcr", async () => {
   notifySnapshotChanged();
   return result;
 });
+ipcMain.handle("orbit:captureScreenOcrBurst", async () => {
+  const result = await captureScreenOcrBurstForDesktop();
+  applyRuntimeSettings();
+  notifySnapshotChanged();
+  return result;
+});
 ipcMain.handle("orbit:generateHandoff", (_event, input) => generateHandoffForDesktop(input));
 ipcMain.handle("orbit:reindexLocalData", () => reindexForDesktop());
 ipcMain.handle("orbit:clearLocalData", () => clearLocalDataForDesktop());
@@ -269,6 +277,7 @@ function ensureTray(): void {
   const runtime = snapshot.runtime;
   const observation = snapshot.observation;
   const dogfoodRuntime = snapshot.perception.dogfoodRuntime;
+  const runtimeLocale = readDesktopRuntimeLocale(snapshot.settings.language);
   const paused = runtime.collectionPaused;
   const status = runtime.status;
   const activeSources = snapshot.sources
@@ -277,26 +286,26 @@ function ensureTray(): void {
   const lastEventAt = observation.lastEventAt ?? snapshot.sources.find((source) => source.lastEventAt)?.lastEventAt;
   tray.setToolTip(
     [
-      `Orbit: ${status}`,
-      `observation: ${observation.status}`,
-      `screen/OCR: ${dogfoodRuntime.state}`,
-      `last event: ${lastEventAt ?? "none"}`,
-      `sources: ${activeSources.length > 0 ? activeSources.join(", ") : "none"}`
+      `Orbit: ${runtimeLocale.runtimeStatus(status)}`,
+      `${runtimeLocale.tray.observation}: ${runtimeLocale.observationStatus(observation.status)}`,
+      `${runtimeLocale.tray.screenOcr}: ${runtimeLocale.dogfoodRuntimeState(dogfoodRuntime.state)}`,
+      `${runtimeLocale.tray.lastEvent}: ${lastEventAt ?? runtimeLocale.tray.none}`,
+      `${runtimeLocale.tray.sources}: ${activeSources.length > 0 ? activeSources.join(", ") : runtimeLocale.tray.none}`
     ].join("; ")
   );
   if (process.platform === "darwin") {
-    tray.setTitle(paused ? "Orbit Paused" : "Orbit");
+    tray.setTitle(paused ? runtimeLocale.tray.orbitPaused : "Orbit");
   }
   tray.setContextMenu(
     Menu.buildFromTemplate([
       {
-        label: "Show Orbit",
+        label: runtimeLocale.tray.showOrbit,
         click: () => {
           void createMainWindow();
         }
       },
       {
-        label: paused ? "Resume Collection" : "Pause Collection",
+        label: paused ? runtimeLocale.tray.resumeCollection : runtimeLocale.tray.pauseCollection,
         click: () => {
           void handleTrayPauseToggle(!paused);
         }
@@ -305,16 +314,16 @@ function ensureTray(): void {
       {
         label:
           observation.enabled && observation.paused
-            ? "Resume Observation"
+            ? runtimeLocale.tray.resumeObservation
             : observation.enabled
-              ? "Pause Observation"
-              : "Start Observation",
+              ? runtimeLocale.tray.pauseObservation
+              : runtimeLocale.tray.startObservation,
         click: () => {
           void handleTrayObservationToggle();
         }
       },
       {
-        label: "Stop Observation",
+        label: runtimeLocale.tray.stopObservation,
         enabled: observation.enabled,
         click: () => {
           observationService.stop();
@@ -322,20 +331,20 @@ function ensureTray(): void {
         }
       },
       {
-        label: `Screen/OCR: ${dogfoodRuntime.state}`,
+        label: `${runtimeLocale.tray.screenOcr}: ${runtimeLocale.dogfoodRuntimeState(dogfoodRuntime.state)}`,
         enabled: false
       },
       {
         label:
           dogfoodRuntime.state === "paused_user" || dogfoodRuntime.state === "stopped"
-            ? "Resume Screen/OCR"
-            : "Pause Screen/OCR",
+            ? runtimeLocale.tray.resumeScreenOcr
+            : runtimeLocale.tray.pauseScreenOcr,
         click: () => {
           void handleTrayScreenOcrToggle();
         }
       },
       {
-        label: "Stop Screen/OCR",
+        label: runtimeLocale.tray.stopScreenOcr,
         enabled: dogfoodRuntime.state !== "stopped",
         click: () => {
           updatePerceptionSourceRuntimeForDesktop("screen", "disable");
@@ -345,20 +354,41 @@ function ensureTray(): void {
         }
       },
       {
-        label: "Capture Screen/OCR Now",
+        label: runtimeLocale.tray.captureScreenOcrNow,
         enabled: dogfoodRuntime.state === "observing",
         click: async () => {
-          await captureScreenOcrForDesktop();
+          await captureScreenOcrBurstForDesktop();
           applyRuntimeSettings();
           notifySnapshotChanged();
         }
       },
       {
-        label: `Status: ${status}; Observation: ${observation.status}`,
+        label: `${runtimeLocale.tray.status}: ${runtimeLocale.runtimeStatus(status)}; ${runtimeLocale.tray.observation}: ${runtimeLocale.observationStatus(observation.status)}`,
         enabled: false
       },
+      { type: "separator" },
       {
-        label: "Quit",
+        label: runtimeLocale.tray.openActivity,
+        click: () => {
+          void navigateMainWindow("activity");
+        }
+      },
+      {
+        label: runtimeLocale.tray.openSettings,
+        click: () => {
+          void navigateMainWindow("settings");
+        }
+      },
+      {
+        label: runtimeLocale.tray.cleanupPrivacy,
+        click: () => {
+          cleanupPerceptionSidecarsForDesktop();
+          applyRuntimeSettings();
+          notifySnapshotChanged();
+        }
+      },
+      {
+        label: runtimeLocale.tray.quit,
         click: () => app.quit()
       }
     ])
@@ -429,6 +459,11 @@ function notifySnapshotChanged(): void {
   }
 }
 
+async function navigateMainWindow(page: "activity" | "settings"): Promise<void> {
+  const window = await createMainWindow();
+  window.webContents.send("orbit:navigate", page);
+}
+
 async function runRendererSmoke(window: BrowserWindow): Promise<void> {
   try {
     await setupSourceForDesktop("fixtures");
@@ -493,6 +528,7 @@ async function runRendererSmoke(window: BrowserWindow): Promise<void> {
           await waitFor(".privacy-settings-panel");
           await click('[data-settings-section-id="runtime"]');
           await waitFor(".observation-settings-panel");
+          await waitFor(".screen-ocr-runtime-panel");
           await click('[data-observation-action="start"]');
           await sleep(1200);
           await click('[data-observation-action="stop"]');
@@ -671,4 +707,98 @@ function requirePerceptionRuntimeAction(
 function requireSamplingPreset(value: string): PerceptionSamplingPresetName {
   if (value === "conservative" || value === "balanced" || value === "intensive") return value;
   throw new Error(`Unsupported perception sampling preset: ${value}`);
+}
+
+function readDesktopRuntimeLocale(language: DesktopLanguage) {
+  const zh = language === "zh-CN";
+  const tray = zh
+    ? {
+        observation: "观察",
+        screenOcr: "屏幕 / OCR",
+        lastEvent: "最近事件",
+        sources: "来源",
+        none: "无",
+        orbitPaused: "Orbit 已暂停",
+        showOrbit: "显示 Orbit",
+        resumeCollection: "恢复后台采集",
+        pauseCollection: "暂停后台采集",
+        startObservation: "启动观察",
+        resumeObservation: "恢复观察",
+        pauseObservation: "暂停观察",
+        stopObservation: "停止观察",
+        resumeScreenOcr: "恢复屏幕 / OCR",
+        pauseScreenOcr: "暂停屏幕 / OCR",
+        stopScreenOcr: "停止屏幕 / OCR",
+        captureScreenOcrNow: "立即捕获屏幕 / OCR burst",
+        openActivity: "打开活动",
+        openSettings: "打开设置",
+        cleanupPrivacy: "清理感知 Sidecar",
+        status: "状态",
+        quit: "退出"
+      }
+    : {
+        observation: "Observation",
+        screenOcr: "Screen/OCR",
+        lastEvent: "Last event",
+        sources: "Sources",
+        none: "none",
+        orbitPaused: "Orbit Paused",
+        showOrbit: "Show Orbit",
+        resumeCollection: "Resume Collection",
+        pauseCollection: "Pause Collection",
+        startObservation: "Start Observation",
+        resumeObservation: "Resume Observation",
+        pauseObservation: "Pause Observation",
+        stopObservation: "Stop Observation",
+        resumeScreenOcr: "Resume Screen/OCR",
+        pauseScreenOcr: "Pause Screen/OCR",
+        stopScreenOcr: "Stop Screen/OCR",
+        captureScreenOcrNow: "Capture Screen/OCR Burst Now",
+        openActivity: "Open Activity",
+        openSettings: "Open Settings",
+        cleanupPrivacy: "Clean Perception Sidecars",
+        status: "Status",
+        quit: "Quit"
+      };
+  return {
+    tray,
+    runtimeStatus(status: DesktopSnapshot["runtime"]["status"]): string {
+      if (status === "collecting") return zh ? "采集中" : "collecting";
+      if (status === "paused") return zh ? "已暂停" : "paused";
+      if (status === "error") return zh ? "错误" : "error";
+      return zh ? "空闲" : "idle";
+    },
+    observationStatus(status: DesktopSnapshot["observation"]["status"]): string {
+      if (status === "needs_permission") return zh ? "需要权限" : "needs permission";
+      if (status === "ready") return zh ? "就绪" : "ready";
+      if (status === "collecting") return zh ? "观察中" : "collecting";
+      if (status === "paused") return zh ? "已暂停" : "paused";
+      if (status === "warning") return zh ? "警告" : "warning";
+      if (status === "error") return zh ? "错误" : "error";
+      if (status === "disabled") return zh ? "已禁用" : "disabled";
+      return zh ? "未配置" : "not configured";
+    },
+    dogfoodRuntimeState(state: DesktopSnapshot["perception"]["dogfoodRuntime"]["state"]): string {
+      const labels = zh
+        ? {
+            needs_permission: "需要权限",
+            observing: "观察中",
+            paused_user: "用户暂停",
+            paused_resource: "资源暂停",
+            protected: "受保护上下文",
+            stopped: "已停止",
+            error: "错误"
+          }
+        : {
+            needs_permission: "Permission needed",
+            observing: "Observing",
+            paused_user: "Paused",
+            paused_resource: "Resource paused",
+            protected: "Protected",
+            stopped: "Stopped",
+            error: "Error"
+          };
+      return labels[state];
+    }
+  };
 }

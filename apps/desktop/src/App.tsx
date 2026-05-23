@@ -231,6 +231,13 @@ export function App(): ReactElement {
     await runDesktopAction(() => window.orbit.captureScreenOcr(), t("error.perceptionCapture"));
   }
 
+  async function captureScreenOcrBurst(): Promise<void> {
+    await runDesktopAction(
+      () => window.orbit.captureScreenOcrBurst(),
+      t("error.perceptionCapture")
+    );
+  }
+
   async function reindexLocalData(): Promise<void> {
     await runDesktopAction(() => window.orbit.reindexLocalData(), t("error.reindex"));
   }
@@ -306,6 +313,12 @@ export function App(): ReactElement {
   useEffect(() => {
     return window.orbit.onSnapshotChanged(() => {
       void loadSnapshot();
+    });
+  }, []);
+
+  useEffect(() => {
+    return window.orbit.onNavigate((page) => {
+      setActivePage(page);
     });
   }, []);
 
@@ -396,6 +409,7 @@ export function App(): ReactElement {
                 cleanupLegacyEventPrivacy,
                 cleanupPerceptionSidecars,
                 captureScreenOcr,
+                captureScreenOcrBurst,
                 reindexLocalData,
                 clearLocalData,
                 exportContext,
@@ -456,6 +470,7 @@ interface PageActions {
   cleanupLegacyEventPrivacy(): Promise<void>;
   cleanupPerceptionSidecars(): Promise<void>;
   captureScreenOcr(): Promise<void>;
+  captureScreenOcrBurst(): Promise<void>;
   reindexLocalData(): Promise<void>;
   clearLocalData(): Promise<void>;
   exportContext(): Promise<void>;
@@ -537,9 +552,13 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
           onResumeObservation={actions.resumeObservation}
           onStopObservation={actions.stopObservation}
           onUpdateSetting={actions.updateSetting}
+          onRequestScreenRecordingPermission={actions.captureScreenOcr}
+          onUpdatePerceptionSourceRuntime={actions.updatePerceptionSourceRuntime}
           onUpdatePerceptionSourcePolicy={actions.updatePerceptionSourcePolicy}
           onUpdatePerceptionProviderRoute={actions.updatePerceptionProviderRoute}
           onUpdatePerceptionSamplingPreset={actions.updatePerceptionSamplingPreset}
+          onCaptureScreenOcrBurst={actions.captureScreenOcrBurst}
+          onCleanupPerceptionSidecars={actions.cleanupPerceptionSidecars}
         />
       );
   }

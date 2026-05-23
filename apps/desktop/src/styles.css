@@ -1519,6 +1519,45 @@ button {
   font-size: 13px;
 }
 
+.settings-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.settings-panel-heading h3 {
+  margin-bottom: 5px;
+}
+
+.settings-panel-heading p {
+  margin: 0;
+  color: #4f5759;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.screen-ocr-onboarding {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #d8d5ce;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+}
+
+.screen-ocr-onboarding h4 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.screen-ocr-onboarding p {
+  margin: 0;
+  color: #4f5759;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .source-policy-list,
 .settings-operation-list {
   display: grid;
@@ -1628,6 +1667,24 @@ button {
 .runtime-pill.collecting {
   background: #eef7f4;
   color: #2f6d61;
+}
+
+.runtime-pill.observing {
+  background: #eef7f4;
+  color: #2f6d61;
+}
+
+.runtime-pill.needs_permission,
+.runtime-pill.paused_resource,
+.runtime-pill.protected {
+  background: #fff4df;
+  color: #8b5c15;
+}
+
+.runtime-pill.paused_user,
+.runtime-pill.stopped {
+  background: #f2f0ea;
+  color: #5b5b54;
 }
 
 .provider-actions {

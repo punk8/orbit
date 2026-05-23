@@ -35,7 +35,31 @@ describe("SettingsPage privacy and provider hardening", () => {
     expect(source).toContain("settings.backgroundSourceBudget");
     expect(source).toContain("settings.backgroundResourceLimits");
     expect(source).toContain("snapshot.runtime.background.policy");
+    expect(source).toContain("settings.screenOcrRuntimeTitle");
+    expect(source).toContain("settings.screenOcrOnboardingTitle");
+    expect(source).toContain("settings.screenOcrOnboardingOpenPermission");
+    expect(source).toContain("settings.screenOcrLastTransition");
+    expect(source).toContain("settings.screenOcrNextAction");
+    expect(source).toContain("data-screen-ocr-action=\"resume\"");
+    expect(source).toContain("data-screen-ocr-action=\"pause\"");
+    expect(source).toContain("data-screen-ocr-action=\"stop\"");
+    expect(source).toContain("data-screen-ocr-action=\"capture\"");
+    expect(source).toContain("onUpdatePerceptionSourceRuntime(\"screen\"");
+    expect(source).toContain("onCaptureScreenOcrBurst");
+    expect(source).toContain("onCleanupPerceptionSidecars");
     expect(source).toContain("confirm.clearLocalData");
+  });
+
+  it("keeps Screen/OCR runtime and onboarding copy i18n-backed in English and Chinese", () => {
+    const i18n = readFileSync(new URL("../i18n.tsx", import.meta.url), "utf8");
+
+    expect(i18n).toContain('"settings.screenOcrRuntimeTitle"');
+    expect(i18n).toContain('"settings.screenOcrOnboardingTitle"');
+    expect(i18n).toContain('"settings.screenOcrOnboardingOpenPermission"');
+    expect(i18n).toContain('"dogfoodRuntime.observing"');
+    expect(i18n).toContain('"dogfoodRuntime.needs_permission"');
+    expect(i18n).toContain('"dogfoodNextAction.grant_screen_recording_permission"');
+    expect(i18n).toContain("屏幕 / OCR");
   });
 
   it("does not expose mock providers as product configuration choices", () => {

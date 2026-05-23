@@ -39,8 +39,15 @@ describe("desktop main process runtime guards", () => {
     expect(main).toContain("detectScreenRecordingPermissionStatus");
     expect(main).toContain("syncDogfoodRuntimeFromSystemPermission");
     expect(main).toContain("syncDogfoodRuntimePermissionForDesktop");
-    expect(main).toContain("Screen/OCR: ${dogfoodRuntime.state}");
-    expect(main).toContain("Capture Screen/OCR Now");
+    expect(main).toContain("readDesktopRuntimeLocale");
+    expect(main).toContain("runtimeLocale.dogfoodRuntimeState");
+    expect(main).toContain("runtimeLocale.tray.showOrbit");
+    expect(main).toContain("runtimeLocale.tray.openActivity");
+    expect(main).toContain("runtimeLocale.tray.openSettings");
+    expect(main).toContain("runtimeLocale.tray.cleanupPrivacy");
+    expect(main).toContain("captureScreenOcrBurstForDesktop");
+    expect(main).toContain('await waitFor(".screen-ocr-runtime-panel")');
+    expect(main).toContain('window.webContents.send("orbit:navigate", page)');
     expect(main).toContain(".knowledge-list-item");
     expect(main).toContain(".memory-list-item");
     expect(main).toContain(".recommendation-list-item");

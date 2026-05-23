@@ -35,6 +35,7 @@ const orbitApi: OrbitDesktopApi = {
   cleanupLegacyEventPrivacy: () => ipcRenderer.invoke("orbit:cleanupLegacyEventPrivacy"),
   cleanupPerceptionSidecars: () => ipcRenderer.invoke("orbit:cleanupPerceptionSidecars"),
   captureScreenOcr: () => ipcRenderer.invoke("orbit:captureScreenOcr"),
+  captureScreenOcrBurst: () => ipcRenderer.invoke("orbit:captureScreenOcrBurst"),
   generateHandoff: (input) => ipcRenderer.invoke("orbit:generateHandoff", input),
   reindexLocalData: () => ipcRenderer.invoke("orbit:reindexLocalData"),
   clearLocalData: () => ipcRenderer.invoke("orbit:clearLocalData"),
@@ -48,6 +49,13 @@ const orbitApi: OrbitDesktopApi = {
     const listener = (): void => callback();
     ipcRenderer.on("orbit:snapshotChanged", listener);
     return () => ipcRenderer.removeListener("orbit:snapshotChanged", listener);
+  },
+  onNavigate: (callback) => {
+    const listener = (_event: unknown, page: string): void => {
+      callback(page as Parameters<typeof callback>[0]);
+    };
+    ipcRenderer.on("orbit:navigate", listener);
+    return () => ipcRenderer.removeListener("orbit:navigate", listener);
   }
 };
 

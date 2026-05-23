@@ -2,6 +2,7 @@ import {
   buildTodayContext,
   createDefaultObservationStatus,
   defaultProtectedAppRules,
+  evaluatePerceptionResourceState,
   planBackgroundRuntimeCycle,
   DESKTOP_OBSERVATION_ADAPTER_ID,
   formatHandoffMarkdown,
@@ -20,6 +21,7 @@ import {
   type ObservationStatus,
   type PerceptionProviderKind,
   type PerceptionProviderTask,
+  type PerceptionResourceState,
   type PerceptionSamplingPresetName,
   type PerceptionSourceKind,
   type PerceptionSourcePolicyPatch,
@@ -34,11 +36,17 @@ import {
   FixtureAdapter,
   LocalAgentAdapter,
   MacScreenOcrCaptureHelper,
+  MockOcrEngine,
   OCR_OBSERVATION_ADAPTER_ID,
   OcrObservationAdapter,
   SeaTalkAdapter,
+  runScreenBurstScheduler,
   SCREEN_OBSERVATION_ADAPTER_ID,
   ScreenObservationAdapter,
+  screenPermission,
+  type ScreenCaptureFrame,
+  type ScreenCaptureNativeHelper,
+  type ScreenCaptureScope,
   type ScreenOcrTextResult
 } from "@orbit/adapters";
 import {
@@ -876,6 +884,107 @@ export async function captureScreenOcrForDesktop(): Promise<DesktopActionResult>
       snapshot: readDesktopSnapshot(),
       warnings: results.flatMap((result) => result.warnings).concat(warnings),
       message: `Captured current screen/OCR into ${inserted} event(s); ${pipeline.activitySessions.total} activity sessions available`
+    };
+  } finally {
+    database.close();
+  }
+}
+
+export async function captureScreenOcrBurstForDesktop(): Promise<DesktopActionResult> {
+  const database = openOrbitDatabase();
+  try {
+    const sourceRepository = new SourceRepository(database.db);
+    const eventRepository = new EventRepository(database.db);
+    const auditRepository = new AuditRepository(database.db);
+    const settingsRepository = new SettingsRepository(database.db);
+    const perception = readPerceptionStatus(database.db);
+    const scope: ScreenCaptureScope = {
+      kind: "display",
+      label: "Main Display"
+    };
+    const runtimeSessionId = `desktop-screen-ocr-burst-${Date.now()}`;
+    const helper = new DesktopScreenOcrBurstHelper(runtimeSessionId);
+    const schedulerResult = await runScreenBurstScheduler({
+      helper,
+      perception,
+      scope,
+      runtimeSessionId,
+      trigger: "manual",
+      resourceState: readDesktopPerceptionResourceState(perception),
+      protectedApps: perception.protectedApps,
+      readPerception: () => readPerceptionStatus(database.db),
+      readResourceState: () => readDesktopPerceptionResourceState(readPerceptionStatus(database.db))
+    });
+    const burst = schedulerResult.burst;
+    const burstObjectId = burst?.id ?? `scheduler_${runtimeSessionId}`;
+
+    for (const entry of schedulerResult.audit) {
+      auditRepository.log(entry.operation, "capture_burst", burstObjectId, {
+        mode: "desktop_screen_ocr_burst",
+        runtimeSessionId,
+        policySnapshotId: perception.policySnapshot.id,
+        schedulerStatus: schedulerResult.status,
+        reason: entry.reason,
+        frameId: entry.frameId,
+        frameIndex: entry.frameIndex,
+        rawStored: false
+      });
+    }
+
+    const frames = burst?.frames.map((candidate) => candidate.frame) ?? [];
+    if (frames.length > 0) {
+      const screenPolicy = perception.sources.find(
+        (source) => source.sourceKind === "screen"
+      )?.policy;
+      const ocrPolicy = perception.sources.find((source) => source.sourceKind === "ocr")?.policy;
+      for (const adapter of [
+        new ScreenObservationAdapter({
+          id: SCREEN_OBSERVATION_ADAPTER_ID,
+          frames,
+          scope,
+          permission: screenPermission("granted"),
+          protectedApps: perception.protectedApps,
+          allowRawFrameStorage: false,
+          canUseForAI: screenPolicy?.canUseForAI === true,
+          canExportToAgent: screenPolicy?.canExportToAgent === true
+        }),
+        new OcrObservationAdapter({
+          id: OCR_OBSERVATION_ADAPTER_ID,
+          frames,
+          scope,
+          engine: new MockOcrEngine(),
+          permission: screenPermission("granted"),
+          protectedApps: perception.protectedApps,
+          canUseForAI: ocrPolicy?.canUseForAI === true,
+          canExportToAgent: ocrPolicy?.canExportToAgent === true
+        })
+      ]) {
+        sourceRepository.upsertFromAdapter(adapter);
+        const cursor = sourceRepository.getCursor(adapter.id);
+        const result = await ingestEventsFromAdapter(adapter, eventRepository, cursor);
+        sourceRepository.setCursor(adapter.id, result.nextCursor);
+        sourceRepository.recordSyncSuccess(adapter.id, { lastEventAt: result.lastEventAt });
+        auditRepository.log("perception.capture_screen_ocr_burst_ingest", "source", adapter.id, {
+          mode: "desktop_screen_ocr_burst",
+          kind: adapter.kind,
+          read: result.read,
+          inserted: result.inserted,
+          skipped: result.skipped,
+          rawStored: false,
+          warnings: result.warnings
+        });
+      }
+      settingsRepository.set(SETTING_KEYS.sourceSetupCompleted, true);
+      await reindexLocalDataWithProvider(database, buildDesktopPipelineOptions(settingsRepository));
+    }
+
+    return {
+      snapshot: readDesktopSnapshot(),
+      warnings: schedulerResult.skipReason ? [schedulerResult.skipReason] : [],
+      message:
+        schedulerResult.status === "skipped"
+          ? `Screen/OCR burst skipped: ${schedulerResult.skipReason}`
+          : `Captured Screen/OCR burst with ${frames.length} frame(s)`
     };
   } finally {
     database.close();
@@ -1778,6 +1887,53 @@ function safeNormalizeEndpoint(baseUrl: string): string | undefined {
 
 function formatUnknownError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function readDesktopPerceptionResourceState(
+  perception: ReturnType<typeof readPerceptionStatus>
+): PerceptionResourceState {
+  return evaluatePerceptionResourceState(perception.resourcePolicy, {
+    lowPowerMode: false,
+    batteryPercent: null,
+    rawSidecarBytes: 0,
+    queueDepth: 0,
+    providerRequestsLastHour: 0,
+    providerInputCharsPending: 0,
+    providerTokensLastHour: 0
+  });
+}
+
+class DesktopScreenOcrBurstHelper implements ScreenCaptureNativeHelper {
+  constructor(private readonly runtimeSessionId: string) {}
+
+  async getScreenRecordingPermission() {
+    return screenPermission("granted");
+  }
+
+  async listScopes(): Promise<ScreenCaptureScope[]> {
+    return [{ kind: "display", label: "Main Display" }];
+  }
+
+  async captureFrames(
+    scope: ScreenCaptureScope,
+    budget: { maxFrames: number }
+  ): Promise<ScreenCaptureFrame[]> {
+    const frames: ScreenCaptureFrame[] = [];
+    for (let index = 0; index < budget.maxFrames; index += 1) {
+      const capture = await new MacScreenOcrCaptureHelper({
+        runtimeSessionId: this.runtimeSessionId,
+        sequence: index + 1
+      }).captureOnce();
+      if (!capture.frame) continue;
+      const frame: ScreenCaptureFrame = {
+        ...capture.frame,
+        scope
+      };
+      if (capture.ocr?.text) frame.ocrText = capture.ocr.text;
+      frames.push(frame);
+    }
+    return frames;
+  }
 }
 
 function encryptApiKey(value: string): string {
