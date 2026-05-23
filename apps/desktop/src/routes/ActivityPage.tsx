@@ -168,7 +168,7 @@ export function ActivityPage({
         }
       >
         <div className="activity-capture-note">
-          <strong>{t("activity.captureScreenOcrNoFixtures")}</strong>
+          <strong>{t("activity.captureScreenOcrNoSampleData")}</strong>
           <span>{t("activity.captureScreenOcrDescription")}</span>
         </div>
         <div className="activity-playback-workbench">

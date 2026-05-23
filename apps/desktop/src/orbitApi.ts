@@ -160,7 +160,7 @@ export type DesktopOpenAITokenLimitParameter = "max_tokens" | "max_completion_to
 export type DesktopRuntimeStatus = "idle" | "collecting" | "paused" | "error";
 export type DesktopSourceRuntimeAction = "pause" | "resume" | "enable" | "disable";
 
-export type SourceSetupKind = "fixtures" | "codex" | "local_agent" | "seatalk";
+export type SourceSetupKind = "codex" | "local_agent" | "seatalk";
 
 export interface DesktopProtectedRuleInput {
   kind: ProtectedAppRule["match"]["kind"];
@@ -177,7 +177,6 @@ export interface DesktopIgnoreCurrentContextInput {
 export interface DesktopSourceAdapterConfig {
   setupKind: SourceSetupKind;
   path?: string;
-  fixturesRoot?: string;
 }
 
 export interface DesktopAIProviderTestConfig {

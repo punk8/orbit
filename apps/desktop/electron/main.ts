@@ -276,8 +276,6 @@ app.whenReady().then(async () => {
   await observationService.restoreFromSettings();
   if (process.env.ORBIT_PACKAGED_SMOKE === "1") {
     void runPackagedSmoke(window);
-  } else if (process.env.ORBIT_E2E_RENDERER_SMOKE === "1") {
-    void runRendererSmoke(window);
   } else {
     startBackgroundIngestion();
   }
@@ -529,120 +527,6 @@ async function navigateMainWindow(page: "activity" | "settings"): Promise<void> 
   window.webContents.send("orbit:navigate", page);
 }
 
-async function runRendererSmoke(window: BrowserWindow): Promise<void> {
-  try {
-    await setupSourceForDesktop("fixtures");
-    const firstArtifact = readDesktopSnapshot().knowledgeArtifacts[0];
-    if (firstArtifact) {
-      reviewKnowledgeForDesktop(firstArtifact.id, "confirm");
-    }
-    notifySnapshotChanged();
-    await window.webContents.executeJavaScript(
-      `
-        (async () => {
-          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-          const waitFor = async (selector) => {
-            for (let index = 0; index < 120; index += 1) {
-              const element = document.querySelector(selector);
-              if (element) return element;
-              await sleep(100);
-            }
-            throw new Error("Missing selector: " + selector);
-          };
-          const click = async (selector) => {
-            const element = await waitFor(selector);
-            element.click();
-            await sleep(150);
-          };
-          const assertScrollable = async (selector) => {
-            const element = await waitFor(selector);
-            if (element.scrollHeight <= element.clientHeight) {
-              throw new Error(
-                "Expected scrollable selector: " +
-                  selector +
-                  " scrollHeight=" +
-                  element.scrollHeight +
-                  " clientHeight=" +
-                  element.clientHeight
-              );
-            }
-          };
-          const pageIds = [
-            "today",
-            "activity",
-            "knowledge",
-            "memory",
-            "recommendations",
-            "handoff",
-            "review",
-            "sources",
-            "settings"
-          ];
-          for (const pageId of pageIds) {
-            await click('[data-page-id="' + pageId + '"]');
-            await waitFor('[data-page-id="' + pageId + '"].active');
-          }
-          await click('[data-page-id="handoff"]');
-          await click('[data-handoff-action="generate-today"]');
-          await waitFor(".handoff-preview");
-          await waitFor(".handoff-excluded-list");
-          await click('[data-page-id="settings"]');
-          await waitFor(".provider-boundary");
-          await assertScrollable(".settings-content");
-          await click('[data-settings-section-id="privacy"]');
-          await waitFor(".privacy-settings-panel");
-          await click('[data-settings-section-id="runtime"]');
-          await waitFor(".observation-settings-panel");
-          await waitFor(".screen-ocr-runtime-panel");
-          await waitFor('[data-screen-ocr-action="cleanup-dry-run"]');
-          await waitFor('[data-screen-ocr-action="cleanup-execute"]');
-          await waitFor(".cleanup-controls-panel");
-          await waitFor('[data-cleanup-action="disable-source-delete-raw"]');
-          await waitFor('[data-cleanup-action="delete-events-dry-run"]');
-          await waitFor('[data-cleanup-action="delete-events-execute"]');
-          await click('[data-screen-ocr-action="cleanup-dry-run"]');
-          await click('[data-cleanup-action="delete-events-dry-run"]');
-          await click('[data-observation-action="start"]');
-          await sleep(1200);
-          await click('[data-observation-action="stop"]');
-          await click('[data-settings-section-id="indexing"]');
-          await waitFor(".index-settings-panel");
-          await click('[data-page-id="knowledge"]');
-          const artifact = await waitFor(".knowledge-list-item");
-          artifact.click();
-          await waitFor(".knowledge-detail-pane .detail-header");
-          await waitFor(".markdown-preview");
-          await click('[data-page-id="memory"]');
-          const memory = await waitFor(".memory-list-item");
-          memory.click();
-          await waitFor(".memory-detail-pane .detail-header");
-          await waitFor(".memory-detail-pane .detail-grid");
-          await click('[data-page-id="recommendations"]');
-          const recommendation = await waitFor(".recommendation-list-item");
-          recommendation.click();
-          await waitFor(".recommendation-detail-pane .detail-header");
-          await waitFor(".snooze-control");
-          await click('[data-page-id="activity"]');
-          const session = await waitFor(".activity-timeline-item");
-          session.click();
-          await waitFor(".activity-playback-header");
-          await waitFor(".mini-grid");
-          await waitFor(".event-stream .event-row");
-          await waitFor(".derived-grid");
-          return true;
-        })()
-      `,
-      true
-    );
-    app.exit(0);
-  } catch (error) {
-    console.error(
-      `Orbit renderer smoke failed: ${error instanceof Error ? error.message : String(error)}`
-    );
-    app.exit(1);
-  }
-}
-
 async function runPackagedSmoke(window: BrowserWindow): Promise<void> {
   try {
     await window.webContents.executeJavaScript(
@@ -753,8 +637,8 @@ function requireSettingKey(
   throw new Error(`Unsupported setting key: ${key}`);
 }
 
-function requireSourceSetupKind(kind: string): "fixtures" | "codex" | "local_agent" | "seatalk" {
-  if (kind === "fixtures" || kind === "codex" || kind === "local_agent" || kind === "seatalk") {
+function requireSourceSetupKind(kind: string): "codex" | "local_agent" | "seatalk" {
+  if (kind === "codex" || kind === "local_agent" || kind === "seatalk") {
     return kind;
   }
   throw new Error(`Unsupported source setup kind: ${kind}`);

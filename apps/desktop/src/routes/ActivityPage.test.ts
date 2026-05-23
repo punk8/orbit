@@ -68,6 +68,6 @@ describe("ActivityPage evidence workbench", () => {
     expect(source).toContain("onCaptureScreenOcr");
     expect(source).toContain("action.captureScreenOcr");
     expect(source).toContain("activity.captureScreenOcrDescription");
-    expect(source).toContain("activity.captureScreenOcrNoFixtures");
+    expect(source).toContain("activity.captureScreenOcrNoSampleData");
   });
 });

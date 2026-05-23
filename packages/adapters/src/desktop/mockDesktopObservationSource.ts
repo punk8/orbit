@@ -1,5 +1,3 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
 import type { ObservationInput } from "@orbit/core";
 import { sortObservationInputs } from "@orbit/core";
 
@@ -27,11 +25,6 @@ export class MockDesktopObservationSource {
     private readonly inputs: ObservationInput[],
     private readonly warnings: string[] = []
   ) {}
-
-  static fromDirectory(directory: string): MockDesktopObservationSource {
-    const result = readDesktopObservationFixtures(directory);
-    return new MockDesktopObservationSource(result.inputs, result.warnings);
-  }
 
   readCursor(cursor?: string): MockObservationReadResult {
     const sorted = sortObservationInputs(this.inputs);
@@ -66,50 +59,4 @@ export class MockDesktopObservationSource {
       warnings: result.warnings
     };
   }
-}
-
-export function readDesktopObservationFixtures(directory: string): {
-  inputs: ObservationInput[];
-  warnings: string[];
-} {
-  if (!existsSync(directory)) {
-    return { inputs: [], warnings: [`Desktop observation fixture directory not found: ${directory}`] };
-  }
-
-  const warnings: string[] = [];
-  const inputs = readdirSync(directory)
-    .filter((file) => file.endsWith(".jsonl"))
-    .sort()
-    .flatMap((file) => {
-      const filePath = join(directory, file);
-      const lines = readFileSync(filePath, "utf8")
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean);
-      return lines.flatMap((line, index) => {
-        try {
-          const input = JSON.parse(line) as ObservationInput;
-          validateObservationInput(input, `${file}#${index + 1}`);
-          return [input];
-        } catch (error) {
-          warnings.push(
-            `Skipped malformed desktop observation fixture ${file}#${index + 1}: ${
-              error instanceof Error ? error.message : String(error)
-            }`
-          );
-          return [];
-        }
-      });
-    });
-
-  return { inputs: sortObservationInputs(inputs), warnings };
-}
-
-function validateObservationInput(input: ObservationInput, pointer: string): void {
-  if (!input.type) throw new Error(`${pointer} is missing type`);
-  if (!input.tier) throw new Error(`${pointer} is missing tier`);
-  if (!input.sourceKind) throw new Error(`${pointer} is missing sourceKind`);
-  if (!input.occurredAt) throw new Error(`${pointer} is missing occurredAt`);
-  if (!input.runtimeSessionId) throw new Error(`${pointer} is missing runtimeSessionId`);
-  if (!Number.isFinite(input.sequence)) throw new Error(`${pointer} is missing sequence`);
 }

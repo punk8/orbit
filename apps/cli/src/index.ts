@@ -14,9 +14,7 @@ import {
   runRecommendationReviewAction
 } from "./commands/governanceActions";
 import { ingestCodex } from "./commands/ingestCodex";
-import { ingestFixtures } from "./commands/ingestFixtures";
 import { ingestLocalAgent } from "./commands/ingestLocalAgent";
-import { ingestPerceptionFixtures } from "./commands/ingestPerceptionFixtures";
 import {
   getActivitySession,
   getKnowledgeArtifact,
@@ -42,7 +40,6 @@ import {
   getObservePermissions,
   getObserveProtectedApps,
   getObserveStatus,
-  ingestMockDesktopObservations,
   upsertObserveProtectedRule
 } from "./commands/observe";
 import {
@@ -54,14 +51,11 @@ import {
   getPerceptionReleaseGate,
   getPerceptionStatus,
   ignoreCurrentPerceptionContext,
-  runScreenOcrSmoke,
   setPerceptionProtectedRule,
   setPerceptionSamplingPreset,
   setPerceptionProviderRoute,
   setPerceptionSourcePolicy,
   syncPerceptionDogfoodPermission,
-  summarizeVisionFixture,
-  transcribeAudioFixture
 } from "./commands/perception";
 import {
   runPipelineWithProviderAndQuality,
@@ -123,14 +117,6 @@ export function buildProgram(): Command {
 
   const ingest = program.command("ingest").description("Ingest source data");
   ingest
-    .command("fixtures")
-    .description("Ingest synthetic Codex and SeaTalk fixtures")
-    .option("--json", "output JSON")
-    .action(async (options: { json?: boolean }) => {
-      const result = await ingestFixtures();
-      writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
-    });
-  ingest
     .command("codex")
     .description("Ingest read-only Codex session files from an explicit path")
     .requiredOption("--path <path>", "Sanitized Codex session file or directory")
@@ -148,33 +134,6 @@ export function buildProgram(): Command {
       const result = await ingestLocalAgent(options.path);
       writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
     });
-  ingest
-    .command("perception-fixtures")
-    .description("Ingest explicit screen/OCR perception fixtures")
-    .option("--vision", "also run mock vision summarization when perception policy allows it")
-    .option("--audio", "also run mock meeting audio/transcript fixtures when policy allows it")
-    .option("--pack <pack>", "Fixture pack: default or source-install-dogfood")
-    .option("--language <language>", "Knowledge draft language: en or zh-CN")
-    .option("--json", "output JSON")
-    .action(
-      async (options: {
-        vision?: boolean;
-        audio?: boolean;
-        pack?: string;
-        language?: string;
-        json?: boolean;
-      }) => {
-        const fixturePack = readPerceptionFixturePack(options.pack);
-        const language = readKnowledgeLanguage(options.language);
-        const result = await ingestPerceptionFixtures({
-          includeVision: options.vision ?? false,
-          includeAudio: options.audio ?? false,
-          ...(fixturePack ? { pack: fixturePack } : {}),
-          ...(language ? { language } : {})
-        });
-        writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
-      }
-    );
 
   const pipeline = program.command("pipeline").description("Run local processing pipelines");
   pipeline
@@ -601,15 +560,6 @@ export function buildProgram(): Command {
       });
       writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
     });
-  observe
-    .command("ingest-mock")
-    .description("Ingest deterministic mock desktop observation fixtures")
-    .option("--json", "output JSON")
-    .action(async (options: { json?: boolean }) => {
-      const result = await ingestMockDesktopObservations();
-      writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
-    });
-
   const perception = program
     .command("perception")
     .description("Inspect high-risk perception control-plane state");
@@ -674,15 +624,6 @@ export function buildProgram(): Command {
     .option("--json", "output JSON")
     .action((options: { status: string; json?: boolean }) => {
       const result = syncPerceptionDogfoodPermission({ permission: options.status });
-      writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
-    });
-  perception
-    .command("screen-ocr-smoke")
-    .description("Run a mock start/pause/resume/stop smoke for explicit screen/OCR observation")
-    .option("--scope <scope>", "display, app, window, or region", "display")
-    .option("--json", "output JSON")
-    .action(async (options: { scope?: string; json?: boolean }) => {
-      const result = await runScreenOcrSmoke(requireScreenScopeKind(options.scope));
       writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
     });
   perception
@@ -770,22 +711,6 @@ export function buildProgram(): Command {
     .option("--json", "output JSON")
     .action((task: string, provider: string, options: { json?: boolean }) => {
       const result = setPerceptionProviderRoute({ task, provider });
-      writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
-    });
-  perception
-    .command("vision-fixture")
-    .description("Run explicit screen/OCR fixture vision summary through the configured route")
-    .option("--json", "output JSON")
-    .action(async (options: { json?: boolean }) => {
-      const result = await summarizeVisionFixture();
-      writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
-    });
-  perception
-    .command("transcribe-fixture")
-    .description("Run explicit audio fixture transcription through the configured provider route")
-    .option("--json", "output JSON")
-    .action(async (options: { json?: boolean }) => {
-      const result = await transcribeAudioFixture();
       writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
     });
   perception
@@ -887,15 +812,6 @@ function requireRecord<T>(record: T | undefined, label: string, id: string): T {
   return record;
 }
 
-function requireScreenScopeKind(
-  value: string | undefined
-): "display" | "app" | "window" | "region" {
-  if (value === "display" || value === "app" || value === "window" || value === "region") {
-    return value;
-  }
-  throw new Error(`Unsupported screen/OCR scope: ${value ?? ""}`);
-}
-
 function requireProtectedRuleKind(
   value: string
 ):
@@ -979,14 +895,6 @@ function readKnowledgeLanguage(value: string | undefined): "en" | "zh-CN" | unde
   if (value === undefined) return undefined;
   if (value === "en" || value === "zh-CN") return value;
   throw new Error(`Unsupported knowledge language: ${value}`);
-}
-
-function readPerceptionFixturePack(
-  value: string | undefined
-): "default" | "source-install-dogfood" | undefined {
-  if (value === undefined) return undefined;
-  if (value === "default" || value === "source-install-dogfood") return value;
-  throw new Error(`Unsupported perception fixture pack: ${value}`);
 }
 
 function withHandoffLanguage<T extends Record<string, unknown>>(

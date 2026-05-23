@@ -158,7 +158,7 @@ const translations = {
     "activity.noRawFramesReason":
       "Orbit is showing OCR and event evidence only; visual replay requires explicit short-retention frame storage.",
     "activity.capturingScreenOcr": "Capturing...",
-    "activity.captureScreenOcrNoFixtures": "Real local capture; no fixture data is loaded.",
+    "activity.captureScreenOcrNoSampleData": "Real local capture; no bundled sample data is loaded.",
     "activity.captureScreenOcrDescription":
       "Capture the current screen once, run local Apple Vision OCR, write source-backed Events, and re-index Activity / Knowledge / Memory candidates.",
     "activity.summary": "Summary",
@@ -462,8 +462,6 @@ const translations = {
       "Enable agent export for this source after confirming the scope is safe.",
     "handoff.empty": "No handoff generated yet",
     "handoff.error": "Handoff generation failed",
-    "source.fixtures": "Fixtures",
-    "source.fixturesDescription": "Load bundled Codex and SeaTalk fixtures for local validation.",
     "source.codexDescription": "Read sanitized Codex sessions from an explicit local path.",
     "source.localAgent": "Local Agent",
     "source.localAgentDescription":
@@ -476,7 +474,6 @@ const translations = {
     "source.cursorPresent": "cursor saved",
     "source.cursorEmpty": "no cursor",
     "source.path": "path",
-    "source.fixturesRoot": "fixtures root",
     "source.readableFields": "reads",
     "source.retention": "retention",
     "source.aiAllowed": "AI allowed",
@@ -1014,7 +1011,7 @@ const translations = {
     "activity.noRawFramesYet": "这个活动暂未保存画面帧",
     "activity.noRawFramesReason": "当前只展示 OCR 与事件证据；画面回放需要显式开启短期帧存储。",
     "activity.capturingScreenOcr": "捕获中...",
-    "activity.captureScreenOcrNoFixtures": "真实本地捕获；不会加载示例数据。",
+    "activity.captureScreenOcrNoSampleData": "真实本地捕获；不会加载示例数据。",
     "activity.captureScreenOcrDescription":
       "捕获一次当前屏幕，使用本地 Apple Vision OCR，写入可追溯事件，并重建 Activity / Knowledge / Memory 候选。",
     "activity.summary": "摘要",
@@ -1312,8 +1309,6 @@ const translations = {
     "handoff.exclusion.nextAction.allowExport": "确认范围安全后，为该来源开启 Agent 导出。",
     "handoff.empty": "尚未生成交接包",
     "handoff.error": "交接包生成失败",
-    "source.fixtures": "示例数据",
-    "source.fixturesDescription": "加载内置 Codex 与 SeaTalk 示例，用于本地验证。",
     "source.codexDescription": "从用户明确提供的本地路径读取已脱敏 Codex 会话。",
     "source.localAgent": "本地 Agent",
     "source.localAgentDescription": "通过通用适配器读取 Claude Code 或其他本地 Agent 会话。",
@@ -1325,7 +1320,6 @@ const translations = {
     "source.cursorPresent": "游标已保存",
     "source.cursorEmpty": "无游标",
     "source.path": "路径",
-    "source.fixturesRoot": "示例根目录",
     "source.readableFields": "读取字段",
     "source.retention": "保留策略",
     "source.aiAllowed": "允许用于 AI",

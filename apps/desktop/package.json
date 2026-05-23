@@ -18,8 +18,7 @@
     "rebuild:native:electron": "node scripts/rebuild-native.mjs electron",
     "rebuild:native:node": "node scripts/rebuild-native.mjs node",
     "typecheck": "tsc --noEmit -p ../../tsconfig.json",
-    "test": "vitest run --passWithNoTests",
-    "test:e2e": "node scripts/e2e-smoke.mjs"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@orbit/adapters": "workspace:*",

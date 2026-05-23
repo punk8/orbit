@@ -97,11 +97,6 @@ export function SourcesPage({
                     {snapshot.sourceAdapterConfigs[source.id]?.path ? (
                       <span>{`${t("source.path")} ${snapshot.sourceAdapterConfigs[source.id]?.path}`}</span>
                     ) : null}
-                    {snapshot.sourceAdapterConfigs[source.id]?.fixturesRoot ? (
-                      <span>{`${t("source.fixturesRoot")} ${
-                        snapshot.sourceAdapterConfigs[source.id]?.fixturesRoot
-                      }`}</span>
-                    ) : null}
                   </div>
                   {runtimeSource ? (
                     <div className="meta-line permission-line runtime-source-line">
@@ -405,7 +400,7 @@ function readReconfigurableSetupKind(
   configuredKind: SourceSetupKind | undefined,
   sourceKind: string
 ): SourceSetupKind | undefined {
-  if (configuredKind && configuredKind !== "fixtures") return configuredKind;
+  if (configuredKind) return configuredKind;
   if (sourceKind === "codex" || sourceKind === "local_agent" || sourceKind === "seatalk") {
     return sourceKind;
   }

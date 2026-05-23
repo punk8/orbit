@@ -5,10 +5,9 @@ technical users who build and run the desktop app from source.
 
 Start here:
 
-- [Docs index](docs/README.md)
-- [Source install dogfood guide](docs/source-install-dogfood.md)
-- [Source install manual macOS smoke](docs/source-install-manual-smoke.md)
-- [Source Install Dogfood Production Spec](docs/source-install-dogfood-production-spec.md)
+- [目标产品形态与功能](docs/product.md)
+- [架构设计](docs/architecture.md)
+- [目前待办项](docs/todo.md)
 
 The stable product flow is:
 

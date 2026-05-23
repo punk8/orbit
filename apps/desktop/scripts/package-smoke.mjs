@@ -14,7 +14,7 @@ assertPackagedMacObserverHelper(appPath);
 const privateScan = scanPackagedPrivateData(appPath);
 if (privateScan.violations.length > 0) {
   throw new Error(
-    `Packaged Orbit contains private or raw fixture data: ${privateScan.violations.join(", ")}`
+    `Packaged Orbit contains private or raw sample data: ${privateScan.violations.join(", ")}`
   );
 }
 

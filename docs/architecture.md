@@ -1,267 +1,121 @@
-# Architecture
+# 架构设计
 
-## Overview
+## 稳定数据流
 
-Orbit should be built around stable domain boundaries, not around a single data source. The long-term data flow is:
+Orbit 的核心架构围绕稳定对象流设计：
 
 ```text
 Source Adapter
-  -> Background Observation Runtime
   -> Event Ingestion
   -> Local Event Store
   -> Activity Session Builder
-  -> Processing Pipeline
   -> Knowledge Artifact Store
   -> Memory Store
   -> Recommendation Engine
-  -> Agent Interface / Desktop Shell
+  -> Handoff / Agent Interface
 ```
 
-The core should be usable without the desktop UI. The Electron app is the shell for permissions, status, review, search, and user interaction.
+Activity 解决“发生了什么”，Knowledge 解决“这段经历沉淀出什么知识”，Memory 解决“哪些内容值得长期记住”，Recommendation 解决“下一步应该注意什么”。
 
-## Recommended Stack
-
-- **Language**: TypeScript for product code.
-- **Desktop shell**: Electron.
-- **Package manager**: pnpm.
-- **Local database**: SQLite with WAL mode and FTS5.
-- **Human-readable artifacts**: Markdown plus JSON frontmatter or sidecar metadata.
-- **Vector search**: provider interface first; implementation can start with disabled or optional SQLite vector extension.
-- **Local API**: loopback HTTP or IPC service owned by the Electron main process.
-- **Agent interface**: CLI first, MCP second, Skill wrapper after CLI stabilizes.
-- **Native helpers**: small macOS helpers only when Electron cannot safely handle active-window metadata, Accessibility, screen capture, Apple Vision OCR, audio capture, or permission checks.
-
-## Module Boundaries
-
-Suggested future repository shape:
+## 模块边界
 
 ```text
 apps/
-  desktop/              Electron app, tray/menu bar, settings, review UI
-  cli/                  orbit command line interface
+  desktop/          Electron 桌面壳、菜单栏、权限引导、审阅和设置 UI
+  cli/              本地命令行、只读 Agent 入口、维护命令
 packages/
-  core/                 domain types and use cases
-  adapters/             Desktop observation, Codex, SeaTalk, Screen, future source adapters
-  store/                SQLite, artifact files, indexes, migrations
-  ai/                   provider interfaces and prompt orchestration
-  agent-interface/      MCP server, skill helpers, local API clients
-  privacy/              redaction, retention, permissions, policy checks
-docs/
+  core/             领域类型、状态机、证据模型、聚合与生成规则
+  adapters/         各类 Source Adapter，负责只读采集和标准化
+  db/               SQLite、迁移、Repository、FTS、审计和设置
+  ai/               AI provider 抽象、任务路由、模型调用边界
+  privacy/          脱敏、保留、导出、权限和 release gate 策略
+  agent-api/        Agent 可读取资源的统一接口
+  ui/               共享 UI 能力
 ```
 
-The first code milestone can collapse packages if needed, but these boundaries should remain visible in naming and module ownership.
+`packages/core` 不依赖 Electron、SQLite 或具体 AI provider。适配器不做业务归纳，只把来源转换成 Event。桌面和 CLI 通过 core/db 提供的用例能力工作。
 
-## Runtime Topology
+## Source Adapter
 
-Orbit should run as a local background service with a desktop shell:
+每个 Adapter 必须声明：
 
-- Electron main process owns lifecycle, tray/menu, auto-start, and privileged local services.
-- Renderer provides Activity, Knowledge, Memory, Recommendations, settings, and review screens.
-- Core service exposes domain operations through IPC and optional localhost API.
-- CLI talks to the same local service when running, or uses the local store directly for read-only commands.
-- MCP server should be a thin adapter over the core read APIs.
+- source kind、adapter id、display name。
+- 权限范围、敏感级别、是否允许 AI、是否允许导出给 Agent。
+- 增量读取 cursor。
+- source pointer，用于追溯来源。
+- 原始数据保留策略。
 
-## Background Observation Runtime
+Adapter 只做采集、解析、脱敏前置和标准化，不直接生成 Knowledge 或 Recommendation。
 
-Background observation is a first-class runtime owned by the desktop shell. It continuously captures
-authorized computer activity and normalizes it through the same Source Adapter and Event model as
-explicit imports.
+## Event Store
 
-The first implementation should prioritize:
+本地 SQLite 是默认事实存储：
 
-- active app/window changes,
-- runtime permission state,
-- Accessibility text snapshots after explicit permission,
-- browser title/URL only through approved APIs, Accessibility, or extension paths,
-- terminal command observation through approved shell integration or explicit logs,
-- file activity under user-selected directories,
-- clipboard capture only after explicit enablement.
+- Events append-oriented。
+- Derived objects 可重建，但保留用户审阅状态。
+- FTS/vector index 是 sidecar，必须可重建。
+- raw payload 默认最小化保存，高风险 raw 数据必须短 TTL、可清理。
+- 所有清理、导出、模型调用和审阅动作写入 audit log。
 
-Screen frames, OCR, audio, and transcripts are high-risk adapters. They must remain separately
-gated until visible running state, pause/stop controls, protected-app exclusions, short retention,
-redaction, audit logging, and CPU/storage budgets are complete.
+## Activity Session Builder
 
-See [Background Observation Core Spec](./background-observation-core-spec.md).
-For implementation module boundaries and macOS capture strategy, see
-[Background Observation Implementation Plan](./background-observation-implementation-plan.md).
+Activity Session 由 Event 聚合而来。分组信号包括：
 
-## Source Adapter Layer
+- 时间接近程度。
+- app/window/source/project/thread 关联。
+- 命令、会话、任务和会议边界。
+- 低质量片段标记。
+- 必要时使用 AI 分类，但必须保留 deterministic fallback。
 
-Each adapter should implement the same responsibilities:
+Activity 可重建，但不能丢失用户对 Knowledge、Memory 和 Recommendation 的审阅状态。
 
-- Declare source identity, capabilities, permissions, and sensitivity defaults.
-- Read incrementally from the source.
-- Convert raw input into Events.
-- Preserve source pointers and minimal raw references.
-- Avoid business-specific summarization inside adapters.
+## Knowledge / Memory / Recommendation
 
-Initial adapters:
+Knowledge 是可编辑文档，Memory 是长期小事实，Recommendation 是带证据的建议。
 
-- **Desktop observation adapter**: app/window focus, permission state, Accessibility snapshots, explicit folder activity, and other authorized local computer activity.
-- **Codex adapter**: engineering sessions, commands, code changes, tests, conclusions.
-- **SeaTalk adapter**: messages, unread mentions, private chats, group discussions, on-call events.
+约束：
 
-Future adapters and Goal 8 adapters:
+- Knowledge 必须引用 source session 和 evidence。
+- Memory 默认来自 confirmed Knowledge 或用户显式保存。
+- Recommendation 必须包含依据、置信度和建议动作。
+- 未确认对象默认不进入 Agent Handoff。
 
-- Screen/OCR, audio/transcript, calendar, email, docs, Jira, GitLab, repository, browser extension, local filesystem.
+## AI Provider 抽象
 
-Screen, OCR, vision, and audio are first-class Source Adapters for Goal 8, but not raw recording
-defaults. Their production shape should prefer active app/window metadata and Accessibility text
-before ScreenCaptureKit frames, OCR, microphone capture, or transcription. Raw perception data must
-stay disabled until permission UX, visible running state, pause/stop controls, retention defaults,
-exclusions, audit logging, redaction, provider policy, and CPU/storage budgets are complete. See
-[Alpha Perception And Context Completion](./alpha-perception-and-context-completion.md) and
-[Perception Research Spike](./perception-research-spike.md).
+AI 能力按任务抽象，而不是全局一个模型开关：
 
-## Event And Activity Flow
-
-Events are append-oriented facts. Activity Sessions are derived groupings.
-
-The Activity Session Builder should use:
-
-- Time proximity.
-- Source and app overlap.
-- Project or repository hints.
-- Conversation thread IDs.
-- Command/session boundaries.
-- AI topic classification when deterministic signals are insufficient.
-
-An Activity Session should remain editable and reproducible. If grouping rules improve later, Orbit can rebuild sessions from Events.
-
-## Knowledge Artifact Flow
-
-Knowledge Artifacts are reviewable documents. They should not be silently treated as Memory.
-
-Generation pipeline:
-
-1. Select Activity Sessions or a time window.
-2. Retrieve relevant Events and existing Memories.
-3. Generate structured draft.
-4. Attach source references and confidence.
-5. Store as editable artifact.
-6. Let user confirm, edit, pin, export, or mark as not useful.
-
-Common artifact types:
-
-- Daily brief.
-- Weekly review.
-- Meeting summary.
-- Debugging note.
-- Decision record.
-- Project context recap.
-- Follow-up list.
-
-## Memory Flow
-
-Memory is smaller and more stable than a Knowledge Artifact.
-
-Memory creation should happen through one of these paths:
-
-- User explicitly saves a Memory.
-- User confirms suggestions extracted from Knowledge Artifacts.
-- High-confidence system extraction enters a review queue before becoming active.
-
-Memory should support:
-
-- Version history.
-- Evidence references.
-- Confidence.
-- Expiration or review dates.
-- Project and source scope.
-- Disable/delete controls.
-
-## Hybrid AI Provider Abstraction
-
-Orbit should treat "local-first" as a data, permission, storage, audit, and deletion guarantee.
-It should not require every intelligence capability to run through a local LLM.
-
-The durable architecture is a hybrid provider model:
-
-- External frontier models can power high-quality generation, summarization, complex reasoning, and recommendation wording when the user explicitly configures them and the source policy allows it.
-- Local models and platform services should power privacy-sensitive or high-frequency foundation tasks such as VAD, transcription, OCR, embedding, local indexing, redaction, and sensitivity classification.
-- Deterministic fallbacks should remain available so Activity, Knowledge, Memory, Recommendation, Handoff, and search are useful even when no external provider is enabled.
-
-This is the main product lesson from local model component signals such as `onnxruntime`,
-`sherpa-onnx`, `model.int8.onnx`, `silero_vad.onnx`, local ONNX providers, and Ollama-style
-local endpoints: they are more valuable as task-specific local infrastructure than as proof that
-the whole product should default to a local general-purpose LLM.
-
-The AI layer should expose task-oriented interfaces, not one global "model" knob:
-
-- `summarizeActivity`
 - `draftKnowledgeArtifact`
 - `extractMemoryCandidates`
-- `classifyEvent`
+- `generateRecommendations`
+- `summarizeActivity`
 - `embedText`
-- `rankRecommendations`
 - `redactSensitiveText`
-- `detectVoiceActivity`
 - `transcribeAudio`
 - `extractScreenText`
+- `summarizeVision`
 
-Provider choices should be implementation details behind those tasks:
+Provider 可以是 deterministic、本地模型、Apple Vision、Ollama、本地 HTTP、OpenAI-compatible 或未来托管服务。每次模型调用必须记录 provider、model、任务、输入边界、来源策略和 audit entry。
 
-- Deterministic local rules.
-- Local ONNX providers.
-- Apple platform services such as Vision where appropriate.
-- Ollama or other local HTTP model endpoints.
-- OpenAI-compatible endpoints.
-- Claude/Gemini-style external model providers.
-- Future hosted Orbit service.
+## Desktop Runtime
 
-Provider metadata must be visible and auditable. Generated Knowledge, Memory, Recommendation,
-Handoff Packs, indexes, and transcripts should be able to answer:
+Electron 负责：
 
-- Which task produced this output.
-- Which provider and model were used.
-- Whether data left the machine.
-- Which source policies allowed the operation.
-- Which evidence IDs were included.
-- Which audit log entry records the operation.
+- 后台常驻和菜单栏。
+- 权限状态、运行状态、暂停/恢复/停止。
+- 本地数据库路径和设置。
+- Source 管理、审阅队列、Activity/Knowledge/Memory/Recommendation/Handoff UI。
+- 必要时调用 macOS native helper 做 Screen/OCR、Accessibility、权限检查或系统级采集。
 
-The domain layer should not import provider-specific SDKs.
+高风险感知能力默认关闭，必须显式开启，并提供清晰的运行状态、保护规则、短保留和清理入口。
 
 ## Agent Interface
 
-External agents need read-first access to Orbit:
+Agent 接口只读优先：
 
-- Search Activity Sessions.
-- Retrieve Knowledge Artifacts.
-- Search Memories.
-- Ask for today's context.
-- Ask for project context.
-- Ask for recommendation explanations.
-- Ask for a Handoff Pack for a day, project, or current workstream.
+- `orbit://status`
+- `orbit://context/today`
+- `orbit://handoff/today`
+- `orbit://handoff/project/<project>`
+- Knowledge / Memory / Recommendation 搜索与读取
 
-A Handoff Pack is the agent warm-start surface over the same domain objects. It should assemble current objective, recent Activity, confirmed Knowledge, active Memories, evidence-backed Recommendations, safety boundaries, and compact source pointers. It is not a raw export and should not include draft Knowledge, unconfirmed Memory, or raw private payloads by default.
-
-Handoff Pack does not require screen or audio capture. Goal 8 perception Events may contribute only
-after they are redacted, source-backed, and permitted for agent export. Raw screenshots, recordings,
-audio, transcripts, and failed-redaction perception data remain blocked from default handoffs.
-
-Initial commands should include:
-
-```bash
-orbit handoff today --json
-orbit handoff today --format markdown
-orbit handoff project <name> --json
-orbit handoff project <name> --format markdown
-```
-
-MCP and skill wrappers should expose the same read-only pack later, for example as `orbit://handoff/today` or a Codex/Claude skill that asks Orbit for a warm-start package before answering continuity-heavy requests. See [Handoff Pack](./handoff-pack.md).
-
-Write operations require stronger policy:
-
-- Create draft Knowledge Artifact: allowed with user-visible review.
-- Write Memory: requires explicit confirmation or trusted policy.
-- Trigger side-effect action: out of scope for the first development cycle.
-
-## Desktop UI Areas
-
-The first Electron UI should map directly to domain layers:
-
-- **Activity**: timeline, session detail, source filters, local storage status.
-- **Knowledge**: artifact list, artifact detail, metadata, source sessions, edit/review actions.
-- **Memory**: grouped memories, search status, dimensions, review queue.
-- **Recommendations**: attention list with basis, confidence, and action.
-- **Settings**: adapters, permissions, retention, AI providers, local storage, export/delete.
+写入 Memory、执行外部动作或修改来源配置必须通过明确授权和审计。

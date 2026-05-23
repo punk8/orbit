@@ -5,27 +5,27 @@ import { resolveOrbitHome } from "@orbit/db";
 
 export interface CliConfig {
   orbitHome: string;
-  fixturesRoot: string;
+  repoRoot: string;
 }
 
 export function getCliConfig(cwd = process.cwd()): CliConfig {
   return {
     orbitHome: resolveOrbitHome(),
-    fixturesRoot: findFixturesRoot(cwd)
+    repoRoot: findRepoRoot(cwd)
   };
 }
 
-function findFixturesRoot(startDir: string): string {
+function findRepoRoot(startDir: string): string {
   let current = startDir;
   while (true) {
-    const candidate = join(current, "fixtures");
+    const candidate = join(current, "pnpm-workspace.yaml");
     if (existsSync(candidate)) {
-      return candidate;
+      return current;
     }
 
     const parent = dirname(current);
     if (parent === current) {
-      return join(startDir, "fixtures");
+      return startDir;
     }
     current = parent;
   }

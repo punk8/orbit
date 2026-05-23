@@ -506,7 +506,7 @@ function packagingCheck(
     id: "packaging_policy",
     status: safe ? "pass" : unsignedAlphaHelper ? "needs_data" : "fail",
     message: safe
-      ? "Package policy excludes private fixture/tmp data and has no silently trusted unsigned helper."
+      ? "Package policy excludes private sample/tmp data and has no silently trusted unsigned helper."
       : unsignedAlphaHelper
         ? "Alpha package uses an unsigned native helper; signing and notarization require Apple Developer credentials."
         : "Package policy can include private data or an unsigned native helper.",
@@ -537,17 +537,17 @@ function buildReleaseGateNextActions(input: {
     actions.push({
       id: "manual_smoke.rerun_failed",
       severity: "required",
-      title: `Rerun failed source-install manual smoke checks: ${input.manualSmoke.failed.join(", ")}.`,
+      title: `Rerun failed manual smoke checks: ${input.manualSmoke.failed.join(", ")}.`,
       command: `ORBIT_ALPHA_MANUAL_SMOKE="${manualSmokeEnvExample()}" pnpm --filter @orbit/cli orbit perception release-gate --json`,
-      docs: "docs/source-install-manual-smoke.md"
+      docs: "docs/todo.md"
     });
   } else if (input.manualSmoke.missing.length > 0) {
     actions.push({
       id: "manual_smoke.record_evidence",
       severity: "evidence",
-      title: `Record source-install manual smoke evidence for: ${input.manualSmoke.missing.join(", ")}.`,
+      title: `Record manual smoke evidence for: ${input.manualSmoke.missing.join(", ")}.`,
       command: `ORBIT_ALPHA_MANUAL_SMOKE="${manualSmokeEnvExample()}" pnpm --filter @orbit/cli orbit perception release-gate --json`,
-      docs: "docs/source-install-manual-smoke.md"
+      docs: "docs/todo.md"
     });
   }
 
@@ -556,7 +556,7 @@ function buildReleaseGateNextActions(input: {
       id: "audit_review.wire_implementation",
       severity: "required",
       title: "Wire audit operations into the release-gate evaluator.",
-      docs: "docs/source-install-dogfood-production-spec.md"
+      docs: "docs/todo.md"
     });
   } else if (input.auditReview.missingGroups.length > 0) {
     actions.push({
@@ -564,7 +564,7 @@ function buildReleaseGateNextActions(input: {
       severity: "evidence",
       title: `Exercise missing audit groups: ${input.auditReview.missingGroups.join(", ")}.`,
       command: "pnpm --filter @orbit/cli orbit perception audit-review --json",
-      docs: "docs/source-install-manual-smoke.md"
+      docs: "docs/todo.md"
     });
   }
 
@@ -572,8 +572,8 @@ function buildReleaseGateNextActions(input: {
     actions.push({
       id: "runtime_hardening.cover_failure_states",
       severity: "required",
-      title: `Cover source-install runtime failure states: ${input.runtimeHardening.missing.join(", ")}.`,
-      docs: "docs/source-install-dogfood-production-spec.md"
+      title: `Cover runtime failure states: ${input.runtimeHardening.missing.join(", ")}.`,
+      docs: "docs/todo.md"
     });
   }
 
@@ -582,8 +582,8 @@ function buildReleaseGateNextActions(input: {
       id: "packaging_policy.provide_apple_credentials",
       severity: "credentials",
       title:
-        "Provide Apple Developer credentials only when moving beyond source-install dogfood packaging.",
-      docs: "docs/source-install-dogfood.md"
+        "Provide Apple Developer credentials only when moving beyond local dogfood packaging.",
+      docs: "docs/todo.md"
     });
   } else if (input.packagingCheck?.status === "fail") {
     actions.push({
@@ -591,7 +591,7 @@ function buildReleaseGateNextActions(input: {
       severity: "required",
       title: "Fix package private-data exclusions or native helper mode before sharing the build.",
       command: "pnpm --filter @orbit/desktop package:smoke",
-      docs: "docs/source-install-dogfood.md"
+      docs: "docs/todo.md"
     });
   }
 

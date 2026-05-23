@@ -34,7 +34,6 @@ import {
   CapturedTextOcrEngine,
   CodexAdapter,
   DesktopObservationAdapter,
-  FixtureAdapter,
   LocalAgentAdapter,
   MacScreenOcrCaptureHelper,
   OCR_OBSERVATION_ADAPTER_ID,
@@ -180,7 +179,6 @@ const BACKGROUND_PIPELINE_OPTIONS = {};
 interface StoredSourceAdapterConfig {
   setupKind: SourceSetupKind;
   path?: string;
-  fixturesRoot?: string;
 }
 
 type StoredSourceAdapterConfigs = Record<string, StoredSourceAdapterConfig>;
@@ -784,7 +782,7 @@ export function reconfigureSourceForDesktop(
     if (!existing) {
       throw new Error(`Unknown source: ${sourceId}`);
     }
-    const adapter = buildSingleSourceAdapter(kind, path, sourceId, existing.kind);
+    const adapter = buildSingleSourceAdapter(kind, path, sourceId);
     sourceRepository.upsertFromAdapter(adapter);
     storeSingleSourceAdapterConfig(settingsRepository, kind, path, adapter);
     auditRepository.log("source.reconfigure", "source", sourceId, {
@@ -2166,18 +2164,6 @@ function buildBackgroundAdapter(
   settings: SettingsRepository
 ): SourceAdapter {
   const config = readSourceAdapterConfigs(settings)[sourceId];
-  if (config?.setupKind === "fixtures" || sourceId.startsWith("fixture_")) {
-    const fixturesRoot =
-      config?.fixturesRoot ?? resolveInputPath(process.env.ORBIT_FIXTURES_ROOT ?? "fixtures");
-    return new FixtureAdapter({
-      kind: sourceKind,
-      directory: join(fixturesRoot, sourceKind),
-      id: sourceId,
-      displayName: sourceKind === "seatalk" ? "Fixture SeaTalk" : "Fixture Codex",
-      defaultSensitivity: sourceKind === "seatalk" ? "confidential" : "internal"
-    });
-  }
-
   const path = config?.path;
   if (!path) {
     throw new Error("Missing adapter path; reconfigure this source before background collection.");
@@ -2202,14 +2188,9 @@ function storeSourceAdapterConfigs(
 ): void {
   const configs = readSourceAdapterConfigs(settings);
   const resolvedPath = path ? resolveInputPath(path) : undefined;
-  const fixturesRoot =
-    setupKind === "fixtures"
-      ? resolveInputPath(process.env.ORBIT_FIXTURES_ROOT ?? "fixtures")
-      : undefined;
   for (const adapter of adapters) {
     const config: StoredSourceAdapterConfig = { setupKind };
     if (resolvedPath) config.path = resolvedPath;
-    if (fixturesRoot) config.fixturesRoot = fixturesRoot;
     configs[adapter.id] = config;
   }
   settings.set(SETTING_KEYS.sourceAdapterConfigs, configs);
@@ -2350,24 +2331,6 @@ function decryptApiKey(ciphertext: string | undefined): string | undefined {
 function buildSourceSetupAdapters(kind: SourceSetupKind, path?: string) {
   const resolvedPath = path ? resolveInputPath(path) : undefined;
   switch (kind) {
-    case "fixtures": {
-      const fixturesRoot = resolveInputPath(process.env.ORBIT_FIXTURES_ROOT ?? "fixtures");
-      return [
-        new FixtureAdapter({
-          kind: "codex",
-          directory: join(fixturesRoot, "codex"),
-          id: "fixture_codex",
-          displayName: "Fixture Codex"
-        }),
-        new FixtureAdapter({
-          kind: "seatalk",
-          directory: join(fixturesRoot, "seatalk"),
-          id: "fixture_seatalk",
-          displayName: "Fixture SeaTalk",
-          defaultSensitivity: "confidential"
-        })
-      ];
-    }
     case "codex":
       if (!resolvedPath) throw new Error("Codex source setup requires a path");
       return [new CodexAdapter({ path: resolvedPath })];
@@ -2383,20 +2346,8 @@ function buildSourceSetupAdapters(kind: SourceSetupKind, path?: string) {
 function buildSingleSourceAdapter(
   kind: SourceSetupKind,
   path: string | undefined,
-  id: string,
-  existingKind?: SourceKind
+  id: string
 ) {
-  if (kind === "fixtures") {
-    const fixturesRoot = resolveInputPath(process.env.ORBIT_FIXTURES_ROOT ?? "fixtures");
-    const sourceKind: SourceKind = existingKind === "seatalk" ? "seatalk" : "codex";
-    return new FixtureAdapter({
-      kind: sourceKind,
-      directory: join(fixturesRoot, sourceKind),
-      id,
-      displayName: sourceKind === "seatalk" ? "Fixture SeaTalk" : "Fixture Codex",
-      defaultSensitivity: sourceKind === "seatalk" ? "confidential" : "internal"
-    });
-  }
   const resolvedPath = path ? resolveInputPath(path) : undefined;
   if (!resolvedPath) throw new Error(`${kind} source reconfiguration requires a path`);
   if (kind === "codex") {

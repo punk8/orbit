@@ -13,7 +13,6 @@ import type { ActivitySession, HandoffPack, KnowledgeArtifact, Recommendation } 
 import { getCliConfig } from "../config";
 
 export interface PipelineQualitySummary {
-  fixturePack?: string;
   activity: {
     total: number;
     highQuality: number;
@@ -47,32 +46,26 @@ export interface PipelineWithQualityResult extends SemanticPipelineResult {
 }
 
 export function runPipelineWithQuality(
-  options: SemanticPipelineOptions & { fixturePack?: string } = {}
+  options: SemanticPipelineOptions = {}
 ): PipelineWithQualityResult {
   const config = getCliConfig();
   const database = openOrbitDatabase({ orbitHome: config.orbitHome });
   try {
     const result = runSemanticPipeline(database, readLanguageOption(options));
-    return attachQuality(result, {
-      database,
-      ...(options.fixturePack ? { fixturePack: options.fixturePack } : {})
-    });
+    return attachQuality(result, { database });
   } finally {
     database.close();
   }
 }
 
 export async function runPipelineWithProviderAndQuality(
-  options: SemanticPipelineOptions & { fixturePack?: string } = {}
+  options: SemanticPipelineOptions = {}
 ): Promise<PipelineWithQualityResult> {
   const config = getCliConfig();
   const database = openOrbitDatabase({ orbitHome: config.orbitHome });
   try {
     const result = await runSemanticPipelineWithProvider(database, options);
-    return attachQuality(result, {
-      database,
-      ...(options.fixturePack ? { fixturePack: options.fixturePack } : {})
-    });
+    return attachQuality(result, { database });
   } finally {
     database.close();
   }
@@ -82,7 +75,6 @@ export function attachQuality(
   result: SemanticPipelineResult,
   input: {
     database: ReturnType<typeof openOrbitDatabase>;
-    fixturePack?: string;
   }
 ): PipelineWithQualityResult {
   const activitySessions = new ActivityRepository(input.database.db).listActivitySessions();
@@ -92,7 +84,6 @@ export function attachQuality(
   return {
     ...result,
     quality: buildPipelineQuality({
-      ...(input.fixturePack ? { fixturePack: input.fixturePack } : {}),
       activitySessions,
       knowledgeArtifacts,
       recommendations,
@@ -102,7 +93,6 @@ export function attachQuality(
 }
 
 function buildPipelineQuality(input: {
-  fixturePack?: string;
   activitySessions: ActivitySession[];
   knowledgeArtifacts: KnowledgeArtifact[];
   recommendations: Recommendation[];
@@ -118,7 +108,6 @@ function buildPipelineQuality(input: {
   );
   const rawLeakCount = countRawLeakMarkers(input.handoff);
   return {
-    ...(input.fixturePack ? { fixturePack: input.fixturePack } : {}),
     activity: {
       total: input.activitySessions.length,
       highQuality: input.activitySessions.filter(
