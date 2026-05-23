@@ -1,7 +1,6 @@
 import {
   audioPermission,
   CapturedTextOcrEngine,
-  captureScreenBurst,
   MacScreenOcrCaptureHelper,
   MockScreenCaptureNativeHelper,
   MockOcrEngine,
@@ -9,6 +8,7 @@ import {
   OcrObservationAdapter,
   readAudioFixtures,
   readScreenCaptureFixtures,
+  runScreenBurstScheduler,
   SCREEN_OBSERVATION_ADAPTER_ID,
   ScreenObservationAdapter,
   ScreenObservationSession,
@@ -32,7 +32,11 @@ import {
   readAIProviderConfigFromEnv,
   type VisionProvider
 } from "@orbit/ai";
-import { ingestEventsFromAdapter, normalizeObservationInput } from "@orbit/core";
+import {
+  evaluatePerceptionResourceState,
+  ingestEventsFromAdapter,
+  normalizeObservationInput
+} from "@orbit/core";
 import type { SourceAdapter } from "@orbit/core";
 import {
   AuditRepository,
@@ -57,6 +61,7 @@ import { join } from "node:path";
 import type {
   PerceptionControlPlaneStatus,
   PerceptionPermissionStatus,
+  PerceptionResourceState,
   PerceptionSamplingPresetName,
   PerceptionSourcePolicyPatch
 } from "@orbit/core";
@@ -520,34 +525,42 @@ export async function captureScreenOcrBurstNow(
     const sourceRepository = new SourceRepository(database.db);
     const eventRepository = new EventRepository(database.db);
     const auditRepository = new AuditRepository(database.db);
-    const perception = readPerceptionStatus(database.db);
+    let perception = readPerceptionStatus(database.db);
+    if (perception.dogfoodRuntime.permission !== "granted") {
+      perception = syncDogfoodRuntimePermission(database.db, "granted");
+    }
     const scope = smokeScope("display");
     const runtimeSessionId = `manual-mock-screen-burst-${Date.now()}`;
     const helper = new MockScreenCaptureNativeHelper({
       permission: screenPermission("granted"),
       frames: makeMockBurstFrames(scope, runtimeSessionId, perception.samplingPolicy.framesPerBurst)
     });
-    const burst = await captureScreenBurst({
+    const schedulerResult = await runScreenBurstScheduler({
       helper,
+      perception,
       scope,
       runtimeSessionId,
       trigger: "manual",
-      frameCount: perception.samplingPolicy.framesPerBurst,
-      frameSpacingMs: perception.samplingPolicy.frameSpacingMs,
-      protectedApps: perception.protectedApps
+      resourceState: readCliPerceptionResourceState(perception),
+      protectedApps: perception.protectedApps,
+      readPerception: () => readPerceptionStatus(database.db),
+      readResourceState: () => readCliPerceptionResourceState(readPerceptionStatus(database.db))
     });
-    for (const entry of burst.audit) {
-      auditRepository.log(entry.operation, "capture_burst", burst.id, {
+    const burst = schedulerResult.burst;
+    const burstObjectId = burst?.id ?? `scheduler_${runtimeSessionId}`;
+    for (const entry of schedulerResult.audit) {
+      auditRepository.log(entry.operation, "capture_burst", burstObjectId, {
         mode: "manual_mock_screen_burst",
         runtimeSessionId,
         policySnapshotId: perception.policySnapshot.id,
+        schedulerStatus: schedulerResult.status,
         reason: entry.reason,
         frameId: entry.frameId,
         frameIndex: entry.frameIndex
       });
     }
 
-    const frames = burst.frames.map((candidate) => candidate.frame);
+    const frames = burst?.frames.map((candidate) => candidate.frame) ?? [];
     const results: CaptureScreenOcrCommandResult["sources"] = [];
     if (frames.length > 0) {
       const screenAdapter = new ScreenObservationAdapter({
@@ -607,21 +620,21 @@ export async function captureScreenOcrBurstNow(
         inserted: results.reduce((total, result) => total + result.inserted, 0),
         skipped: results.reduce((total, result) => total + result.skipped, 0)
       },
-      warnings: burst.skipReason ? [burst.skipReason] : [],
+      warnings: schedulerResult.skipReason ? [schedulerResult.skipReason] : [],
       pipeline,
       burst: {
-        id: burst.id,
-        status: burst.status,
-        ...(burst.skipReason ? { skipReason: burst.skipReason } : {}),
-        frames: burst.frames.map((candidate) => ({
+        id: burst?.id ?? burstObjectId,
+        status: schedulerResult.status,
+        ...(schedulerResult.skipReason ? { skipReason: schedulerResult.skipReason } : {}),
+        frames: (burst?.frames ?? []).map((candidate) => ({
           id: candidate.frame.id,
           frameIndex: candidate.frameIndex,
           capturedAt: candidate.frame.capturedAt,
           frameHash: candidate.frame.frameHash,
-          sourcePointer: `screen://burst/${runtimeSessionId}/${burst.id}#frame-${candidate.frameIndex}`
+          sourcePointer: `screen://burst/${runtimeSessionId}/${burstObjectId}#frame-${candidate.frameIndex}`
         })),
-        rawStored: burst.frames.some((candidate) => candidate.rawStored),
-        auditOperations: burst.audit.map((entry) => entry.operation)
+        rawStored: (burst?.frames ?? []).some((candidate) => candidate.rawStored),
+        auditOperations: schedulerResult.audit.map((entry) => entry.operation)
       }
     };
   } finally {
@@ -928,6 +941,20 @@ function buildCliVisionProvider(perception: PerceptionControlPlaneStatus): {
       warnings: [error instanceof Error ? error.message : String(error)]
     };
   }
+}
+
+function readCliPerceptionResourceState(
+  perception: PerceptionControlPlaneStatus
+): PerceptionResourceState {
+  return evaluatePerceptionResourceState(perception.resourcePolicy, {
+    lowPowerMode: false,
+    batteryPercent: null,
+    rawSidecarBytes: 0,
+    queueDepth: 0,
+    providerRequestsLastHour: 0,
+    providerInputCharsPending: 0,
+    providerTokensLastHour: 0
+  });
 }
 
 function smokeScope(kind: ScreenCaptureScope["kind"]): ScreenCaptureScope {

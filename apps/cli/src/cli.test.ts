@@ -373,6 +373,7 @@ describe("cli commands", () => {
     expect(result.burst.frames).toHaveLength(3);
     expect(result.burst.rawStored).toBe(false);
     expect(result.burst.auditOperations).toEqual([
+      "perception.burst_scheduled",
       "perception.burst_started",
       "perception.frame_captured",
       "perception.frame_captured",
@@ -383,6 +384,11 @@ describe("cli commands", () => {
       3
     );
     expect(result.totals.inserted).toBeGreaterThanOrEqual(3);
+
+    const audit = getPerceptionReleaseGate().releaseGate.auditReview;
+    expect(audit.operationCounts["perception.burst_scheduled"]).toBe(1);
+    expect(audit.requiredGroups).toContain("burst_scheduler");
+    expect(audit.missingGroups).not.toContain("burst_scheduler");
 
     const program = buildProgram();
     const perceptionCommand = program.commands.find((command) => command.name() === "perception");

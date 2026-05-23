@@ -83,6 +83,20 @@ const requiredAuditOperationGroups: Array<{
     operations: ["perception.capture.start", "perception.capture.stop"],
     mode: "all"
   },
+  {
+    id: "burst_scheduler",
+    operations: [
+      "perception.burst_scheduled",
+      "perception.burst_started",
+      "perception.burst_completed"
+    ],
+    mode: "all"
+  },
+  {
+    id: "burst_skip_or_failure",
+    operations: ["perception.burst_skipped", "perception.burst_failed"],
+    mode: "any"
+  },
   { id: "redaction_failure", operations: ["perception.redaction_failure"], mode: "any" },
   { id: "model_call", operations: ["ai.draft_knowledge", "perception.vision_fixture_ingest"], mode: "any" },
   { id: "transcription", operations: ["perception.transcription"], mode: "any" },

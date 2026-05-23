@@ -20,6 +20,7 @@ export * from "./perception/perceptionAdapterPolicy";
 export * from "./screen/screenCaptureFixtures";
 export * from "./screen/screenCaptureTypes";
 export * from "./screen/screenCaptureBurst";
+export * from "./screen/screenBurstScheduler";
 export * from "./screen/macScreenOcrCaptureHelper";
 export * from "./screen/mockScreenCaptureNativeHelper";
 export * from "./screen/screenObservationAdapter";
