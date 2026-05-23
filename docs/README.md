@@ -4,6 +4,7 @@ This directory captures the pre-development design baseline for Orbit.
 
 Read in this order:
 
+0. [Source Install Dogfood Guide](./source-install-dogfood.md)
 1. [Product Principles](./product-principles.md)
 2. [Architecture](./architecture.md)
 3. [Data Model](./data-model.md)

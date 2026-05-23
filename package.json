@@ -12,7 +12,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "orbit": "pnpm --filter @orbit/cli orbit"
+    "orbit": "pnpm --filter @orbit/cli orbit",
+    "source-install:verify": "node scripts/source-install-verify.mjs"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
