@@ -33,6 +33,8 @@ describe("ActivityPage evidence workbench", () => {
     expect(source).toContain("activity-timeline-rail");
     expect(source).toContain("activity-recording-viewer");
     expect(source).toContain("activity-frame-scrubber");
+    expect(source).toContain("onDeleteActivitySession");
+    expect(source).toContain("confirm.deleteActivity");
     expect(source).toContain("activity.noRawFramesYet");
     expect(source).toContain("buildPlaybackFrames");
     expect(source).toContain("expired");

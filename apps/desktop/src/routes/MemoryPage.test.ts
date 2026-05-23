@@ -16,6 +16,10 @@ describe("MemoryPage governance workbench", () => {
     expect(source).toContain("memory.indexState");
     expect(source).toContain("memory.indexProvider");
     expect(source).toContain("fallbackOrder");
+    expect(source).toContain("onDeleteMemory");
+    expect(source).toContain("onRollbackMemoryVersion");
+    expect(source).toContain("confirm.deleteMemory");
+    expect(source).toContain("confirm.rollbackMemoryVersion");
     expect(source).toContain("memory.agentContextBlocked");
     expect(source).toContain("changedFields");
   });

@@ -226,6 +226,7 @@ export interface DesktopHandoffResult extends DesktopActionResult {
 export interface OrbitDesktopApi {
   getSnapshot(): Promise<DesktopSnapshot>;
   getActivitySessionDetail(id: string): Promise<DesktopActivitySessionDetail>;
+  deleteActivitySession(id: string): Promise<DesktopSnapshot>;
   searchKnowledge(
     query: string,
     filters?: DesktopKnowledgeSearchFilters
@@ -240,6 +241,8 @@ export interface OrbitDesktopApi {
   getMemoryDetail(id: string): Promise<DesktopMemoryDetail>;
   editMemory(id: string, patch: MemoryEditInput): Promise<DesktopSnapshot>;
   reviewMemory(id: string, action: MemoryReviewAction): Promise<DesktopSnapshot>;
+  deleteMemory(id: string): Promise<DesktopSnapshot>;
+  rollbackMemoryVersion(id: string): Promise<DesktopSnapshot>;
   getRecommendationDetail(id: string): Promise<DesktopRecommendationDetail>;
   reviewRecommendation(
     id: string,

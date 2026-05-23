@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -22,8 +22,7 @@ describe("macOS screen/OCR capture helper parsing", () => {
         bundleId: "com.todesktop.230313mzl4w4u92",
         pid: 123,
         windowTitle: "Orbit - Screen OCR",
-        rawLocalRef: "/Users/paul/Library/Application Support/Orbit/perception-sidecars/abc123.png",
-        rawSizeBytes: 3456,
+        rawImageBase64: Buffer.from("fake screenshot bytes").toString("base64"),
         ocrText: "Orbit 支持 screen OCR",
         ocrConfidence: 0.91,
         languages: ["zh-Hans", "en-US"]
@@ -38,13 +37,51 @@ describe("macOS screen/OCR capture helper parsing", () => {
     expect(frame.app?.name).toBe("Cursor");
     expect(frame.window?.title).toBe("Orbit - Screen OCR");
     expect(frame.frameHash).toBe("abc123");
-    expect(frame.rawLocalRef).toBe(
-      "/Users/paul/Library/Application Support/Orbit/perception-sidecars/abc123.png"
-    );
-    expect(frame.sizeBytes).toBe(3456);
+    expect(frame.rawLocalRef).toBeUndefined();
+    expect(frame.sizeBytes).toBeUndefined();
     expect(parsed.ocr?.text).toBe("Orbit 支持 screen OCR");
     expect(parsed.ocr?.confidence).toBe(0.91);
     expect(parsed.ocr?.languages).toEqual(["zh-Hans", "en-US"]);
+  });
+
+  it("persists raw image bytes in the TypeScript layer only when policy allows sidecars", () => {
+    const sidecarRoot = mkdtempSync(join(tmpdir(), "orbit-helper-sidecars-"));
+    const rawBytes = Buffer.from("fake screenshot bytes");
+    const payload = {
+      ok: true,
+      capturedAt: "2026-05-22T01:02:03.000Z",
+      displayId: "1",
+      width: 1440,
+      height: 900,
+      frameHash: "abc123",
+      rawImageBase64: rawBytes.toString("base64"),
+      ocrText: "Orbit 支持 screen OCR",
+      languages: ["zh-Hans", "en-US"]
+    };
+
+    try {
+      const stored = parseMacScreenOcrCapturePayload(JSON.stringify(payload), {
+        allowRawFrameStorage: true,
+        sidecarRoot
+      });
+
+      const localRef = join(sidecarRoot, "abc123.png");
+      expect(stored.frame?.rawLocalRef).toBe(localRef);
+      expect(stored.frame?.sizeBytes).toBe(rawBytes.byteLength);
+      expect(readFileSync(localRef)).toEqual(rawBytes);
+
+      const suppressed = parseMacScreenOcrCapturePayload(
+        JSON.stringify({ ...payload, frameHash: "def456" }),
+        {
+          allowRawFrameStorage: false,
+          sidecarRoot
+        }
+      );
+      expect(suppressed.frame?.rawLocalRef).toBeUndefined();
+      expect(existsSync(join(sidecarRoot, "def456.png"))).toBe(false);
+    } finally {
+      rmSync(sidecarRoot, { recursive: true, force: true });
+    }
   });
 
   it("returns a permission warning without a frame when helper reports missing permission", () => {
@@ -129,16 +166,18 @@ describe("macOS screen/OCR capture helper parsing", () => {
     }
   });
 
-  it("keeps raw sidecar writing local to ORBIT_HOME in the Swift helper source", () => {
+  it("keeps raw sidecar persistence out of the Swift helper source", () => {
     const helperSource = readFileSync(
       new URL("../../../apps/desktop/native/screen-ocr-helper/Sources/main.swift", import.meta.url),
       "utf8"
     );
 
-    expect(helperSource).toContain("ORBIT_HOME");
-    expect(helperSource).toContain("perception-sidecars");
-    expect(helperSource).toContain("rawLocalRef");
-    expect(helperSource).toContain("rawSizeBytes");
+    expect(helperSource).not.toMatch(/write\s*\(/);
+    expect(helperSource).not.toContain("FileManager.default");
+    expect(helperSource).not.toContain("ORBIT_HOME");
+    expect(helperSource).not.toContain("perception-sidecars");
+    expect(helperSource).not.toContain("rawLocalRef");
+    expect(helperSource).not.toContain("rawSizeBytes");
     expect(helperSource).not.toContain("/tmp");
   });
 });

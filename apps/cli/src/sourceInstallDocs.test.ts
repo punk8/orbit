@@ -59,6 +59,11 @@ describe("source install dogfood guide", () => {
     expect(guide).toContain("cloud sync");
     expect(guide).toContain("hosted support");
     expect(guide).toContain("broad telemetry");
+    expect(guide).toContain("What Orbit records");
+    expect(guide).toContain("What AI sees");
+    expect(guide).toContain("What Handoff exports");
+    expect(guide).toContain("How to pause, stop, delete, and audit");
+    expect(guide).toContain("perception-sidecars");
 
     expect(manualSmoke).toContain("# Source Install Manual macOS Smoke");
     expect(manualSmoke).toContain("screenRecordingPermission=passed");
@@ -66,6 +71,8 @@ describe("source install dogfood guide", () => {
     expect(manualSmoke).toContain("screenRecordingPermission");
     expect(manualSmoke).toContain("autoStart");
     expect(manualSmoke).toContain("pauseResumeStop");
+    expect(manualSmoke).toContain("playbackEvidence");
+    expect(manualSmoke).toContain("Activity playback");
     expect(manualSmoke).toContain("permissionRevoke");
     expect(manualSmoke).toContain("restartAutoResume");
     expect(manualSmoke).toContain("resourcePause");

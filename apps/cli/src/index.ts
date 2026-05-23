@@ -6,7 +6,10 @@ import { getDogfoodReadiness } from "./commands/dogfood";
 import {
   runKnowledgeEdit,
   runKnowledgeReviewAction,
+  runActivityDelete,
+  runMemoryDelete,
   runMemoryEdit,
+  runMemoryRollback,
   runMemoryReviewAction,
   runRecommendationReviewAction
 } from "./commands/governanceActions";
@@ -261,6 +264,16 @@ export function buildProgram(): Command {
       });
     });
   activity
+    .command("delete")
+    .description("Delete an Activity Session and write an audit log")
+    .argument("<id>", "Activity Session ID")
+    .option("--json", "output JSON")
+    .action((id: string, options: { json?: boolean }) => {
+      writeOutput(runActivityDelete(id), {
+        json: options.json ?? program.opts<{ json?: boolean }>().json
+      });
+    });
+  activity
     .command("show")
     .description("Show an Activity Session")
     .argument("<id>", "Activity Session ID")
@@ -407,6 +420,26 @@ export function buildProgram(): Command {
         });
       }
     );
+  memory
+    .command("delete")
+    .description("Delete a Memory and write an audit log")
+    .argument("<id>", "Memory ID")
+    .option("--json", "output JSON")
+    .action((id: string, options: { json?: boolean }) => {
+      writeOutput(runMemoryDelete(id), {
+        json: options.json ?? program.opts<{ json?: boolean }>().json
+      });
+    });
+  memory
+    .command("rollback")
+    .description("Rollback a Memory to its previous version and write an audit log")
+    .argument("<id>", "Memory ID")
+    .option("--json", "output JSON")
+    .action((id: string, options: { json?: boolean }) => {
+      writeOutput(runMemoryRollback(id), {
+        json: options.json ?? program.opts<{ json?: boolean }>().json
+      });
+    });
 
   const recommendation = program.command("recommendation").description("Read Recommendations");
   recommendation

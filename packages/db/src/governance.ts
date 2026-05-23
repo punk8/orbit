@@ -1,10 +1,12 @@
 import type Database from "better-sqlite3";
 import { extractMemoryCandidates } from "@orbit/core";
 import type { KnowledgeArtifact, Memory, Recommendation, ReviewStatus } from "@orbit/core";
+import { ActivityRepository } from "./repositories/activityRepository";
 import { AuditRepository } from "./repositories/auditRepository";
 import { KnowledgeRepository } from "./repositories/knowledgeRepository";
 import { MemoryRepository } from "./repositories/memoryRepository";
 import { RecommendationRepository } from "./repositories/recommendationRepository";
+import { decodeJson, encodeJson } from "./json";
 
 export type KnowledgeReviewAction = "confirm" | "reject" | "archive";
 export type KnowledgeLifecycleAction = "regenerate" | "translate" | "delete";
@@ -96,10 +98,12 @@ export function reviewMemory(
 ): Memory {
   const repository = new MemoryRepository(db);
   const memory = requireMemory(repository, id);
+  recordMemoryVersion(db, memory, `before_${action}`);
   const previousStatus = memory.status;
   const updated = touchMemory({
     ...memory,
     status: memoryActionToStatus(action),
+    version: memory.version + 1,
     lastReviewedAt: new Date().toISOString()
   });
   repository.upsertMemory(updated);
@@ -113,11 +117,13 @@ export function reviewMemory(
 export function editMemory(db: Database.Database, id: string, input: MemoryEditInput): Memory {
   const repository = new MemoryRepository(db);
   const memory = requireMemory(repository, id);
+  recordMemoryVersion(db, memory, "before_edit");
   const changedFields = Object.entries(input)
     .filter(([, value]) => value !== undefined)
     .map(([key]) => key);
   const updated = touchMemory({
     ...memory,
+    version: memory.version + 1,
     title: input.title ?? memory.title,
     body: input.body ?? memory.body,
     tags: input.tags ?? memory.tags
@@ -125,6 +131,64 @@ export function editMemory(db: Database.Database, id: string, input: MemoryEditI
   repository.upsertMemory(updated);
   logAudit(db, "memory.edit", "memory", id, { changedFields });
   return updated;
+}
+
+export function deleteMemory(db: Database.Database, id: string): void {
+  const repository = new MemoryRepository(db);
+  const memory = requireMemory(repository, id);
+  recordMemoryVersion(db, memory, "before_delete");
+  repository.deleteMemory(id);
+  logAudit(db, "memory.delete", "memory", id, {
+    deleted: true,
+    previousVersion: memory.version
+  });
+}
+
+export function rollbackMemoryVersion(db: Database.Database, id: string): Memory {
+  const repository = new MemoryRepository(db);
+  const memory = requireMemory(repository, id);
+  const snapshot = db
+    .prepare(
+      `
+      SELECT snapshot_json FROM memory_versions
+      WHERE memory_id = ?
+      ORDER BY version DESC, id DESC
+      LIMIT 1
+    `
+    )
+    .get(id) as { snapshot_json: string } | undefined;
+  if (!snapshot) {
+    throw new Error(`No previous Memory version available: ${id}`);
+  }
+
+  recordMemoryVersion(db, memory, "before_rollback");
+  const previous = decodeJson<Memory>(snapshot.snapshot_json);
+  const updated = touchMemory({
+    ...previous,
+    id: memory.id,
+    version: memory.version + 1
+  });
+  repository.upsertMemory(updated);
+  logAudit(db, "memory.rollback", "memory", id, {
+    fromVersion: memory.version,
+    restoredFromVersion: previous.version,
+    nextVersion: updated.version
+  });
+  return updated;
+}
+
+export function deleteActivitySession(db: Database.Database, id: string): void {
+  const repository = new ActivityRepository(db);
+  const session = repository.getActivitySession(id);
+  if (!session) {
+    throw new Error(`Activity Session not found: ${id}`);
+  }
+  repository.deleteActivitySession(id);
+  logAudit(db, "activity.delete", "activity_session", id, {
+    deleted: true,
+    eventCount: session.eventCount,
+    evidenceCount: session.evidence.length
+  });
 }
 
 export function reviewRecommendation(
@@ -222,6 +286,15 @@ function sameMemoryScope(left: Memory, right: Memory): boolean {
 
 function normalizeStringArray(values: string[]): string {
   return [...new Set(values)].sort().join("|");
+}
+
+function recordMemoryVersion(db: Database.Database, memory: Memory, reason: string): void {
+  db.prepare(
+    `
+    INSERT INTO memory_versions (memory_id, version, snapshot_json, reason, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `
+  ).run(memory.id, memory.version, encodeJson(memory), reason, new Date().toISOString());
 }
 
 function requireKnowledge(repository: KnowledgeRepository, id: string): KnowledgeArtifact {

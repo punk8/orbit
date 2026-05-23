@@ -369,6 +369,7 @@ const translations = {
     "action.regenerate": "Regenerate",
     "action.translate": "Translate",
     "action.delete": "Delete",
+    "action.rollback": "Rollback",
     "action.save": "Save",
     "action.cancel": "Cancel",
     "action.loadFixtures": "Load Fixtures",
@@ -515,10 +516,16 @@ const translations = {
       "Archive this Knowledge artifact? It will be hidden from default context but kept for search and audit.",
     "confirm.deleteKnowledge":
       "Delete this Knowledge artifact? Source Activity and Events remain, and the deletion is recorded in audit.",
+    "confirm.deleteActivity":
+      "Delete this Activity Session? Source Events and derived Knowledge/Memory remain traceable, and the deletion is recorded in audit.",
     "confirm.rejectMemory":
       "Reject this Memory candidate? It will remain traceable for audit but will not enter agent context.",
     "confirm.archiveMemory":
       "Archive this Memory? It will be removed from default agent context but kept for search and audit.",
+    "confirm.deleteMemory":
+      "Delete this Memory? Its last version is retained only in the local audit/version ledger.",
+    "confirm.rollbackMemoryVersion":
+      "Rollback this Memory to its previous version? A new version and audit entry will be created.",
     "confirm.acceptRecommendation":
       "Accept this recommendation? Orbit will record intent only and will not execute external actions.",
     "confirm.dismissRecommendation":
@@ -638,6 +645,7 @@ const translations = {
     "settings.auditReviewMissing": "Missing audit groups",
     "settings.auditReviewOperations": "Audit operations",
     "settings.cleanupControlsTitle": "Cleanup and deletion controls",
+    "settings.unifiedGovernanceSurface": "Unified governance surface",
     "settings.disableRawSource": "Source for raw cleanup",
     "settings.deleteEventsSource": "Source for event delete",
     "settings.cleanupControlsNote":
@@ -665,6 +673,19 @@ const translations = {
     "audit.group.cleanup": "Cleanup",
     "audit.group.knowledge_generated_or_suppressed": "Knowledge generated or suppressed",
     "audit.group.handoff_included_or_excluded": "Handoff included or excluded",
+    "audit.group.provider_payload_policy": "Provider payload policy",
+    "audit.group.evidence_packet_redaction": "Evidence packet redaction",
+    "governance.item.rawFrameRetention": "raw frame retention",
+    "governance.item.storageCap": "storage cap",
+    "governance.item.cleanupLedger": "cleanup ledger",
+    "governance.item.sourceDeletion": "source deletion",
+    "governance.item.activityDeletion": "Activity deletion",
+    "governance.item.knowledgeDeletion": "Knowledge deletion",
+    "governance.item.memoryDeletion": "Memory deletion",
+    "governance.item.memoryRollback": "Memory version rollback",
+    "governance.item.protectedRules": "protected rule management",
+    "governance.item.providerRoutes": "provider route management",
+    "governance.item.auditReview": "audit review",
     "settings.screenRecordingPermission": "Screen Recording permission",
     "settings.samplingPreset": "Sampling preset",
     "settings.framesPerBurst": "Frames per burst",
@@ -1201,6 +1222,7 @@ const translations = {
     "action.regenerate": "重新生成",
     "action.translate": "翻译",
     "action.delete": "删除",
+    "action.rollback": "回滚",
     "action.save": "保存",
     "action.cancel": "取消",
     "action.loadFixtures": "加载示例数据",
@@ -1339,9 +1361,13 @@ const translations = {
     "confirm.archiveKnowledge":
       "确定归档这条知识文档吗？它会从默认上下文中隐藏，但保留用于搜索和审计。",
     "confirm.deleteKnowledge": "确定删除这条知识文档吗？来源 Activity 和事件会保留，删除会写入审计。",
+    "confirm.deleteActivity":
+      "确定删除这条 Activity Session 吗？来源事件和派生 Knowledge/Memory 会保留可追溯，删除会写入审计。",
     "confirm.rejectMemory": "确定拒绝这条记忆候选吗？它会保留用于审计，但不会进入 Agent 上下文。",
     "confirm.archiveMemory":
       "确定归档这条记忆吗？它会从默认 Agent 上下文中移除，但保留用于搜索和审计。",
+    "confirm.deleteMemory": "确定删除这条 Memory 吗？最后版本只会保留在本地审计 / 版本账本中。",
+    "confirm.rollbackMemoryVersion": "确定将这条 Memory 回滚到上一版本吗？会创建新版本并写入审计。",
     "confirm.acceptRecommendation": "确定接受这条建议吗？Orbit 只会记录意图，不会执行外部动作。",
     "confirm.dismissRecommendation": "确定忽略这条建议吗？它会保留用于审计，但离开注意队列。",
     "settings.orbitHome": "Orbit 主目录",
@@ -1457,6 +1483,7 @@ const translations = {
     "settings.auditReviewMissing": "缺失审计分组",
     "settings.auditReviewOperations": "审计操作",
     "settings.cleanupControlsTitle": "清理与删除控制",
+    "settings.unifiedGovernanceSurface": "统一治理入口",
     "settings.disableRawSource": "Raw 清理来源",
     "settings.deleteEventsSource": "事件删除来源",
     "settings.cleanupControlsNote":
@@ -1484,6 +1511,19 @@ const translations = {
     "audit.group.cleanup": "清理",
     "audit.group.knowledge_generated_or_suppressed": "Knowledge 生成或抑制",
     "audit.group.handoff_included_or_excluded": "Handoff 包含或排除",
+    "audit.group.provider_payload_policy": "Provider payload 策略",
+    "audit.group.evidence_packet_redaction": "证据包脱敏",
+    "governance.item.rawFrameRetention": "raw frame 保留",
+    "governance.item.storageCap": "存储上限",
+    "governance.item.cleanupLedger": "清理账本",
+    "governance.item.sourceDeletion": "来源删除",
+    "governance.item.activityDeletion": "Activity 删除",
+    "governance.item.knowledgeDeletion": "Knowledge 删除",
+    "governance.item.memoryDeletion": "Memory 删除",
+    "governance.item.memoryRollback": "Memory 版本回滚",
+    "governance.item.protectedRules": "受保护规则管理",
+    "governance.item.providerRoutes": "provider 路由管理",
+    "governance.item.auditReview": "审计复核",
     "settings.screenRecordingPermission": "屏幕录制权限",
     "settings.samplingPreset": "采样预设",
     "settings.framesPerBurst": "每次 burst 帧数",

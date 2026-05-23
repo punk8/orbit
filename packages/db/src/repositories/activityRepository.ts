@@ -107,6 +107,11 @@ export class ActivityRepository {
     ).count;
   }
 
+  deleteActivitySession(id: string): boolean {
+    this.db.prepare("DELETE FROM activity_event_links WHERE activity_session_id = ?").run(id);
+    return this.db.prepare("DELETE FROM activity_sessions WHERE id = ?").run(id).changes > 0;
+  }
+
   deleteActivitySessionsNotIn(ids: string[], options: { preserveIds?: string[] } = {}): number {
     const keepIds = [...new Set([...ids, ...(options.preserveIds ?? [])])];
     if (keepIds.length === 0) {

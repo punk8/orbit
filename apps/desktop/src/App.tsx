@@ -338,12 +338,27 @@ export function App(): ReactElement {
     return runReviewAction(() => window.orbit.deleteKnowledge(id), t("error.knowledgeEdit"));
   }
 
+  function deleteActivitySession(id: string): Promise<void> {
+    return runReviewAction(
+      () => window.orbit.deleteActivitySession(id),
+      t("error.activityDetail")
+    );
+  }
+
   function reviewMemory(id: string, action: MemoryReviewAction): Promise<void> {
     return runReviewAction(() => window.orbit.reviewMemory(id, action), t("error.memoryReview"));
   }
 
   function editMemory(id: string, patch: MemoryEditInput): Promise<void> {
     return runReviewAction(() => window.orbit.editMemory(id, patch), t("error.memoryEdit"));
+  }
+
+  function deleteMemory(id: string): Promise<void> {
+    return runReviewAction(() => window.orbit.deleteMemory(id), t("error.memoryEdit"));
+  }
+
+  function rollbackMemoryVersion(id: string): Promise<void> {
+    return runReviewAction(() => window.orbit.rollbackMemoryVersion(id), t("error.memoryEdit"));
   }
 
   function reviewRecommendation(
@@ -442,8 +457,11 @@ export function App(): ReactElement {
                 regenerateKnowledge,
                 translateKnowledge,
                 deleteKnowledge,
+                deleteActivitySession,
                 reviewMemory,
                 editMemory,
+                deleteMemory,
+                rollbackMemoryVersion,
                 reviewRecommendation,
                 updateSetting,
                 setCollectionPaused,
@@ -498,8 +516,11 @@ interface PageActions {
   regenerateKnowledge(id: string): Promise<void>;
   translateKnowledge(id: string, language: "en" | "zh-CN"): Promise<void>;
   deleteKnowledge(id: string): Promise<void>;
+  deleteActivitySession(id: string): Promise<void>;
   reviewMemory(id: string, action: MemoryReviewAction): Promise<void>;
   editMemory(id: string, patch: MemoryEditInput): Promise<void>;
+  deleteMemory(id: string): Promise<void>;
+  rollbackMemoryVersion(id: string): Promise<void>;
   reviewRecommendation(
     id: string,
     action: RecommendationReviewAction,
@@ -562,6 +583,7 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
         <ActivityPage
           sessions={snapshot.activitySessions}
           onCaptureScreenOcr={actions.captureScreenOcr}
+          onDeleteActivitySession={actions.deleteActivitySession}
         />
       );
     case "knowledge":
@@ -579,7 +601,9 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
       return (
         <MemoryPage
           memories={snapshot.memories}
+          onDeleteMemory={actions.deleteMemory}
           onEditMemory={actions.editMemory}
+          onRollbackMemoryVersion={actions.rollbackMemoryVersion}
           onReviewMemory={actions.reviewMemory}
         />
       );

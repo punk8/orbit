@@ -68,10 +68,12 @@ const defaultFilters: ActivityFilters = {
 
 export function ActivityPage({
   sessions,
-  onCaptureScreenOcr
+  onCaptureScreenOcr,
+  onDeleteActivitySession
 }: {
   sessions: ActivitySession[];
   onCaptureScreenOcr(): Promise<void>;
+  onDeleteActivitySession(id: string): Promise<void>;
 }): ReactElement {
   const { t, sourceKind, formatTimeRange } = useI18n();
   const [filters, setFilters] = useState<ActivityFilters>(defaultFilters);
@@ -301,6 +303,7 @@ export function ActivityPage({
                 isLoading={isDetailLoading}
                 error={detailError}
                 formatTimeRange={formatTimeRange}
+                onDeleteActivitySession={onDeleteActivitySession}
               />
             ) : (
               <div className="empty-state">{t("empty.noActivitySessions")}</div>
@@ -317,13 +320,15 @@ function ActivityDetail({
   fallbackSession,
   isLoading,
   error,
-  formatTimeRange
+  formatTimeRange,
+  onDeleteActivitySession
 }: {
   detail: DesktopActivitySessionDetail | undefined;
   fallbackSession: ActivitySession;
   isLoading: boolean;
   error: string | undefined;
   formatTimeRange(startAt: string, endAt: string): string;
+  onDeleteActivitySession(id: string): Promise<void>;
 }): ReactElement {
   const { t, sourceKind, status } = useI18n();
   const session = detail?.session ?? fallbackSession;
@@ -362,6 +367,17 @@ function ActivityDetail({
           type="button"
         >
           ×
+        </button>
+        <button
+          className="secondary-button danger-button"
+          data-activity-action="delete-session"
+          onClick={() => {
+            if (!window.confirm(t("confirm.deleteActivity"))) return;
+            void onDeleteActivitySession(session.id);
+          }}
+          type="button"
+        >
+          {t("action.delete")}
         </button>
       </header>
 

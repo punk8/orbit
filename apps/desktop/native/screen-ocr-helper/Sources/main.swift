@@ -15,8 +15,7 @@ struct HelperOutput: Encodable {
   let width: Int?
   let height: Int?
   let frameHash: String?
-  let rawLocalRef: String?
-  let rawSizeBytes: Int?
+  let rawImageBase64: String?
   let appName: String?
   let bundleId: String?
   let pid: Int?
@@ -76,10 +75,8 @@ func frontmostWindowTitle(pid: pid_t) -> String? {
   return nil
 }
 
-func hashImage(_ image: CGImage) -> String {
-  guard let data = pngData(for: image) else {
-    return UUID().uuidString
-  }
+func hashImageData(_ data: Data?) -> String {
+  guard let data else { return UUID().uuidString }
   let digest = SHA256.hash(data: data)
   return digest.map { String(format: "%02x", $0) }.joined()
 }
@@ -99,30 +96,6 @@ func pngData(for image: CGImage) -> Data? {
     return nil
   }
   return data as Data
-}
-
-func writeRawSidecar(_ image: CGImage, frameHash: String) -> (path: String, size: Int)? {
-  guard let orbitHome = ProcessInfo.processInfo.environment["ORBIT_HOME"],
-        !orbitHome.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-        let data = pngData(for: image) else {
-    return nil
-  }
-  let sidecarRoot = URL(fileURLWithPath: orbitHome).appendingPathComponent(
-    "perception-sidecars",
-    isDirectory: true
-  )
-  do {
-    try FileManager.default.createDirectory(
-      at: sidecarRoot,
-      withIntermediateDirectories: true,
-      attributes: nil
-    )
-    let url = sidecarRoot.appendingPathComponent("\(frameHash).png")
-    try data.write(to: url, options: [.atomic])
-    return (url.path, data.count)
-  } catch {
-    return nil
-  }
 }
 
 func recognizeText(in image: CGImage) -> (text: String?, confidence: Double?, warnings: [String]) {
@@ -170,8 +143,8 @@ Task {
     let capture = try await captureMainDisplay()
     let app = frontmostAppInfo()
     let ocr = recognizeText(in: capture.image)
-    let frameHash = hashImage(capture.image)
-    let rawSidecar = writeRawSidecar(capture.image, frameHash: frameHash)
+    let rawImageData = pngData(for: capture.image)
+    let frameHash = hashImageData(rawImageData)
     let warnings = ocr.warnings
     emit(
       HelperOutput(
@@ -184,8 +157,7 @@ Task {
         width: capture.image.width,
         height: capture.image.height,
         frameHash: frameHash,
-        rawLocalRef: rawSidecar?.path,
-        rawSizeBytes: rawSidecar?.size,
+        rawImageBase64: rawImageData?.base64EncodedString(),
         appName: app.appName,
         bundleId: app.bundleId,
         pid: app.pid,
@@ -218,8 +190,7 @@ Task {
         width: nil,
         height: nil,
         frameHash: nil,
-        rawLocalRef: nil,
-        rawSizeBytes: nil,
+        rawImageBase64: nil,
         appName: nil,
         bundleId: nil,
         pid: nil,

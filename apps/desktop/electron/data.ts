@@ -69,6 +69,8 @@ import {
   clearLocalData,
   cleanupLegacyEventPrivacy,
   cleanupPerceptionSidecars,
+  deleteActivitySession,
+  deleteMemory,
   deletePerceptionSourceEvents,
   buildProjectHandoffPack,
   buildTodayHandoffPack,
@@ -81,6 +83,7 @@ import {
   readPerceptionStatusFromSettings,
   reindexLocalDataWithProvider,
   RecommendationRepository,
+  rollbackMemoryVersion,
   SettingsRepository,
   SourceRepository,
   syncDogfoodRuntimePermission,
@@ -402,10 +405,40 @@ export function deleteKnowledgeForDesktop(id: string): DesktopSnapshot {
   return readDesktopSnapshot();
 }
 
+export function deleteActivitySessionForDesktop(id: string): DesktopSnapshot {
+  const database = openOrbitDatabase();
+  try {
+    deleteActivitySession(database.db, id);
+  } finally {
+    database.close();
+  }
+  return readDesktopSnapshot();
+}
+
 export function reviewMemoryForDesktop(id: string, action: MemoryReviewAction): DesktopSnapshot {
   const database = openOrbitDatabase();
   try {
     reviewMemory(database.db, id, action);
+  } finally {
+    database.close();
+  }
+  return readDesktopSnapshot();
+}
+
+export function deleteMemoryForDesktop(id: string): DesktopSnapshot {
+  const database = openOrbitDatabase();
+  try {
+    deleteMemory(database.db, id);
+  } finally {
+    database.close();
+  }
+  return readDesktopSnapshot();
+}
+
+export function rollbackMemoryVersionForDesktop(id: string): DesktopSnapshot {
+  const database = openOrbitDatabase();
+  try {
+    rollbackMemoryVersion(database.db, id);
   } finally {
     database.close();
   }
@@ -890,7 +923,13 @@ export async function captureScreenOcrForDesktop(): Promise<DesktopActionResult>
     const auditRepository = new AuditRepository(database.db);
     const settingsRepository = new SettingsRepository(database.db);
     const perception = readPerceptionStatus(database.db);
-    const helper = new MacScreenOcrCaptureHelper();
+    const screenPolicy = perception.sources.find(
+      (source) => source.sourceKind === "screen"
+    )?.policy;
+    const helper = new MacScreenOcrCaptureHelper({
+      allowRawFrameStorage: screenPolicy?.canStoreRaw === true,
+      sidecarRoot: join(database.orbitHome, "perception-sidecars")
+    });
     const capture = await helper.captureOnce();
     const warnings = [...capture.warnings];
 
@@ -913,9 +952,6 @@ export async function captureScreenOcrForDesktop(): Promise<DesktopActionResult>
       };
     }
 
-    const screenPolicy = perception.sources.find(
-      (source) => source.sourceKind === "screen"
-    )?.policy;
     const ocrPolicy = perception.sources.find((source) => source.sourceKind === "ocr")?.policy;
     const adapters: SourceAdapter[] = [
       new ScreenObservationAdapter({
@@ -1030,7 +1066,12 @@ export async function captureScreenOcrBurstForDesktop(): Promise<DesktopActionRe
       label: "Main Display"
     };
     const runtimeSessionId = `desktop-screen-ocr-burst-${Date.now()}`;
-    const helper = new DesktopScreenOcrBurstHelper(runtimeSessionId);
+    const helper = new DesktopScreenOcrBurstHelper(
+      runtimeSessionId,
+      join(database.orbitHome, "perception-sidecars"),
+      perception.sources.find((source) => source.sourceKind === "screen")?.policy
+        ?.canStoreRaw === true
+    );
     const schedulerResult = await runScreenBurstScheduler({
       helper,
       perception,
@@ -2148,7 +2189,11 @@ function readDesktopPerceptionResourceState(
 }
 
 class DesktopScreenOcrBurstHelper implements ScreenCaptureNativeHelper {
-  constructor(private readonly runtimeSessionId: string) {}
+  constructor(
+    private readonly runtimeSessionId: string,
+    private readonly sidecarRoot: string,
+    private readonly allowRawFrameStorage: boolean
+  ) {}
 
   async getScreenRecordingPermission() {
     return screenPermission("granted");
@@ -2166,7 +2211,9 @@ class DesktopScreenOcrBurstHelper implements ScreenCaptureNativeHelper {
     for (let index = 0; index < budget.maxFrames; index += 1) {
       const capture = await new MacScreenOcrCaptureHelper({
         runtimeSessionId: this.runtimeSessionId,
-        sequence: index + 1
+        sequence: index + 1,
+        allowRawFrameStorage: this.allowRawFrameStorage,
+        sidecarRoot: this.sidecarRoot
       }).captureOnce();
       if (!capture.frame) continue;
       const frame: ScreenCaptureFrame = {

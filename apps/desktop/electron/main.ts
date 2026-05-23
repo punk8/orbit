@@ -17,7 +17,9 @@ import {
   getKnowledgeArtifactDetailForDesktop,
   getMemoryDetailForDesktop,
   getRecommendationDetailForDesktop,
+  deleteActivitySessionForDesktop,
   deleteKnowledgeForDesktop,
+  deleteMemoryForDesktop,
   readDesktopSnapshot,
   readDesktopSettings,
   reconfigureSourceForDesktop,
@@ -27,6 +29,7 @@ import {
   reviewKnowledgeForDesktop,
   reviewMemoryForDesktop,
   reviewRecommendationForDesktop,
+  rollbackMemoryVersionForDesktop,
   updatePerceptionProviderRouteForDesktop,
   updatePerceptionSamplingPresetForDesktop,
   updatePerceptionSourcePolicyForDesktop,
@@ -104,6 +107,9 @@ ipcMain.handle("orbit:getSnapshot", () => readDesktopSnapshot());
 ipcMain.handle("orbit:getActivitySessionDetail", (_event, id: string) =>
   getActivitySessionDetailForDesktop(id)
 );
+ipcMain.handle("orbit:deleteActivitySession", (_event, id: string) =>
+  deleteActivitySessionForDesktop(id)
+);
 ipcMain.handle("orbit:searchKnowledge", (_event, query: string, filters = {}) =>
   searchKnowledgeForDesktop(String(query ?? ""), filters)
 );
@@ -130,6 +136,10 @@ ipcMain.handle("orbit:getMemoryDetail", (_event, id: string) => getMemoryDetailF
 ipcMain.handle("orbit:editMemory", (_event, id: string, patch) => editMemoryForDesktop(id, patch));
 ipcMain.handle("orbit:reviewMemory", (_event, id: string, action: string) =>
   reviewMemoryForDesktop(id, requireMemoryAction(action))
+);
+ipcMain.handle("orbit:deleteMemory", (_event, id: string) => deleteMemoryForDesktop(id));
+ipcMain.handle("orbit:rollbackMemoryVersion", (_event, id: string) =>
+  rollbackMemoryVersionForDesktop(id)
 );
 ipcMain.handle("orbit:getRecommendationDetail", (_event, id: string) =>
   getRecommendationDetailForDesktop(id)

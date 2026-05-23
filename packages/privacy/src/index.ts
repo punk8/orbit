@@ -87,6 +87,7 @@ export type ManualSmokeScenario =
   | "screenRecordingPermission"
   | "autoStart"
   | "pauseResumeStop"
+  | "playbackEvidence"
   | "permissionRevoke"
   | "restartAutoResume"
   | "resourcePause"
@@ -180,6 +181,16 @@ const requiredAuditOperationGroups: Array<{
     id: "handoff_included_or_excluded",
     operations: ["handoff.generate"],
     mode: "any"
+  },
+  {
+    id: "provider_payload_policy",
+    operations: ["ai.provider_call"],
+    mode: "any"
+  },
+  {
+    id: "evidence_packet_redaction",
+    operations: ["evidence.packet_redacted", "ai.provider_call"],
+    mode: "any"
   }
 ];
 
@@ -187,6 +198,7 @@ const requiredManualSmokeScenarios: ManualSmokeScenario[] = [
   "screenRecordingPermission",
   "autoStart",
   "pauseResumeStop",
+  "playbackEvidence",
   "permissionRevoke",
   "restartAutoResume",
   "resourcePause",
@@ -210,6 +222,8 @@ export function evaluatePerceptionReleaseGate(
     resourceBudgetCheck(input.perception),
     runtimeHardeningCheck(runtimeHardening),
     cleanupCheck(input.cleanup),
+    providerPayloadPolicyCheck(input.auditOperations),
+    evidencePacketRedactionCheck(input.auditOperations),
     auditCoverageCheck(auditReview),
     manualSmokeCheck(manualSmoke),
     packagingCheck(input.packaging)
@@ -378,6 +392,33 @@ function cleanupCheck(cleanup: PerceptionCleanupSummary | undefined): ReleaseGat
     status: "pass",
     message: "Perception sidecar cleanup is available and reports its result.",
     details: { cleanup }
+  };
+}
+
+function providerPayloadPolicyCheck(auditOperations: string[] | undefined): ReleaseGateCheck {
+  const hasProviderAudit = auditOperations?.includes("ai.provider_call") ?? false;
+  return {
+    id: "provider_payload_policy",
+    status: hasProviderAudit ? "pass" : "needs_data",
+    message: hasProviderAudit
+      ? "Provider calls have auditable payload class and source policy decisions."
+      : "Provider payload policy has not been exercised with audit evidence yet.",
+    ...(hasProviderAudit ? {} : { nextAction: "exercise_provider_payload_policy" })
+  };
+}
+
+function evidencePacketRedactionCheck(auditOperations: string[] | undefined): ReleaseGateCheck {
+  const hasRedactedPacketAudit =
+    auditOperations?.some(
+      (operation) => operation === "evidence.packet_redacted" || operation === "ai.provider_call"
+    ) ?? false;
+  return {
+    id: "evidence_packet_redaction",
+    status: hasRedactedPacketAudit ? "pass" : "needs_data",
+    message: hasRedactedPacketAudit
+      ? "Evidence packet redaction has audit evidence before provider routing."
+      : "Redacted evidence packet routing has not been exercised with audit evidence yet.",
+    ...(hasRedactedPacketAudit ? {} : { nextAction: "exercise_redacted_evidence_packet" })
   };
 }
 

@@ -984,6 +984,22 @@ export function SettingsPage({
                 </div>
                 <div className="settings-policy-block cleanup-controls-panel">
                   <h4>{t("settings.cleanupControlsTitle")}</h4>
+                  <DetailField
+                    label={t("settings.unifiedGovernanceSurface")}
+                    value={[
+                      t("governance.item.rawFrameRetention"),
+                      t("governance.item.storageCap"),
+                      t("governance.item.cleanupLedger"),
+                      t("governance.item.sourceDeletion"),
+                      t("governance.item.activityDeletion"),
+                      t("governance.item.knowledgeDeletion"),
+                      t("governance.item.memoryDeletion"),
+                      t("governance.item.memoryRollback"),
+                      t("governance.item.protectedRules"),
+                      t("governance.item.providerRoutes"),
+                      t("governance.item.auditReview")
+                    ].join(", ")}
+                  />
                   <div className="protected-rule-controls">
                     <label>
                       <span>{t("settings.disableRawSource")}</span>
@@ -1553,6 +1569,15 @@ function providerKindLabel(
   if (providerKind === "local") return t("provider.local");
   if (providerKind === "openai-compatible") return t("provider.openaiCompatible");
   return t("provider.disabled");
+}
+
+function DetailField({ label, value }: { label: string; value: string }): ReactElement {
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
+  );
 }
 
 function runtimeSourceStatusLabel(

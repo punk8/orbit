@@ -12,7 +12,9 @@ type MemoryGroupBy = "kind" | "project" | "status" | "source" | "tag";
 
 interface MemoryPageProps {
   memories: Memory[];
+  onDeleteMemory(id: string): Promise<void>;
   onEditMemory(id: string, patch: MemoryEditInput): Promise<void>;
+  onRollbackMemoryVersion(id: string): Promise<void>;
   onReviewMemory(id: string, action: MemoryReviewAction): Promise<void>;
 }
 
@@ -40,7 +42,9 @@ const defaultFilters: MemoryFilters = {
 
 export function MemoryPage({
   memories,
+  onDeleteMemory,
   onEditMemory,
+  onRollbackMemoryVersion,
   onReviewMemory
 }: MemoryPageProps): ReactElement {
   const { t, status, memoryKind, sourceKind } = useI18n();
@@ -157,6 +161,19 @@ export function MemoryPage({
       return;
     }
     await onReviewMemory(memory.id, action);
+    setRefreshToken((current) => current + 1);
+  }
+
+  async function deleteMemory(memory: Memory): Promise<void> {
+    if (!window.confirm(t("confirm.deleteMemory"))) return;
+    await onDeleteMemory(memory.id);
+    setSelectedId(undefined);
+    setRefreshToken((current) => current + 1);
+  }
+
+  async function rollbackMemory(memory: Memory): Promise<void> {
+    if (!window.confirm(t("confirm.rollbackMemoryVersion"))) return;
+    await onRollbackMemoryVersion(memory.id);
     setRefreshToken((current) => current + 1);
   }
 
@@ -344,7 +361,9 @@ export function MemoryPage({
                   setIsEditing(false);
                 }}
                 onCopyMemory={() => void copyMemory(activeMemory)}
+                onDeleteMemory={() => void deleteMemory(activeMemory)}
                 onEditFormChange={setEditForm}
+                onRollbackMemoryVersion={() => void rollbackMemory(activeMemory)}
                 onReview={(action) => void reviewMemory(activeMemory, action)}
                 onSaveEdit={() => void saveEdit(activeMemory)}
                 onStartEdit={() => setIsEditing(true)}
@@ -369,7 +388,9 @@ function MemoryDetail({
   memory,
   onCancelEdit,
   onCopyMemory,
+  onDeleteMemory,
   onEditFormChange,
+  onRollbackMemoryVersion,
   onReview,
   onSaveEdit,
   onStartEdit
@@ -383,7 +404,9 @@ function MemoryDetail({
   memory: Memory;
   onCancelEdit(): void;
   onCopyMemory(): void;
+  onDeleteMemory(): void;
   onEditFormChange(next: MemoryEditForm): void;
+  onRollbackMemoryVersion(): void;
   onReview(action: MemoryReviewAction): void;
   onSaveEdit(): void;
   onStartEdit(): void;
@@ -434,6 +457,23 @@ function MemoryDetail({
             type="button"
           >
             {t("action.archive")}
+          </button>
+          <button
+            className="secondary-button"
+            data-memory-action="rollback-version"
+            disabled={memory.version <= 1}
+            onClick={onRollbackMemoryVersion}
+            type="button"
+          >
+            {t("action.rollback")}
+          </button>
+          <button
+            className="secondary-button danger-button"
+            data-memory-action="delete"
+            onClick={onDeleteMemory}
+            type="button"
+          >
+            {t("action.delete")}
           </button>
         </div>
       </div>

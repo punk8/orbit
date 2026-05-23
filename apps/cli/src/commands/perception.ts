@@ -867,6 +867,7 @@ function isManualSmokeScenario(value: string | undefined): value is ManualSmokeS
     value === "screenRecordingPermission" ||
     value === "autoStart" ||
     value === "pauseResumeStop" ||
+    value === "playbackEvidence" ||
     value === "permissionRevoke" ||
     value === "restartAutoResume" ||
     value === "resourcePause" ||

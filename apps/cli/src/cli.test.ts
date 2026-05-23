@@ -1223,10 +1223,11 @@ describe("cli commands", () => {
     tempDirs.push(orbitHome);
     process.env.ORBIT_HOME = orbitHome;
     process.env.ORBIT_ALPHA_MANUAL_SMOKE =
-      "screenRecordingPermission=passed,autoStart=passed,pauseResumeStop=passed,permissionRevoke=passed,restartAutoResume=passed,resourcePause=passed,protectedContext=passed,auditReview=passed,cleanup=passed,handoffExclusion=passed";
+      "screenRecordingPermission=passed,autoStart=passed,pauseResumeStop=passed,playbackEvidence=passed,permissionRevoke=passed,restartAutoResume=passed,resourcePause=passed,protectedContext=passed,auditReview=passed,cleanup=passed,handoffExclusion=passed";
 
     const gate = getPerceptionReleaseGate();
     expect(gate.releaseGate.manualSmoke.missing).toEqual([]);
+    expect(gate.releaseGate.manualSmoke.required).toContain("playbackEvidence");
     expect(gate.releaseGate.checks.find((check) => check.id === "manual_smoke")?.status).toBe(
       "pass"
     );
@@ -1240,7 +1241,7 @@ describe("cli commands", () => {
     tempDirs.push(orbitHome);
     process.env.ORBIT_HOME = orbitHome;
     process.env.ORBIT_ALPHA_MANUAL_SMOKE =
-      "screenRecordingPermission=passed,autoStart=passed,pauseResumeStop=passed,permissionRevoke=passed,restartAutoResume=passed,resourcePause=passed,protectedContext=failed,auditReview=passed,cleanup=passed,handoffExclusion=passed";
+      "screenRecordingPermission=passed,autoStart=passed,pauseResumeStop=passed,playbackEvidence=passed,permissionRevoke=passed,restartAutoResume=passed,resourcePause=passed,protectedContext=failed,auditReview=passed,cleanup=passed,handoffExclusion=passed";
 
     const gate = getPerceptionReleaseGate();
     expect(gate.releaseGate.status).toBe("fail");
