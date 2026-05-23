@@ -8,6 +8,7 @@ import { SourceRepository } from "./repositories/sourceRepository";
 import type { SourceRecord } from "@orbit/core";
 import {
   readPerceptionStatus,
+  syncDogfoodRuntimePermission,
   updatePerceptionProviderRoute,
   updatePerceptionSamplingPreset,
   updatePerceptionSourcePolicy,
@@ -81,6 +82,104 @@ describe("perception control-plane settings", () => {
         "perception.policy_changed",
         "perception.source_disabled"
       ]);
+    } finally {
+      close();
+    }
+  });
+
+  it("auto-starts Screen/OCR when Screen Recording permission is granted", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-perception-autostart-test-"));
+    tempDirs.push(orbitHome);
+    const { db, close } = openOrbitDatabase({ orbitHome });
+    try {
+      const granted = syncDogfoodRuntimePermission(db, "granted");
+      const screen = granted.sources.find((source) => source.sourceKind === "screen");
+      const ocr = granted.sources.find((source) => source.sourceKind === "ocr");
+
+      expect(granted.dogfoodRuntime).toMatchObject({
+        state: "observing",
+        permission: "granted",
+        reason: "screen_recording_permission_granted",
+        nextAction: "wait_for_next_burst"
+      });
+      expect(screen).toMatchObject({
+        enabled: true,
+        paused: false,
+        status: "ready"
+      });
+      expect(ocr).toMatchObject({
+        enabled: true,
+        paused: false,
+        status: "ready"
+      });
+
+      const reread = readPerceptionStatus(db);
+      expect(reread.dogfoodRuntime.state).toBe("observing");
+
+      const operations = new AuditRepository(db).listAuditLogs().map((log) => log.operation);
+      expect(operations).toEqual([
+        "perception.permission_checked",
+        "perception.permission_granted",
+        "perception.runtime_auto_started"
+      ]);
+    } finally {
+      close();
+    }
+  });
+
+  it("does not auto-resume after user pause or stop until explicit resume", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-perception-user-intent-test-"));
+    tempDirs.push(orbitHome);
+    const { db, close } = openOrbitDatabase({ orbitHome });
+    try {
+      syncDogfoodRuntimePermission(db, "granted");
+
+      const paused = updatePerceptionSourceRuntime(db, "screen", "pause");
+      expect(paused.dogfoodRuntime.state).toBe("paused_user");
+
+      const stillPaused = syncDogfoodRuntimePermission(db, "granted");
+      expect(stillPaused.dogfoodRuntime).toMatchObject({
+        state: "paused_user",
+        reason: "user_paused"
+      });
+
+      const resumed = updatePerceptionSourceRuntime(db, "screen", "resume");
+      expect(resumed.dogfoodRuntime.state).toBe("observing");
+
+      const stopped = updatePerceptionSourceRuntime(db, "screen", "disable");
+      expect(stopped.dogfoodRuntime.state).toBe("stopped");
+
+      const stillStopped = syncDogfoodRuntimePermission(db, "granted");
+      expect(stillStopped.dogfoodRuntime).toMatchObject({
+        state: "stopped",
+        reason: "user_stopped"
+      });
+    } finally {
+      close();
+    }
+  });
+
+  it("handles Screen Recording permission revocation with audit", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-perception-revoke-test-"));
+    tempDirs.push(orbitHome);
+    const { db, close } = openOrbitDatabase({ orbitHome });
+    try {
+      syncDogfoodRuntimePermission(db, "granted");
+      const revoked = syncDogfoodRuntimePermission(db, "denied");
+
+      expect(revoked.dogfoodRuntime).toMatchObject({
+        state: "needs_permission",
+        permission: "denied",
+        reason: "screen_recording_permission_revoked",
+        nextAction: "grant_screen_recording_permission"
+      });
+      expect(revoked.sources.find((source) => source.sourceKind === "screen")?.status).toBe(
+        "needs_permission"
+      );
+
+      const operations = new AuditRepository(db).listAuditLogs().map((log) => log.operation);
+      expect(operations).toContain("perception.permission_revoked");
+      expect(operations).toContain("perception.runtime_stopped");
     } finally {
       close();
     }

@@ -91,6 +91,73 @@ describe("perception capability descriptors", () => {
     );
   });
 
+  it("models the Alpha dogfood auto-start state separately from source policy", () => {
+    const firstLaunch = createDefaultPerceptionStatus();
+    expect(firstLaunch.dogfoodRuntime).toMatchObject({
+      state: "needs_permission",
+      permission: "not_determined",
+      reason: "screen_recording_permission_missing",
+      nextAction: "grant_screen_recording_permission",
+      autoStartEnabled: true
+    });
+
+    const granted = createDefaultPerceptionStatus([
+      {
+        sourceKind: "screen",
+        enabled: true,
+        paused: false,
+        userIntent: "auto",
+        permissionStatuses: { screen: "granted" }
+      },
+      {
+        sourceKind: "ocr",
+        enabled: true,
+        paused: false,
+        userIntent: "auto",
+        permissionStatuses: { screen: "granted" }
+      }
+    ]);
+    expect(granted.dogfoodRuntime).toMatchObject({
+      state: "observing",
+      permission: "granted",
+      reason: "screen_recording_permission_granted",
+      nextAction: "wait_for_next_burst",
+      autoStartEnabled: true
+    });
+
+    const paused = createDefaultPerceptionStatus([
+      {
+        sourceKind: "screen",
+        enabled: true,
+        paused: true,
+        userIntent: "paused_user",
+        permissionStatuses: { screen: "granted" }
+      }
+    ]);
+    expect(paused.dogfoodRuntime).toMatchObject({
+      state: "paused_user",
+      reason: "user_paused",
+      nextAction: "resume_observation",
+      autoStartEnabled: false
+    });
+
+    const stopped = createDefaultPerceptionStatus([
+      {
+        sourceKind: "screen",
+        enabled: false,
+        paused: false,
+        userIntent: "stopped",
+        permissionStatuses: { screen: "granted" }
+      }
+    ]);
+    expect(stopped.dogfoodRuntime).toMatchObject({
+      state: "stopped",
+      reason: "user_stopped",
+      nextAction: "resume_or_enable_observation",
+      autoStartEnabled: false
+    });
+  });
+
   it("supports selectable sampling presets while keeping conservative fallback", () => {
     const balanced = createDefaultPerceptionStatus([], [], undefined, { preset: "balanced" });
     expect(balanced.samplingPreset.name).toBe("balanced");

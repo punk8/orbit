@@ -36,6 +36,11 @@ describe("desktop main process runtime guards", () => {
     expect(main).toContain("orbit:updatePerceptionProviderRoute");
     expect(main).toContain("orbit:updatePerceptionSamplingPreset");
     expect(main).toContain("DesktopObservationService");
+    expect(main).toContain("detectScreenRecordingPermissionStatus");
+    expect(main).toContain("syncDogfoodRuntimeFromSystemPermission");
+    expect(main).toContain("syncDogfoodRuntimePermissionForDesktop");
+    expect(main).toContain("Screen/OCR: ${dogfoodRuntime.state}");
+    expect(main).toContain("Capture Screen/OCR Now");
     expect(main).toContain(".knowledge-list-item");
     expect(main).toContain(".memory-list-item");
     expect(main).toContain(".recommendation-list-item");
@@ -52,5 +57,6 @@ describe("desktop main process runtime guards", () => {
     expect(data).toContain("sourceKind === \"codex\"");
     expect(data).toContain("sourceKind === \"local_agent\"");
     expect(data).toContain("sourceKind === \"seatalk\"");
+    expect(data).toContain("syncDogfoodRuntimePermissionForDesktop");
   });
 });

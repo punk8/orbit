@@ -88,6 +88,7 @@ export interface PerceptionSourceControl {
   description: string;
   enabled: boolean;
   paused: boolean;
+  userIntent: PerceptionDogfoodUserIntent;
   status: ObservationRuntimeStatus;
   requiredPermissions: PerceptionPermissionKind[];
   permissionGates: PerceptionPermissionGate[];
@@ -164,6 +165,7 @@ export interface PerceptionControlPlaneStatus {
   status: ObservationRuntimeStatus;
   enabled: boolean;
   paused: boolean;
+  dogfoodRuntime: PerceptionDogfoodRuntimeStatus;
   sources: PerceptionSourceControl[];
   providerRoutes: PerceptionProviderRoute[];
   protectedApps: ProtectedAppRule[];
@@ -177,10 +179,51 @@ export type PerceptionSourcePolicyPatch = Partial<PerceptionSourcePolicy>;
 
 export type PerceptionSourceRuntimeAction = "enable" | "disable" | "pause" | "resume" | "delete";
 
+export type PerceptionDogfoodRuntimeState =
+  | "needs_permission"
+  | "observing"
+  | "paused_user"
+  | "paused_resource"
+  | "protected"
+  | "stopped"
+  | "error";
+
+export type PerceptionDogfoodUserIntent = "auto" | "manual" | "paused_user" | "stopped";
+
+export type PerceptionDogfoodRuntimeReason =
+  | "screen_recording_permission_missing"
+  | "screen_recording_permission_granted"
+  | "screen_recording_permission_revoked"
+  | "user_paused"
+  | "user_stopped"
+  | "resource_policy_pause"
+  | "protected_context"
+  | "runtime_error";
+
+export type PerceptionDogfoodRuntimeNextAction =
+  | "grant_screen_recording_permission"
+  | "wait_for_next_burst"
+  | "resume_observation"
+  | "resume_or_enable_observation"
+  | "reduce_resource_pressure"
+  | "switch_context_or_update_protection"
+  | "inspect_runtime_error";
+
+export interface PerceptionDogfoodRuntimeStatus {
+  state: PerceptionDogfoodRuntimeState;
+  permission: PerceptionPermissionStatus;
+  reason: PerceptionDogfoodRuntimeReason;
+  nextAction: PerceptionDogfoodRuntimeNextAction;
+  autoStartEnabled: boolean;
+  activeSourceKinds: PerceptionSourceKind[];
+  lastTransitionAt?: string;
+}
+
 export interface StoredPerceptionSourceControl {
   sourceKind: PerceptionSourceKind;
   enabled?: boolean;
   paused?: boolean;
+  userIntent?: PerceptionDogfoodUserIntent;
   permissionStatuses?: Partial<Record<PerceptionPermissionKind, PerceptionPermissionStatus>>;
   policy?: PerceptionSourcePolicyPatch;
   lastRuntimeChangedAt?: string;
@@ -491,6 +534,7 @@ export function createDefaultPerceptionStatus(
     status: summarizePerceptionStatus(sources),
     enabled: sources.some((source) => source.enabled),
     paused: sources.some((source) => source.enabled && source.paused),
+    dogfoodRuntime: summarizeDogfoodRuntimeStatus(sources),
     sources,
     providerRoutes,
     protectedApps,
@@ -569,6 +613,7 @@ function buildPerceptionSourceControl(
   };
   const enabled = stored?.enabled ?? false;
   const paused = stored?.paused ?? false;
+  const userIntent = stored?.userIntent ?? (paused ? "paused_user" : "manual");
   const permissionGates = descriptor.requiredPermissions.map((permission) =>
     buildPermissionGate(permission, stored?.permissionStatuses?.[permission], enabled)
   );
@@ -578,6 +623,7 @@ function buildPerceptionSourceControl(
     description: descriptor.description,
     enabled,
     paused,
+    userIntent,
     status: readPerceptionSourceStatus(enabled, paused, permissionGates),
     requiredPermissions: descriptor.requiredPermissions,
     permissionGates,
@@ -624,6 +670,103 @@ function readPerceptionSourceStatus(
     return "needs_permission";
   }
   return "ready";
+}
+
+function summarizeDogfoodRuntimeStatus(
+  sources: PerceptionSourceControl[]
+): PerceptionDogfoodRuntimeStatus {
+  const screenOcrSources = sources.filter(
+    (source) => source.sourceKind === "screen" || source.sourceKind === "ocr"
+  );
+  const screenPermissionGate =
+    screenOcrSources
+      .flatMap((source) => source.permissionGates)
+      .find((permission) => permission.kind === "screen")?.status ?? "not_determined";
+  const screenPermission =
+    screenPermissionGate === "not_required" ? "not_determined" : screenPermissionGate;
+  const lastTransitionAt = screenOcrSources
+    .flatMap((source) => [
+      source.lastRuntimeChangedAt,
+      source.lastPermissionCheckedAt,
+      source.lastPolicyChangedAt
+    ])
+    .filter((timestamp): timestamp is string => Boolean(timestamp))
+    .sort()
+    .at(-1);
+  const activeSourceKinds = screenOcrSources
+    .filter((source) => source.enabled && !source.paused)
+    .map((source) => source.sourceKind);
+
+  if (screenOcrSources.some((source) => source.userIntent === "stopped")) {
+    return dogfoodRuntimeStatus({
+      state: "stopped",
+      permission: screenPermission,
+      reason: "user_stopped",
+      nextAction: "resume_or_enable_observation",
+      autoStartEnabled: false,
+      activeSourceKinds: [],
+      lastTransitionAt
+    });
+  }
+
+  if (screenPermission !== "granted") {
+    return dogfoodRuntimeStatus({
+      state: "needs_permission",
+      permission: screenPermission,
+      reason:
+        screenPermission === "denied" || screenPermission === "restricted"
+          ? "screen_recording_permission_revoked"
+          : "screen_recording_permission_missing",
+      nextAction: "grant_screen_recording_permission",
+      autoStartEnabled: !screenOcrSources.some((source) => source.userIntent === "paused_user"),
+      activeSourceKinds: [],
+      lastTransitionAt
+    });
+  }
+
+  if (
+    screenOcrSources.some(
+      (source) => source.userIntent === "paused_user" || (source.enabled && source.paused)
+    )
+  ) {
+    return dogfoodRuntimeStatus({
+      state: "paused_user",
+      permission: screenPermission,
+      reason: "user_paused",
+      nextAction: "resume_observation",
+      autoStartEnabled: false,
+      activeSourceKinds: [],
+      lastTransitionAt
+    });
+  }
+
+  return dogfoodRuntimeStatus({
+    state: "observing",
+    permission: screenPermission,
+    reason: "screen_recording_permission_granted",
+    nextAction: "wait_for_next_burst",
+    autoStartEnabled: true,
+    activeSourceKinds:
+      activeSourceKinds.length > 0 ? activeSourceKinds : (["screen", "ocr"] as PerceptionSourceKind[]),
+    lastTransitionAt
+  });
+}
+
+function dogfoodRuntimeStatus(
+  status: Omit<PerceptionDogfoodRuntimeStatus, "lastTransitionAt"> & {
+    lastTransitionAt?: string | undefined;
+  }
+): PerceptionDogfoodRuntimeStatus {
+  const next: PerceptionDogfoodRuntimeStatus = {
+    state: status.state,
+    permission: status.permission,
+    reason: status.reason,
+    nextAction: status.nextAction,
+    autoStartEnabled: status.autoStartEnabled,
+    activeSourceKinds: status.activeSourceKinds
+  };
+  if (status.lastTransitionAt) next.lastTransitionAt = status.lastTransitionAt;
+  return next;
 }
 
 function summarizePerceptionStatus(sources: PerceptionSourceControl[]): ObservationRuntimeStatus {

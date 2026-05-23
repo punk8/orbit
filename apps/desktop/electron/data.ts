@@ -73,6 +73,7 @@ import {
   RecommendationRepository,
   SettingsRepository,
   SourceRepository,
+  syncDogfoodRuntimePermission,
   editKnowledgeArtifact,
   editMemory,
   readBackgroundRuntimePolicy,
@@ -478,6 +479,18 @@ export function readObservationStatusForDesktop(queueDepth = 0): ObservationStat
   } finally {
     database.close();
   }
+}
+
+export function syncDogfoodRuntimePermissionForDesktop(
+  permission: ObservationPermissionStatus["status"]
+): DesktopSnapshot {
+  const database = openOrbitDatabase();
+  try {
+    syncDogfoodRuntimePermission(database.db, permission);
+  } finally {
+    database.close();
+  }
+  return readDesktopSnapshot();
 }
 
 export function upsertDesktopObservationSourceForDesktop(): void {

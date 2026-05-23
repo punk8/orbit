@@ -51,6 +51,47 @@ describe("perception release gate", () => {
     expect(report.checks.find((check) => check.id === "audit_review")?.status).toBe("needs_data");
   });
 
+  it("passes permission-granted Screen/OCR dogfood auto-start without treating it as unsafe default capture", () => {
+    const perception = createDefaultPerceptionStatus([
+      {
+        sourceKind: "screen",
+        enabled: true,
+        paused: false,
+        userIntent: "auto",
+        permissionStatuses: { screen: "granted" }
+      },
+      {
+        sourceKind: "ocr",
+        enabled: true,
+        paused: false,
+        userIntent: "auto",
+        permissionStatuses: { screen: "granted" }
+      }
+    ]);
+    const report = evaluatePerceptionReleaseGate({
+      perception,
+      cleanup: {
+        scannedEvents: 0,
+        cleanedEvents: 0,
+        removedRawRefs: 0,
+        removedAttachments: 0,
+        deletedLocalSidecars: 0,
+        preservedSummaries: 0
+      },
+      auditOperations: ["perception.permission_granted", "perception.runtime_auto_started"],
+      packaging: {
+        excludesTmp: true,
+        excludesFixtures: true,
+        nativeHelperMode: "mock",
+        signed: false,
+        notarized: false
+      }
+    });
+
+    expect(report.status).toBe("pass");
+    expect(report.checks.find((check) => check.id === "no_default_capture")?.status).toBe("pass");
+  });
+
   it("fails when raw sidecars or external providers are enabled by default", () => {
     const perception = createDefaultPerceptionStatus(
       [

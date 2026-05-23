@@ -24,6 +24,7 @@ import {
   getPerceptionStatus,
   runScreenOcrSmoke,
   setPerceptionSamplingPreset,
+  syncPerceptionDogfoodPermission,
   summarizeVisionFixture,
   transcribeAudioFixture
 } from "./commands/perception";
@@ -929,5 +930,30 @@ describe("cli commands", () => {
       .find((command) => command.name() === "perception")
       ?.helpInformation();
     expect(perceptionHelp).toContain("audit-review");
+  });
+
+  it("syncs Alpha dogfood Screen Recording permission into auto-start runtime status", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-dogfood-autostart-test-"));
+    tempDirs.push(orbitHome);
+    process.env.ORBIT_HOME = orbitHome;
+
+    const granted = syncPerceptionDogfoodPermission({ permission: "granted" });
+    expect(granted.perception.dogfoodRuntime).toMatchObject({
+      state: "observing",
+      permission: "granted",
+      nextAction: "wait_for_next_burst"
+    });
+
+    const status = getPerceptionStatus();
+    expect(status.perception.dogfoodRuntime).toMatchObject({
+      state: "observing",
+      reason: "screen_recording_permission_granted"
+    });
+
+    const program = buildProgram();
+    const perceptionHelp = program.commands
+      .find((command) => command.name() === "perception")
+      ?.helpInformation();
+    expect(perceptionHelp).toContain("dogfood-permission");
   });
 });

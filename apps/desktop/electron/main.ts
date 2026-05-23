@@ -31,6 +31,7 @@ import {
   searchKnowledgeForDesktop,
   searchMemoryForDesktop,
   setupSourceForDesktop,
+  syncDogfoodRuntimePermissionForDesktop,
   testAIProviderForDesktop,
   updateSourceRuntimeForDesktop,
   updateSettingForDesktop
@@ -42,6 +43,7 @@ import {
 } from "@orbit/db";
 import type { PerceptionSamplingPresetName } from "@orbit/core";
 import { DesktopObservationService } from "./observation/observationService";
+import { detectScreenRecordingPermissionStatus } from "./observation/permissionStatus";
 
 const currentDir = __dirname;
 const backgroundIngestionIntervalMs = 60_000;
@@ -211,6 +213,7 @@ ipcMain.handle("orbit:stopObservation", () => {
 app.whenReady().then(async () => {
   applyRuntimeSettings();
   const window = await createMainWindow();
+  syncDogfoodRuntimeFromSystemPermission();
   await observationService.restoreFromSettings();
   if (process.env.ORBIT_PACKAGED_SMOKE === "1") {
     void runPackagedSmoke(window);
@@ -265,6 +268,7 @@ function ensureTray(): void {
   const snapshot = readDesktopSnapshot();
   const runtime = snapshot.runtime;
   const observation = snapshot.observation;
+  const dogfoodRuntime = snapshot.perception.dogfoodRuntime;
   const paused = runtime.collectionPaused;
   const status = runtime.status;
   const activeSources = snapshot.sources
@@ -275,6 +279,7 @@ function ensureTray(): void {
     [
       `Orbit: ${status}`,
       `observation: ${observation.status}`,
+      `screen/OCR: ${dogfoodRuntime.state}`,
       `last event: ${lastEventAt ?? "none"}`,
       `sources: ${activeSources.length > 0 ? activeSources.join(", ") : "none"}`
     ].join("; ")
@@ -317,6 +322,38 @@ function ensureTray(): void {
         }
       },
       {
+        label: `Screen/OCR: ${dogfoodRuntime.state}`,
+        enabled: false
+      },
+      {
+        label:
+          dogfoodRuntime.state === "paused_user" || dogfoodRuntime.state === "stopped"
+            ? "Resume Screen/OCR"
+            : "Pause Screen/OCR",
+        click: () => {
+          void handleTrayScreenOcrToggle();
+        }
+      },
+      {
+        label: "Stop Screen/OCR",
+        enabled: dogfoodRuntime.state !== "stopped",
+        click: () => {
+          updatePerceptionSourceRuntimeForDesktop("screen", "disable");
+          updatePerceptionSourceRuntimeForDesktop("ocr", "disable");
+          applyRuntimeSettings();
+          notifySnapshotChanged();
+        }
+      },
+      {
+        label: "Capture Screen/OCR Now",
+        enabled: dogfoodRuntime.state === "observing",
+        click: async () => {
+          await captureScreenOcrForDesktop();
+          applyRuntimeSettings();
+          notifySnapshotChanged();
+        }
+      },
+      {
         label: `Status: ${status}; Observation: ${observation.status}`,
         enabled: false
       },
@@ -326,6 +363,24 @@ function ensureTray(): void {
       }
     ])
   );
+}
+
+function syncDogfoodRuntimeFromSystemPermission(): void {
+  const permission = detectScreenRecordingPermissionStatus();
+  syncDogfoodRuntimePermissionForDesktop(permission.status);
+}
+
+async function handleTrayScreenOcrToggle(): Promise<void> {
+  const dogfoodRuntime = readDesktopSnapshot().perception.dogfoodRuntime;
+  if (dogfoodRuntime.state === "paused_user" || dogfoodRuntime.state === "stopped") {
+    updatePerceptionSourceRuntimeForDesktop("screen", "resume");
+    updatePerceptionSourceRuntimeForDesktop("ocr", "resume");
+  } else {
+    updatePerceptionSourceRuntimeForDesktop("screen", "pause");
+    updatePerceptionSourceRuntimeForDesktop("ocr", "pause");
+  }
+  applyRuntimeSettings();
+  notifySnapshotChanged();
 }
 
 async function handleTrayObservationToggle(): Promise<void> {

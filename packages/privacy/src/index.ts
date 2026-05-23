@@ -119,15 +119,28 @@ function noDefaultCaptureCheck(perception: PerceptionControlPlaneStatus): Releas
   const enabledProviders = perception.providerRoutes
     .filter((route) => route.enabled || route.allowExternal)
     .map((route) => route.task);
-  const status = enabledSources.length === 0 && enabledProviders.length === 0 ? "pass" : "fail";
+  const dogfoodAutoStart =
+    perception.dogfoodRuntime.state === "observing" &&
+    perception.dogfoodRuntime.permission === "granted" &&
+    enabledSources.length > 0 &&
+    enabledSources.every((sourceKind) => sourceKind === "screen" || sourceKind === "ocr") &&
+    perception.sources
+      .filter((source) => source.enabled)
+      .every((source) => source.userIntent === "auto");
+  const status =
+    (enabledSources.length === 0 || dogfoodAutoStart) && enabledProviders.length === 0
+      ? "pass"
+      : "fail";
   return {
     id: "no_default_capture",
     status,
     message:
       status === "pass"
-        ? "All high-risk perception sources and provider routes are disabled by default."
+        ? dogfoodAutoStart
+          ? "Screen/OCR dogfood runtime starts only after Screen Recording permission is granted."
+          : "All high-risk perception sources and provider routes are disabled by default."
         : "Perception capture or provider routes are enabled by default.",
-    details: { enabledSources, enabledProviders }
+    details: { enabledSources, enabledProviders, dogfoodAutoStart }
   };
 }
 

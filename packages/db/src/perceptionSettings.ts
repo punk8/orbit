@@ -9,6 +9,7 @@ import {
   type PerceptionProviderKind,
   type PerceptionProviderRoute,
   type PerceptionProviderTask,
+  type PerceptionPermissionStatus,
   type PerceptionSamplingPresetName,
   type PerceptionSourceControl,
   type PerceptionSourceKind,
@@ -58,18 +59,22 @@ export function updatePerceptionSourceRuntime(
           if (action === "enable") {
             next.enabled = true;
             next.paused = false;
+            next.userIntent = "manual";
             next.lastPermissionCheckedAt = now;
           } else if (action === "disable") {
             next.enabled = false;
             next.paused = false;
+            next.userIntent = "stopped";
           } else if (action === "pause") {
             assertEnabled(previousSource, action);
             next.enabled = true;
             next.paused = true;
+            next.userIntent = "paused_user";
           } else if (action === "resume") {
             assertEnabled(previousSource, action);
             next.enabled = true;
             next.paused = false;
+            next.userIntent = "auto";
             next.lastPermissionCheckedAt = now;
           }
           next.lastRuntimeChangedAt = now;
@@ -90,6 +95,92 @@ export function updatePerceptionSourceRuntime(
       permissions: nextSource.permissionGates
     });
   }
+  return next;
+}
+
+export function syncDogfoodRuntimePermission(
+  db: Database.Database,
+  permission: PerceptionPermissionStatus
+): PerceptionControlPlaneStatus {
+  const settings = new SettingsRepository(db);
+  const audit = new AuditRepository(db);
+  const now = new Date().toISOString();
+  const previous = readPerceptionStatusFromSettings(settings);
+  const storedSources = readStoredSources(settings);
+  const screenOcrSources = ["screen", "ocr"] as const;
+  const hasUserStopped = storedSources.some(
+    (source) =>
+      screenOcrSources.includes(source.sourceKind as "screen" | "ocr") &&
+      source.userIntent === "stopped"
+  );
+  const hasUserPaused = storedSources.some(
+    (source) =>
+      screenOcrSources.includes(source.sourceKind as "screen" | "ocr") &&
+      source.userIntent === "paused_user"
+  );
+  let nextStoredSources = storedSources;
+
+  for (const sourceKind of screenOcrSources) {
+    nextStoredSources = upsertStoredSource(nextStoredSources, sourceKind, (source) => {
+      const next: StoredPerceptionSourceControl = {
+        ...source,
+        permissionStatuses: {
+          ...(source.permissionStatuses ?? {}),
+          screen: permission
+        },
+        lastPermissionCheckedAt: now
+      };
+
+      if (permission === "granted" && !hasUserStopped && !hasUserPaused) {
+        next.enabled = true;
+        next.paused = false;
+        next.userIntent = "auto";
+        next.lastRuntimeChangedAt = now;
+      }
+
+      return next;
+    });
+  }
+
+  writeStoredSources(settings, nextStoredSources);
+  const next = readPerceptionStatusFromSettings(settings);
+  audit.log("perception.permission_checked", "perception_source", "screen", {
+    policySnapshotId: next.policySnapshot.id,
+    permission,
+    previousRuntime: previous.dogfoodRuntime,
+    nextRuntime: next.dogfoodRuntime
+  });
+
+  if (previous.dogfoodRuntime.permission !== "granted" && permission === "granted") {
+    audit.log("perception.permission_granted", "perception_source", "screen", {
+      policySnapshotId: next.policySnapshot.id,
+      previousRuntime: previous.dogfoodRuntime,
+      nextRuntime: next.dogfoodRuntime
+    });
+  }
+
+  if (previous.dogfoodRuntime.state !== "observing" && next.dogfoodRuntime.state === "observing") {
+    audit.log("perception.runtime_auto_started", "perception_runtime", "screen_ocr", {
+      policySnapshotId: next.policySnapshot.id,
+      previousRuntime: previous.dogfoodRuntime,
+      nextRuntime: next.dogfoodRuntime
+    });
+  }
+
+  if (previous.dogfoodRuntime.permission === "granted" && permission !== "granted") {
+    audit.log("perception.permission_revoked", "perception_source", "screen", {
+      policySnapshotId: next.policySnapshot.id,
+      previousRuntime: previous.dogfoodRuntime,
+      nextRuntime: next.dogfoodRuntime
+    });
+    audit.log("perception.runtime_stopped", "perception_runtime", "screen_ocr", {
+      policySnapshotId: next.policySnapshot.id,
+      previousRuntime: previous.dogfoodRuntime,
+      nextRuntime: next.dogfoodRuntime,
+      reason: "screen_recording_permission_revoked"
+    });
+  }
+
   return next;
 }
 

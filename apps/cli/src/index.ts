@@ -51,6 +51,7 @@ import {
   setPerceptionSamplingPreset,
   setPerceptionProviderRoute,
   setPerceptionSourcePolicy,
+  syncPerceptionDogfoodPermission,
   summarizeVisionFixture,
   transcribeAudioFixture
 } from "./commands/perception";
@@ -538,6 +539,18 @@ export function buildProgram(): Command {
       writeOutput(getPerceptionStatus(), {
         json: options.json ?? program.opts<{ json?: boolean }>().json
       });
+    });
+  perception
+    .command("dogfood-permission")
+    .description("Sync macOS Screen Recording permission into the Alpha dogfood auto-start runtime")
+    .requiredOption(
+      "--status <status>",
+      "not_determined, granted, denied, restricted, unknown, or not_required"
+    )
+    .option("--json", "output JSON")
+    .action((options: { status: string; json?: boolean }) => {
+      const result = syncPerceptionDogfoodPermission({ permission: options.status });
+      writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
     });
   perception
     .command("screen-ocr-smoke")

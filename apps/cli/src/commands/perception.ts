@@ -44,6 +44,7 @@ import {
   readPerceptionSourceKind,
   readPerceptionStatus,
   SourceRepository,
+  syncDogfoodRuntimePermission,
   updatePerceptionProviderRoute,
   updatePerceptionSamplingPreset,
   updatePerceptionSourcePolicy
@@ -55,6 +56,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type {
   PerceptionControlPlaneStatus,
+  PerceptionPermissionStatus,
   PerceptionSamplingPresetName,
   PerceptionSourcePolicyPatch
 } from "@orbit/core";
@@ -63,6 +65,10 @@ export interface PerceptionStatusResult {
   orbitHome: string;
   dbPath: string;
   perception: PerceptionControlPlaneStatus;
+}
+
+export interface SyncPerceptionDogfoodPermissionInput {
+  permission: string;
 }
 
 export interface UpdatePerceptionPolicyInput {
@@ -186,6 +192,25 @@ export function getPerceptionStatus(): PerceptionStatusResult {
       orbitHome: database.orbitHome,
       dbPath: database.dbPath,
       perception: readPerceptionStatus(database.db)
+    };
+  } finally {
+    database.close();
+  }
+}
+
+export function syncPerceptionDogfoodPermission(
+  input: SyncPerceptionDogfoodPermissionInput
+): PerceptionStatusResult {
+  const config = getCliConfig();
+  const database = openOrbitDatabase({ orbitHome: config.orbitHome });
+  try {
+    return {
+      orbitHome: database.orbitHome,
+      dbPath: database.dbPath,
+      perception: syncDogfoodRuntimePermission(
+        database.db,
+        readPerceptionPermissionStatus(input.permission)
+      )
     };
   } finally {
     database.close();
@@ -969,4 +994,18 @@ function makeMockBurstFrames(
 function readSamplingPreset(value: string): PerceptionSamplingPresetName {
   if (value === "conservative" || value === "balanced" || value === "intensive") return value;
   throw new Error(`Unsupported perception sampling preset: ${value}`);
+}
+
+function readPerceptionPermissionStatus(value: string): PerceptionPermissionStatus {
+  if (
+    value === "not_required" ||
+    value === "not_determined" ||
+    value === "granted" ||
+    value === "denied" ||
+    value === "restricted" ||
+    value === "unknown"
+  ) {
+    return value;
+  }
+  throw new Error(`Unsupported Screen Recording permission status: ${value}`);
 }
