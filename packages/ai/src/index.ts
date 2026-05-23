@@ -1,4 +1,10 @@
-import type { ActivitySession, Event, ID, PermissionScope } from "@orbit/core";
+import type {
+  ActivitySession,
+  Event,
+  ID,
+  PerceptionEvidencePacket,
+  PermissionScope
+} from "@orbit/core";
 export * from "./tasks/vision";
 export * from "./tasks/transcription";
 export * from "./providerRegistry";
@@ -31,6 +37,7 @@ export interface DraftKnowledgeInput {
   events: Event[];
   language?: string;
   sourcePermissions?: Record<string, PermissionScope | undefined>;
+  perceptionEvidencePacket?: PerceptionEvidencePacket;
 }
 
 export interface DraftKnowledgeOutput {
@@ -46,6 +53,7 @@ export interface DraftKnowledgeOutput {
 export interface AIProvider extends AiProviderStatus {
   id: string;
   kind: AIProviderKind;
+  model?: string;
   draftKnowledge(input: DraftKnowledgeInput): Promise<DraftKnowledgeOutput>;
 }
 
@@ -240,6 +248,7 @@ export function createOpenAICompatibleProvider(config: OpenAICompatibleProviderC
     kind: "openai-compatible",
     enabled: true,
     name: "openai-compatible",
+    model: config.model,
     async draftKnowledge(input: DraftKnowledgeInput): Promise<DraftKnowledgeOutput> {
       const payload = buildChatCompletionsPayload(
         input,
@@ -399,7 +408,7 @@ function buildConnectionTestPayload(
 }
 
 function buildKnowledgePromptInput(input: DraftKnowledgeInput): Record<string, unknown> {
-  return {
+  const promptInput: Record<string, unknown> = {
     language: input.language ?? "en",
     session: {
       id: input.session.id,
@@ -421,9 +430,16 @@ function buildKnowledgePromptInput(input: DraftKnowledgeInput): Record<string, u
         project: event.context.project,
         title: event.content.title,
         summary: event.content.summary,
-        textExcerpt: truncate(event.content.text, 700)
+        textExcerpt: isPerceptionProviderEvent(event)
+          ? undefined
+          : truncate(event.content.text, 700),
+        redactionState: event.privacy.redactionState
       }))
   };
+  if (input.perceptionEvidencePacket) {
+    promptInput.perceptionEvidencePacket = input.perceptionEvidencePacket;
+  }
+  return promptInput;
 }
 
 function canSendEventToAI(event: Event, input: DraftKnowledgeInput): boolean {
@@ -441,6 +457,15 @@ function canSendEventToAI(event: Event, input: DraftKnowledgeInput): boolean {
   }
 
   return true;
+}
+
+function isPerceptionProviderEvent(event: Event): boolean {
+  return (
+    event.source.kind === "screen" ||
+    event.source.kind === "ocr" ||
+    event.source.kind === "audio" ||
+    event.source.kind === "transcript"
+  );
 }
 
 async function postChatCompletion(

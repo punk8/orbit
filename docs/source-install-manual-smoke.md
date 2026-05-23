@@ -18,7 +18,7 @@ Record evidence with `ORBIT_ALPHA_MANUAL_SMOKE` using comma-separated `scenario=
 must be `passed`, `failed`, or `needs_data`.
 
 ```bash
-ORBIT_ALPHA_MANUAL_SMOKE="screenRecordingPermission=passed,autoStart=passed,pauseResumeStop=passed,permissionRevoke=passed,restartAutoResume=passed,resourcePause=passed,protectedContext=passed,auditReview=passed,cleanup=passed,handoffExclusion=passed" \
+ORBIT_ALPHA_MANUAL_SMOKE="screenRecordingPermission=passed,autoStart=passed,pauseResumeStop=passed,playbackEvidence=passed,permissionRevoke=passed,restartAutoResume=passed,resourcePause=passed,protectedContext=passed,auditReview=passed,cleanup=passed,handoffExclusion=passed" \
   pnpm --filter @orbit/cli orbit perception release-gate --json
 ```
 
@@ -55,6 +55,20 @@ Use visible controls to pause, resume, and stop observation.
 
 Expected: each transition is visible, capture work is cancelled while paused/stopped, and audit logs
 record the state change.
+
+### playbackEvidence
+
+Let Screen/OCR run long enough to create at least one Activity Session with retained local frame
+evidence, then open Activity playback and run:
+
+```bash
+pnpm --filter @orbit/cli orbit activity playback <session-id> --json
+pnpm --filter @orbit/cli orbit activity frames <session-id> --json
+```
+
+Expected: Activity playback shows a frame scrubber, event stream, local storage state, evidence
+availability, privacy/source policy state, and no protected/private retained frame. Expired or
+cleaned frames become unavailable while summaries remain.
 
 ### permissionRevoke
 

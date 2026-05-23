@@ -1,14 +1,22 @@
 import {
   buildActivitySessions,
+  buildPerceptionEvidencePacket,
   createStableId,
   defaultPermissionScopeForSource,
   draftKnowledgeArtifact,
   extractMemoryCandidates,
-  generateRecommendations
+  generateRecommendations,
+  isPerceptionSource
 } from "@orbit/core";
-import type { DraftKnowledgeOutput, AIProvider, EvidenceBackedText } from "@orbit/ai";
+import type {
+  DraftKnowledgeInput,
+  DraftKnowledgeOutput,
+  AIProvider,
+  EvidenceBackedText
+} from "@orbit/ai";
 import type {
   ActivitySession,
+  AttachmentRef,
   Event,
   EvidenceRef,
   FollowUp,
@@ -130,15 +138,34 @@ function runSemanticPipelineCore(
       });
     }
     try {
-      const providerInput = {
-        ...input,
-        events: eligibleEvents,
+      const providerInputOptions: {
+        input: { session: ActivitySession; events: Event[] };
+        eligibleEvents: Event[];
+        sourcePermissions: Record<string, PermissionScope>;
+        language?: string;
+      } = {
+        input,
+        eligibleEvents,
         sourcePermissions
       };
-      if (options.language !== undefined) {
-        Object.assign(providerInput, { language: options.language });
-      }
+      if (options.language !== undefined) providerInputOptions.language = options.language;
+      const providerInput = buildProviderKnowledgeInput(providerInputOptions);
       const draft = await aiProvider.draftKnowledge(providerInput);
+      const artifact = knowledgeArtifactFromProviderDraft(fallback, draft, aiProvider.id);
+      auditRepository.log("ai.provider_call", "activity_session", input.session.id, {
+        provider: aiProvider.id,
+        model: aiProvider.model,
+        task: "knowledge_draft",
+        payloadClass: providerInput.perceptionEvidencePacket
+          ? "redacted_evidence_packet"
+          : "redacted_event_summaries",
+        sourceObjectIds: [input.session.id],
+        sourcePolicyDecision: providerInput.perceptionEvidencePacket
+          ? "allowed_redacted_packet"
+          : "allowed_redacted_events",
+        redactionStatus: summarizeRedactionStatus(eligibleEvents),
+        resultObjectIds: [artifact.id]
+      });
       auditRepository.log("ai.draft_knowledge", "activity_session", input.session.id, {
         provider: aiProvider.id,
         status: "success",
@@ -146,7 +173,7 @@ function runSemanticPipelineCore(
         filteredEventCount,
         payloadTextMode: eligibleEvents.some((event) => event.content.text) ? "excerpt" : "summary"
       });
-      return knowledgeArtifactFromProviderDraft(fallback, draft, aiProvider.id);
+      return artifact;
     } catch (error) {
       auditRepository.log("ai.draft_knowledge", "activity_session", input.session.id, {
         provider: aiProvider.id,
@@ -451,6 +478,99 @@ function filterEventsForAI(
     if (event.privacy.sensitivity === "confidential") return permissionScope.canUseForAI;
     return true;
   });
+}
+
+function buildProviderKnowledgeInput({
+  input,
+  eligibleEvents,
+  sourcePermissions,
+  language
+}: {
+  input: { session: ActivitySession; events: Event[] };
+  eligibleEvents: Event[];
+  sourcePermissions: Record<string, PermissionScope>;
+  language?: string;
+}): DraftKnowledgeInput {
+  const providerInput: DraftKnowledgeInput = {
+    session: input.session,
+    events: eligibleEvents.map(providerSafeEvent),
+    sourcePermissions
+  };
+  if (language !== undefined) providerInput.language = language;
+  if (eligibleEvents.some((event) => isPerceptionSource(event.source.kind))) {
+    providerInput.perceptionEvidencePacket = buildPerceptionEvidencePacket({
+      session: input.session,
+      events: eligibleEvents
+    });
+  }
+  return providerInput;
+}
+
+function providerSafeEvent(event: Event): Event {
+  const content: Event["content"] = {};
+  if (event.content.title !== undefined) content.title = event.content.title;
+  if (event.content.summary !== undefined) content.summary = event.content.summary;
+  if (!isPerceptionSource(event.source.kind) && event.content.text !== undefined) {
+    content.text = event.content.text;
+  }
+  const attachments = safeAttachments(event.content.attachments);
+  if (attachments !== undefined) content.attachments = attachments;
+  const metadata = providerSafeMetadata(event.content.metadata);
+  if (metadata !== undefined) content.metadata = metadata;
+  return {
+    ...event,
+    content
+  };
+}
+
+function safeAttachments(attachments: AttachmentRef[] | undefined): AttachmentRef[] | undefined {
+  if (!attachments) return undefined;
+  const safe = attachments
+    .map((attachment) => {
+      const next: AttachmentRef = {
+        id: attachment.id,
+        kind: attachment.kind
+      };
+      if (attachment.mimeType !== undefined) next.mimeType = attachment.mimeType;
+      if (attachment.sizeBytes !== undefined) next.sizeBytes = attachment.sizeBytes;
+      return next;
+    })
+    .filter((attachment) => attachment.id || attachment.kind || attachment.mimeType);
+  return safe.length > 0 ? safe : undefined;
+}
+
+function providerSafeMetadata(
+  metadata: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  if (!metadata) return undefined;
+  const allowedKeys = new Set([
+    "frameHash",
+    "sourceFrameHash",
+    "rawFrameStored",
+    "rawFrameState",
+    "rawFrameSizeBytes",
+    "rawFrameExpiresAt",
+    "rawTextStored",
+    "retentionPolicyId",
+    "evidenceState",
+    "provider",
+    "promptVersion",
+    "budget",
+    "status"
+  ]);
+  const safe: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(metadata)) {
+    if (!allowedKeys.has(key)) continue;
+    safe[key] = value;
+  }
+  return Object.keys(safe).length > 0 ? safe : undefined;
+}
+
+function summarizeRedactionStatus(events: Event[]): "none" | "redacted" | "mixed" {
+  const states = new Set(events.map((event) => event.privacy.redactionState));
+  if (states.size === 1 && states.has("none")) return "none";
+  if (states.size === 1 && states.has("redacted")) return "redacted";
+  return "mixed";
 }
 
 function knowledgeArtifactFromProviderDraft(

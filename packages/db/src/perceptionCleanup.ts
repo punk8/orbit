@@ -413,6 +413,22 @@ function removeRawSidecar(event: Event): Event {
   if (!content.summary && content.text) {
     content.summary = truncate(content.text, 240);
   }
+  const metadata = content.metadata ? { ...content.metadata } : {};
+  metadata.rawFrameStored = false;
+  metadata.rawFrameState =
+    event.privacy.redactionState === "failed"
+      ? "blocked_protected"
+      : event.content.metadata?.rawFrameState === "source_disabled"
+        ? "source_disabled"
+        : "deleted";
+  metadata.cleanupState =
+    event.privacy.redactionState === "failed"
+      ? "blocked"
+      : event.content.metadata?.cleanupState === "source_disabled"
+        ? "source_disabled"
+        : "deleted";
+  delete metadata.rawFrameLocalRef;
+  content.metadata = metadata;
   delete content.rawRef;
   delete content.attachments;
   return {

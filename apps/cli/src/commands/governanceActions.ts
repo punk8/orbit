@@ -7,9 +7,12 @@ import type {
   RecommendationReviewAction
 } from "@orbit/db";
 import {
+  deleteActivitySession,
+  deleteMemory,
   editKnowledgeArtifact,
   editMemory,
   openOrbitDatabase,
+  rollbackMemoryVersion,
   reviewKnowledgeArtifact,
   reviewMemory,
   reviewRecommendation
@@ -33,6 +36,24 @@ export function runMemoryReviewAction(id: string, action: MemoryReviewAction) {
 
 export function runMemoryEdit(id: string, input: MemoryEditInput) {
   return withDatabase((db) => editMemory(db, id, input));
+}
+
+export function runMemoryDelete(id: string) {
+  return withDatabase((db) => {
+    deleteMemory(db, id);
+    return { id, deleted: true };
+  });
+}
+
+export function runMemoryRollback(id: string) {
+  return withDatabase((db) => rollbackMemoryVersion(db, id));
+}
+
+export function runActivityDelete(id: string) {
+  return withDatabase((db) => {
+    deleteActivitySession(db, id);
+    return { id, deleted: true };
+  });
 }
 
 export function runRecommendationReviewAction(

@@ -146,6 +146,7 @@ function buildVisionSummaryInput(
 ): VisionSummaryInput {
   const frameHash = readFrameHash(screenEvent);
   const textHash = ocrEvent ? readTextHash(ocrEvent) : undefined;
+  const image = readRetainedFrameImage(screenEvent);
   return {
     ...(language ? { language } : {}),
     source: {
@@ -157,8 +158,10 @@ function buildVisionSummaryInput(
     },
     screen: {
       summary: screenEvent.content.summary ?? screenEvent.content.title ?? "Screen observation.",
-      ...(frameHash ? { frameHash } : {})
+      ...(frameHash ? { frameHash } : {}),
+      ...readScreenDimensions(screenEvent)
     },
+    ...(policy.allowExternal && image ? { image } : {}),
     ...(ocrEvent
       ? {
           ocr: {
@@ -179,6 +182,47 @@ function buildVisionSummaryInput(
       maxImagePixels: policy.maxImagePixels
     }
   };
+}
+
+function readRetainedFrameImage(screenEvent: Event): VisionSummaryInput["image"] | undefined {
+  const localPath =
+    readString(screenEvent.content.rawRef) ??
+    readString(readMetadataValue(screenEvent, "rawFrameLocalRef"));
+  if (!localPath) return undefined;
+  const dimensions = readScreenDimensions(screenEvent);
+  const sizeBytes =
+    readNumber(readMetadataValue(screenEvent, "rawFrameSizeBytes")) ??
+    screenEvent.content.attachments?.find((attachment) => attachment.localRef === localPath)
+      ?.sizeBytes;
+  return {
+    localPath,
+    mimeType: "image/png",
+    filename: "screen-frame.png",
+    ...(sizeBytes ? { sizeBytes } : {}),
+    ...(dimensions.width ? { width: dimensions.width } : {}),
+    ...(dimensions.height ? { height: dimensions.height } : {})
+  };
+}
+
+function readScreenDimensions(screenEvent: Event): { width?: number; height?: number } {
+  const width = readNumber(readMetadataValue(screenEvent, "width"));
+  const height = readNumber(readMetadataValue(screenEvent, "height"));
+  return {
+    ...(width ? { width } : {}),
+    ...(height ? { height } : {})
+  };
+}
+
+function readMetadataValue(screenEvent: Event, key: string): unknown {
+  return screenEvent.content.metadata?.[key];
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+}
+
+function readNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
 }
 
 function visionOutputToEvent(

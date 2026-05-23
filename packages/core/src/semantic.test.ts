@@ -222,11 +222,24 @@ describe("semantic pipeline", () => {
     expect(artifact.title).toContain("知识");
     expect(artifact.content.markdown).toContain("## 元数据");
     expect(artifact.content.markdown).toContain("## 关键洞察");
+    expect(artifact.content.markdown).toContain("## 决策");
+    expect(artifact.content.markdown).toContain("## 开放问题");
+    expect(artifact.content.markdown).toContain("## 证据可用性");
     expect(artifact.content.markdown).toContain("## 来源 Activity Sessions");
     expect(artifact.content.markdown).not.toContain("RAW_OCR_TEXT");
     expect(artifact.content.markdown).not.toContain("raw-ocr.txt");
     expect(memoriesFromDraft).toHaveLength(0);
-    expect(memoriesFromConfirmed[0]?.status).toBe("needs_review");
+    expect(memoriesFromConfirmed[0]).toMatchObject({
+      status: "needs_review",
+      dimension: "global",
+      version: 1,
+      sourceSessionIds: [session.id],
+      indexState: {
+        provider: "fts",
+        status: "indexed",
+        fallbackOrder: ["local_embedding", "local_endpoint", "fts"]
+      }
+    });
   });
 
   it("detects Chinese visible errors, follow-ups, and context gaps from perception evidence", () => {

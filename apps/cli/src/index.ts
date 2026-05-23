@@ -6,7 +6,10 @@ import { getDogfoodReadiness } from "./commands/dogfood";
 import {
   runKnowledgeEdit,
   runKnowledgeReviewAction,
+  runActivityDelete,
+  runMemoryDelete,
   runMemoryEdit,
+  runMemoryRollback,
   runMemoryReviewAction,
   runRecommendationReviewAction
 } from "./commands/governanceActions";
@@ -192,6 +195,24 @@ export function buildProgram(): Command {
         : runPipelineWithQuality(language ? { language } : {});
       writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
     });
+  pipeline
+    .command("quality")
+    .description("Run the evidence-backed quality gate for the local semantic pipeline")
+    .option("--ai", "force configured AI provider for Knowledge drafting")
+    .option("--language <language>", "Knowledge draft language: en or zh-CN")
+    .option("--json", "output JSON")
+    .action(async (options: { ai?: boolean; language?: string; json?: boolean }) => {
+      const providerConfig = readAIProviderConfigFromEnv();
+      const useProvider = Boolean(options.ai) || isAIProviderConfigured(providerConfig);
+      const language = readKnowledgeLanguage(options.language);
+      const result = useProvider
+        ? await runPipelineWithProviderAndQuality({
+            aiProvider: buildAIProvider(providerConfig),
+            ...(language ? { language } : {})
+          })
+        : runPipelineWithQuality(language ? { language } : {});
+      writeOutput(result, { json: options.json ?? program.opts<{ json?: boolean }>().json });
+    });
 
   const ai = program.command("ai").description("Inspect AI provider runtime routing");
   ai.command("status")
@@ -239,6 +260,16 @@ export function buildProgram(): Command {
     .option("--json", "output JSON")
     .action((id: string, options: { json?: boolean }) => {
       writeOutput(getActivityPlayback(id), {
+        json: options.json ?? program.opts<{ json?: boolean }>().json
+      });
+    });
+  activity
+    .command("delete")
+    .description("Delete an Activity Session and write an audit log")
+    .argument("<id>", "Activity Session ID")
+    .option("--json", "output JSON")
+    .action((id: string, options: { json?: boolean }) => {
+      writeOutput(runActivityDelete(id), {
         json: options.json ?? program.opts<{ json?: boolean }>().json
       });
     });
@@ -389,6 +420,26 @@ export function buildProgram(): Command {
         });
       }
     );
+  memory
+    .command("delete")
+    .description("Delete a Memory and write an audit log")
+    .argument("<id>", "Memory ID")
+    .option("--json", "output JSON")
+    .action((id: string, options: { json?: boolean }) => {
+      writeOutput(runMemoryDelete(id), {
+        json: options.json ?? program.opts<{ json?: boolean }>().json
+      });
+    });
+  memory
+    .command("rollback")
+    .description("Rollback a Memory to its previous version and write an audit log")
+    .argument("<id>", "Memory ID")
+    .option("--json", "output JSON")
+    .action((id: string, options: { json?: boolean }) => {
+      writeOutput(runMemoryRollback(id), {
+        json: options.json ?? program.opts<{ json?: boolean }>().json
+      });
+    });
 
   const recommendation = program.command("recommendation").description("Read Recommendations");
   recommendation

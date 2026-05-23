@@ -9,12 +9,15 @@ import {
 import type { AIProviderConfig, AIProviderKind, OpenAICompatibleTokenLimitParameter } from ".";
 
 export type AIProviderRuntimeTask =
+  | "activity_overview_summary"
   | "knowledge_draft"
   | "vision_summary"
   | "ocr_postprocess"
   | "transcription"
   | "memory_candidate"
   | "recommendation"
+  | "embedding"
+  | "redaction"
   | "context_compression";
 
 export type AIProviderRuntimeProviderKind = PerceptionProviderKind;
@@ -70,12 +73,15 @@ export interface AIProviderRuntimeRegistryInput {
 }
 
 export const aiProviderRuntimeTasks: readonly AIProviderRuntimeTask[] = [
+  "activity_overview_summary",
   "knowledge_draft",
   "vision_summary",
   "ocr_postprocess",
   "transcription",
   "memory_candidate",
   "recommendation",
+  "embedding",
+  "redaction",
   "context_compression"
 ];
 
@@ -98,12 +104,15 @@ export function buildAIProviderRuntimeRegistry(
 
 export function isAIProviderRuntimeTask(value: unknown): value is AIProviderRuntimeTask {
   return (
+    value === "activity_overview_summary" ||
     value === "knowledge_draft" ||
     value === "vision_summary" ||
     value === "ocr_postprocess" ||
     value === "transcription" ||
     value === "memory_candidate" ||
     value === "recommendation" ||
+    value === "embedding" ||
+    value === "redaction" ||
     value === "context_compression"
   );
 }

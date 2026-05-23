@@ -102,6 +102,10 @@ export interface ObservationInput {
     redactedSummary?: string;
     rawLocalRef?: string;
     sizeBytes?: number;
+    rawRetentionTtlMinutes?: number;
+    rawFrameExpiresAt?: string;
+    protectionStatus?: "allowed" | "blocked_protected";
+    cleanupState?: "retained" | "expired" | "deleted" | "blocked" | "source_disabled";
   };
   ocr?: {
     text?: string;

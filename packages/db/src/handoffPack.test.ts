@@ -321,13 +321,21 @@ function makeMemory(
     id: overrides.id ?? "mem_safe",
     schemaVersion: 1,
     kind: "decision",
+    dimension: overrides.dimension ?? "project",
     title: "Handoff defaults",
     body: "Handoff excludes raw Event text by default.",
     status: overrides.status ?? "confirmed",
     scope: { project: overrides.project ?? "orbit", sourceKinds: ["codex"] },
+    sourceSessionIds: overrides.sourceSessionIds ?? ["act_safe"],
     tags: ["handoff"],
     evidence: [evidenceFromEvent(event, "Safe memory summary")],
     confidence: 0.9,
+    version: overrides.version ?? 1,
+    indexState: overrides.indexState ?? {
+      provider: "fts",
+      status: "indexed",
+      fallbackOrder: ["local_embedding", "local_endpoint", "fts"]
+    },
     createdAt: baseTime,
     updatedAt: baseTime
   };

@@ -56,6 +56,10 @@ describe("SettingsPage privacy and provider hardening", () => {
     expect(source).toContain("data-cleanup-action=\"disable-source-delete-raw\"");
     expect(source).toContain("data-cleanup-action=\"delete-events-dry-run\"");
     expect(source).toContain("data-cleanup-action=\"delete-events-execute\"");
+    expect(source).toContain("settings.unifiedGovernanceSurface");
+    expect(source).toContain("governance.item.activityDeletion");
+    expect(source).toContain("governance.item.memoryDeletion");
+    expect(source).toContain("governance.item.memoryRollback");
     expect(source).toContain("onUpdatePerceptionSourceRuntime(\"screen\"");
     expect(source).toContain("onCaptureScreenOcrBurst");
     expect(source).toContain("onCleanupPerceptionSidecars");
@@ -92,6 +96,8 @@ describe("SettingsPage privacy and provider hardening", () => {
     expect(i18n).toContain('"action.previewDeleteEvents"');
     expect(i18n).toContain('"action.deletePerceptionEvents"');
     expect(i18n).toContain('"settings.cleanupControlsTitle"');
+    expect(i18n).toContain('"settings.unifiedGovernanceSurface"');
+    expect(i18n).toContain('"governance.item.memoryRollback"');
     expect(i18n).toContain('"settings.cleanupControlsNote"');
     expect(i18n).toContain('"audit.status.covered"');
     expect(i18n).toContain('"audit.status.missing"');

@@ -17,14 +17,19 @@ import {
   getKnowledgeArtifactDetailForDesktop,
   getMemoryDetailForDesktop,
   getRecommendationDetailForDesktop,
+  deleteActivitySessionForDesktop,
+  deleteKnowledgeForDesktop,
+  deleteMemoryForDesktop,
   readDesktopSnapshot,
   readDesktopSettings,
   reconfigureSourceForDesktop,
   reindexForDesktop,
+  regenerateKnowledgeForDesktop,
   resetSourceCursorForDesktop,
   reviewKnowledgeForDesktop,
   reviewMemoryForDesktop,
   reviewRecommendationForDesktop,
+  rollbackMemoryVersionForDesktop,
   updatePerceptionProviderRouteForDesktop,
   updatePerceptionSamplingPresetForDesktop,
   updatePerceptionSourcePolicyForDesktop,
@@ -36,6 +41,7 @@ import {
   setupSourceForDesktop,
   syncDogfoodRuntimePermissionForDesktop,
   testAIProviderForDesktop,
+  translateKnowledgeForDesktop,
   ignoreCurrentContextForDesktop,
   upsertProtectedRuleForDesktop,
   updateSourceRuntimeForDesktop,
@@ -52,6 +58,7 @@ import type { DesktopLanguage, DesktopSnapshot } from "../src/orbitApi";
 import type { DesktopIgnoreCurrentContextInput, DesktopProtectedRuleInput } from "../src/orbitApi";
 import { DesktopObservationService } from "./observation/observationService";
 import { detectScreenRecordingPermissionStatus } from "./observation/permissionStatus";
+import { runScreenOcrAutoCaptureTick } from "./screenOcrAutoWorker";
 
 const currentDir = __dirname;
 const backgroundIngestionIntervalMs = 60_000;
@@ -59,6 +66,7 @@ let mainWindow: BrowserWindow | undefined;
 let tray: Tray | undefined;
 let backgroundIngestionTimer: NodeJS.Timeout | undefined;
 let backgroundIngestionRunning = false;
+let screenOcrAutoCaptureRunning = false;
 const observationService = new DesktopObservationService({ notifyChanged: notifySnapshotChanged });
 
 async function createMainWindow(): Promise<BrowserWindow> {
@@ -101,6 +109,9 @@ ipcMain.handle("orbit:getSnapshot", () => readDesktopSnapshot());
 ipcMain.handle("orbit:getActivitySessionDetail", (_event, id: string) =>
   getActivitySessionDetailForDesktop(id)
 );
+ipcMain.handle("orbit:deleteActivitySession", (_event, id: string) =>
+  deleteActivitySessionForDesktop(id)
+);
 ipcMain.handle("orbit:searchKnowledge", (_event, query: string, filters = {}) =>
   searchKnowledgeForDesktop(String(query ?? ""), filters)
 );
@@ -113,6 +124,13 @@ ipcMain.handle("orbit:editKnowledge", (_event, id: string, patch) =>
 ipcMain.handle("orbit:reviewKnowledge", (_event, id: string, action: string) =>
   reviewKnowledgeForDesktop(id, requireKnowledgeAction(action))
 );
+ipcMain.handle("orbit:regenerateKnowledge", async (_event, id: string) =>
+  regenerateKnowledgeForDesktop(id)
+);
+ipcMain.handle("orbit:translateKnowledge", async (_event, id: string, language: string) =>
+  translateKnowledgeForDesktop(id, requireKnowledgeLanguage(language))
+);
+ipcMain.handle("orbit:deleteKnowledge", (_event, id: string) => deleteKnowledgeForDesktop(id));
 ipcMain.handle("orbit:searchMemory", (_event, query: string, filters = {}) =>
   searchMemoryForDesktop(String(query ?? ""), filters)
 );
@@ -120,6 +138,10 @@ ipcMain.handle("orbit:getMemoryDetail", (_event, id: string) => getMemoryDetailF
 ipcMain.handle("orbit:editMemory", (_event, id: string, patch) => editMemoryForDesktop(id, patch));
 ipcMain.handle("orbit:reviewMemory", (_event, id: string, action: string) =>
   reviewMemoryForDesktop(id, requireMemoryAction(action))
+);
+ipcMain.handle("orbit:deleteMemory", (_event, id: string) => deleteMemoryForDesktop(id));
+ipcMain.handle("orbit:rollbackMemoryVersion", (_event, id: string) =>
+  rollbackMemoryVersionForDesktop(id)
 );
 ipcMain.handle("orbit:getRecommendationDetail", (_event, id: string) =>
   getRecommendationDetailForDesktop(id)
@@ -481,6 +503,14 @@ async function runBackgroundIngestionTick(): Promise<void> {
   backgroundIngestionRunning = true;
   try {
     await runBackgroundIngestionForDesktop();
+    await runScreenOcrAutoCaptureTick({
+      readSnapshot: readDesktopSnapshot,
+      captureBurst: () => captureScreenOcrBurstForDesktop("timer"),
+      isRunning: () => screenOcrAutoCaptureRunning,
+      setRunning: (running) => {
+        screenOcrAutoCaptureRunning = running;
+      }
+    });
   } finally {
     backgroundIngestionRunning = false;
     applyRuntimeSettings();
@@ -675,6 +705,11 @@ function requireKnowledgeAction(action: string): "confirm" | "reject" | "archive
 function requireMemoryAction(action: string): "confirm" | "reject" | "archive" {
   if (action === "confirm" || action === "reject" || action === "archive") return action;
   throw new Error(`Unsupported memory action: ${action}`);
+}
+
+function requireKnowledgeLanguage(language: string): "en" | "zh-CN" {
+  if (language === "en" || language === "zh-CN") return language;
+  throw new Error(`Unsupported knowledge language: ${language}`);
 }
 
 function requireRecommendationAction(action: string): "accept" | "dismiss" | "snooze" | "resolve" {

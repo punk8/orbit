@@ -25,6 +25,7 @@ export function draftKnowledgeArtifact(input: KnowledgeDraftInput): KnowledgeArt
   const keyInsights = buildKeyInsights(safeEvents, zh, perceptionPacket);
   const followUps = buildFollowUps(safeEvents, safeEvidence);
   const evidenceSummary = buildEvidenceSummary(safeEvents, zh, perceptionPacket);
+  const evidenceAvailability = buildEvidenceAvailability(safeEvidence, zh, perceptionPacket);
   const description =
     session.summary ??
     (zh ? "根据来源事件生成的本地 Activity 摘要。" : "Synthetic activity summary generated from source events.");
@@ -35,6 +36,7 @@ export function draftKnowledgeArtifact(input: KnowledgeDraftInput): KnowledgeArt
     keyInsights,
     followUps,
     evidenceSummary,
+    evidenceAvailability,
     zh,
     perceptionPacket
   });
@@ -59,6 +61,7 @@ export function draftKnowledgeArtifact(input: KnowledgeDraftInput): KnowledgeArt
     content: {
       description,
       keyInsights,
+      openQuestions: [],
       followUps,
       markdown
     },
@@ -146,6 +149,39 @@ function buildEvidenceSummary(
   return items.length > 0 ? items : [zh ? "没有关联来源证据。" : "No source evidence linked."];
 }
 
+function buildEvidenceAvailability(
+  evidence: ActivitySession["evidence"],
+  zh: boolean,
+  perceptionPacket: ReturnType<typeof buildPerceptionEvidencePacket> | undefined
+): string[] {
+  const unavailable = evidence.filter((ref) => ref.availability === "unavailable");
+  const available = evidence.length - unavailable.length;
+  const packetLine = perceptionPacket
+    ? zh
+      ? `感知证据包：${perceptionPacket.privacy.exportEligible ? "可导出摘要" : "仅本地摘要"}；阻止原因：${
+          perceptionPacket.blockedReasons.join(", ") || "无"
+        }`
+      : `Perception packet: ${
+          perceptionPacket.privacy.exportEligible ? "summary export eligible" : "local summary only"
+        }; blocked reasons: ${perceptionPacket.blockedReasons.join(", ") || "none"}`
+    : undefined;
+  return [
+    zh
+      ? `可用证据：${available}/${evidence.length}`
+      : `Available evidence: ${available}/${evidence.length}`,
+    ...(unavailable.length > 0
+      ? unavailable.map((ref) =>
+          zh
+            ? `${ref.sourceKind} ${ref.sourcePointer} 不可用：${ref.unavailableReason ?? "unknown"}`
+            : `${ref.sourceKind} ${ref.sourcePointer} unavailable: ${
+                ref.unavailableReason ?? "unknown"
+              }`
+        )
+      : [zh ? "没有不可用证据。" : "No unavailable evidence."]),
+    ...(packetLine ? [packetLine] : [])
+  ];
+}
+
 function evidenceForEvents(session: ActivitySession, events: Event[]): ActivitySession["evidence"] {
   const safeEventIds = new Set(events.map((event) => event.id));
   return session.evidence.filter((ref) => ref.eventId && safeEventIds.has(ref.eventId));
@@ -166,6 +202,7 @@ function buildMarkdown(input: {
   keyInsights: string[];
   followUps: FollowUp[];
   evidenceSummary: string[];
+  evidenceAvailability: string[];
   zh: boolean;
   perceptionPacket: ReturnType<typeof buildPerceptionEvidencePacket> | undefined;
 }): string {
@@ -182,8 +219,17 @@ function buildMarkdown(input: {
       "## Key Insights",
       ...input.keyInsights.map((insight) => `- ${insight}`),
       "",
+      "## Decisions",
+      "- None",
+      "",
+      "## Open Questions",
+      "- None",
+      "",
       "## Evidence",
       ...input.evidenceSummary.map((item) => `- ${item}`),
+      "",
+      "## Evidence Availability",
+      ...input.evidenceAvailability.map((item) => `- ${item}`),
       "",
       "## Follow Ups",
       ...(input.followUps.length > 0 ? input.followUps.map((item) => `- ${item.title}`) : ["- None"])
@@ -210,6 +256,9 @@ function buildMarkdown(input: {
     "## 决策",
     "- 暂无明确决策。",
     "",
+    "## 开放问题",
+    "- 暂无明确开放问题。",
+    "",
     "## 阻塞",
     "- 暂无明确阻塞。",
     "",
@@ -220,7 +269,10 @@ function buildMarkdown(input: {
     `- ${input.session.id}`,
     "",
     "## 证据",
-    ...input.evidenceSummary.map((item) => `- ${item}`)
+    ...input.evidenceSummary.map((item) => `- ${item}`),
+    "",
+    "## 证据可用性",
+    ...input.evidenceAvailability.map((item) => `- ${item}`)
   ]
     .filter((line): line is string => line !== undefined)
     .join("\n");

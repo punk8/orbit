@@ -74,4 +74,38 @@ describe("desktop main process runtime guards", () => {
     expect(data).toContain("sourceKind === \"seatalk\"");
     expect(data).toContain("syncDogfoodRuntimePermissionForDesktop");
   });
+
+  it("uses captured OCR text for real screen/OCR burst ingestion", () => {
+    const data = readFileSync(new URL("./data.ts", import.meta.url), "utf8");
+    const burstFunction = data.slice(
+      data.indexOf("export async function captureScreenOcrBurstForDesktop"),
+      data.indexOf("export function generateHandoffForDesktop")
+    );
+
+    expect(burstFunction).toContain("CapturedTextOcrEngine");
+    expect(burstFunction).not.toContain("MockOcrEngine");
+  });
+
+  it("routes both real screen capture entrypoints through vision summary ingestion", () => {
+    const data = readFileSync(new URL("./data.ts", import.meta.url), "utf8");
+    const singleCaptureFunction = data.slice(
+      data.indexOf("export async function captureScreenOcrForDesktop"),
+      data.indexOf("export async function captureScreenOcrBurstForDesktop")
+    );
+    const burstFunction = data.slice(
+      data.indexOf("export async function captureScreenOcrBurstForDesktop"),
+      data.indexOf("export function generateHandoffForDesktop")
+    );
+
+    expect(singleCaptureFunction).toContain("runDesktopVisionSummaryIngestion");
+    expect(burstFunction).toContain("runDesktopVisionSummaryIngestion");
+  });
+
+  it("wires background ticks to automatic timer-triggered screen/OCR bursts", () => {
+    const main = readFileSync(new URL("./main.ts", import.meta.url), "utf8");
+
+    expect(main).toContain("runScreenOcrAutoCaptureTick");
+    expect(main).toContain("captureScreenOcrBurstForDesktop(\"timer\")");
+    expect(main).toContain("screenOcrAutoCaptureRunning");
+  });
 });

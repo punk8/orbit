@@ -9,8 +9,11 @@ import { useI18n } from "../i18n";
 
 interface KnowledgePageProps {
   artifacts: KnowledgeArtifact[];
+  onDeleteKnowledge(id: string): Promise<void>;
   onEditKnowledge(id: string, patch: KnowledgeEditInput): Promise<void>;
+  onRegenerateKnowledge(id: string): Promise<void>;
   onReviewKnowledge(id: string, action: KnowledgeReviewAction): Promise<void>;
+  onTranslateKnowledge(id: string, language: "en" | "zh-CN"): Promise<void>;
 }
 
 interface KnowledgeFilters {
@@ -40,8 +43,11 @@ const defaultFilters: KnowledgeFilters = {
 
 export function KnowledgePage({
   artifacts,
+  onDeleteKnowledge,
   onEditKnowledge,
-  onReviewKnowledge
+  onRegenerateKnowledge,
+  onReviewKnowledge,
+  onTranslateKnowledge
 }: KnowledgePageProps): ReactElement {
   const { t, status, sourceKind, formatDateTimeRange } = useI18n();
   const [query, setQuery] = useState("");
@@ -155,6 +161,26 @@ export function KnowledgePage({
       return;
     }
     await onReviewKnowledge(artifact.id, action);
+    setRefreshToken((current) => current + 1);
+  }
+
+  async function regenerateArtifact(artifact: KnowledgeArtifact): Promise<void> {
+    await onRegenerateKnowledge(artifact.id);
+    setRefreshToken((current) => current + 1);
+  }
+
+  async function translateArtifact(
+    artifact: KnowledgeArtifact,
+    language: "en" | "zh-CN"
+  ): Promise<void> {
+    await onTranslateKnowledge(artifact.id, language);
+    setRefreshToken((current) => current + 1);
+  }
+
+  async function deleteArtifact(artifact: KnowledgeArtifact): Promise<void> {
+    if (!window.confirm(t("confirm.deleteKnowledge"))) return;
+    await onDeleteKnowledge(artifact.id);
+    setSelectedId(undefined);
     setRefreshToken((current) => current + 1);
   }
 
@@ -317,9 +343,12 @@ export function KnowledgePage({
                 }}
                 onCopyMarkdown={() => void copyMarkdown(activeArtifact)}
                 onEditFormChange={setEditForm}
+                onDelete={() => void deleteArtifact(activeArtifact)}
+                onRegenerate={() => void regenerateArtifact(activeArtifact)}
                 onReview={(action) => void reviewArtifact(activeArtifact, action)}
                 onSaveEdit={() => void saveEdit(activeArtifact)}
                 onStartEdit={() => setIsEditing(true)}
+                onTranslate={(language) => void translateArtifact(activeArtifact, language)}
               />
             ) : (
               <div className="empty-state">{t("empty.noKnowledgeArtifacts")}</div>
@@ -341,10 +370,13 @@ function KnowledgeDetail({
   changedFields,
   onCancelEdit,
   onCopyMarkdown,
+  onDelete,
   onEditFormChange,
+  onRegenerate,
   onReview,
   onSaveEdit,
-  onStartEdit
+  onStartEdit,
+  onTranslate
 }: {
   artifact: KnowledgeArtifact;
   copied: boolean;
@@ -355,10 +387,13 @@ function KnowledgeDetail({
   changedFields: string[];
   onCancelEdit(): void;
   onCopyMarkdown(): void;
+  onDelete(): void;
   onEditFormChange(next: KnowledgeEditForm): void;
+  onRegenerate(): void;
   onReview(action: KnowledgeReviewAction): void;
   onSaveEdit(): void;
   onStartEdit(): void;
+  onTranslate(language: "en" | "zh-CN"): void;
 }): ReactElement {
   const { t, status, sourceKind, formatDateTimeRange } = useI18n();
 
@@ -379,6 +414,12 @@ function KnowledgeDetail({
           </button>
           <button className="secondary-button" onClick={onStartEdit} type="button">
             {t("action.edit")}
+          </button>
+          <button className="secondary-button" onClick={onRegenerate} type="button">
+            {t("action.regenerate")}
+          </button>
+          <button className="secondary-button" onClick={() => onTranslate("zh-CN")} type="button">
+            {t("action.translate")}
           </button>
           <button
             className="secondary-button"
@@ -403,6 +444,9 @@ function KnowledgeDetail({
             type="button"
           >
             {t("action.archive")}
+          </button>
+          <button className="secondary-button danger-button" onClick={onDelete} type="button">
+            {t("action.delete")}
           </button>
         </div>
       </div>
@@ -461,8 +505,17 @@ function KnowledgeDetail({
         <DetailBlock title={t("knowledge.decisions")}>
           <TextList items={artifact.content.decisions ?? []} empty={t("fallback.none")} />
         </DetailBlock>
+        <DetailBlock title={t("knowledge.openQuestions")}>
+          <TextList items={artifact.content.openQuestions ?? []} empty={t("fallback.none")} />
+        </DetailBlock>
+      </div>
+
+      <div className="detail-columns">
         <DetailBlock title={t("knowledge.blockers")}>
           <TextList items={artifact.content.blockers ?? []} empty={t("fallback.none")} />
+        </DetailBlock>
+        <DetailBlock title={t("knowledge.evidenceAvailability")}>
+          <TextList items={evidenceAvailabilityLines(artifact)} empty={t("fallback.none")} />
         </DetailBlock>
       </div>
 
@@ -805,6 +858,16 @@ function formatProjects(projects: string[], fallback: string): string {
 
 function formatConfidence(confidence: number, label: string): string {
   return `${label} ${Math.round(confidence * 100)}%`;
+}
+
+function evidenceAvailabilityLines(artifact: KnowledgeArtifact): string[] {
+  const unavailable = artifact.evidence.filter((ref) => ref.availability === "unavailable");
+  const lines = [`${artifact.evidence.length - unavailable.length}/${artifact.evidence.length}`];
+  if (artifact.metadata.evidenceState) lines.push(artifact.metadata.evidenceState);
+  if (artifact.metadata.evidenceUnavailableReason) {
+    lines.push(artifact.metadata.evidenceUnavailableReason);
+  }
+  return lines;
 }
 
 function knowledgeTypeLabel(

@@ -3,6 +3,17 @@ import type { ObservationRuntimeStatus, ProtectedAppRule } from "../observation/
 import { defaultProtectedAppRules } from "../observation/observationPolicy";
 import { hashObject } from "../hash";
 
+export const DEFAULT_RAW_FRAME_TTL_MINUTES = 72 * 60;
+export const DEFAULT_RAW_FRAME_STORAGE_CAP_BYTES = 2 * 1024 * 1024 * 1024;
+export const DEFAULT_RAW_FRAME_RETENTION_POLICY_ID = "perception_raw_ttl_72h";
+
+export function perceptionRawRetentionPolicyId(ttlMinutes: number): string {
+  if (ttlMinutes === 24 * 60) return "perception_raw_ttl_24h";
+  if (ttlMinutes === DEFAULT_RAW_FRAME_TTL_MINUTES) return DEFAULT_RAW_FRAME_RETENTION_POLICY_ID;
+  if (ttlMinutes === 7 * 24 * 60) return "perception_raw_ttl_7d";
+  return `perception_raw_ttl_${ttlMinutes}m`;
+}
+
 export type PerceptionSourceKind =
   | "screen"
   | "ocr"
@@ -307,8 +318,8 @@ export const perceptionSamplingPresets: readonly PerceptionSamplingPreset[] = [
     framesPerBurst: 3,
     frameSpacingMs: 1000,
     maxOcrFramesPerMinute: 3,
-    rawSidecars: "off",
-    intendedUse: "Default Alpha trust and battery mode."
+    rawSidecars: "short_ttl",
+    intendedUse: "Default local verification evidence with conservative battery use."
   },
   {
     name: "balanced",
@@ -429,8 +440,21 @@ export const defaultPerceptionProviderRoutes: readonly PerceptionProviderRoute[]
 export function defaultPerceptionSourcePolicy(
   sourceKind: PerceptionSourceKind
 ): PerceptionSourcePolicy {
+  if (sourceKind === "screen") {
+    return {
+      sensitivity: "confidential",
+      canStoreRaw: true,
+      canStoreSummary: true,
+      canUseForAI: false,
+      canExportToAgent: false,
+      retentionPolicyId: perceptionRawRetentionPolicyId(DEFAULT_RAW_FRAME_TTL_MINUTES),
+      rawRetentionTtlMinutes: DEFAULT_RAW_FRAME_TTL_MINUTES,
+      protectedAppsEnabled: true,
+      deleteRawOnDisable: true
+    };
+  }
   return {
-    sensitivity: sourceKind === "screen" || sourceKind === "vision" ? "confidential" : "internal",
+    sensitivity: sourceKind === "vision" ? "confidential" : "internal",
     canStoreRaw: false,
     canStoreSummary: true,
     canUseForAI: false,
@@ -460,8 +484,8 @@ export function perceptionResourcePolicyForSampling(
       pauseBelowPercent: 20
     },
     storage: {
-      maxRawSidecarBytes: 250 * 1024 * 1024,
-      defaultRawTtlMinutes: 60,
+      maxRawSidecarBytes: DEFAULT_RAW_FRAME_STORAGE_CAP_BYTES,
+      defaultRawTtlMinutes: DEFAULT_RAW_FRAME_TTL_MINUTES,
       cleanupIntervalMinutes: 15
     },
     queue: {
@@ -645,8 +669,8 @@ function makePerceptionSamplingPolicy(
     frameSpacingMs: preset.frameSpacingMs,
     maxOcrFramesPerMinute: preset.maxOcrFramesPerMinute,
     maxCaptureDutyCyclePercent: 10,
-    rawFrameRetention: "disabled",
-    rawFrameTtlIfEnabledMinutes: 60,
+    rawFrameRetention: preset.rawSidecars === "short_ttl" ? "short_ttl" : "disabled",
+    rawFrameTtlIfEnabledMinutes: DEFAULT_RAW_FRAME_TTL_MINUTES,
     protectedAppAction: "skip_capture",
     externalAiUse: "disabled"
   };

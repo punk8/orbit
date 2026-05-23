@@ -507,13 +507,21 @@ function makeMemory(
     id: overrides.id ?? `mem_${overrides.status}`,
     schemaVersion: 1,
     kind: overrides.kind ?? "decision",
+    dimension: overrides.dimension ?? "project",
     title: overrides.title ?? "Orbit handoff defaults",
     body: overrides.body ?? "Orbit handoffs exclude raw payloads by default.",
     status: overrides.status,
     scope: overrides.scope ?? { project: "orbit", sourceKinds: ["codex"] },
+    sourceSessionIds: overrides.sourceSessionIds ?? ["act_1"],
     tags: overrides.tags ?? ["handoff"],
     evidence: overrides.evidence ?? [makeEvidence(eventId)],
     confidence: overrides.confidence ?? 0.9,
+    version: overrides.version ?? 1,
+    indexState: overrides.indexState ?? {
+      provider: "fts",
+      status: "indexed",
+      fallbackOrder: ["local_embedding", "local_endpoint", "fts"]
+    },
     createdAt: overrides.createdAt ?? baseTime,
     updatedAt: overrides.updatedAt ?? baseTime
   };

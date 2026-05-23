@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import type { ObservationInput } from "@orbit/core";
 
 export interface Tier1MacHelperEvent {
@@ -129,10 +129,27 @@ export function tier1MacHelperEventToObservationInputs(
 export function resolveMacObserverHelperPath(explicitPath?: string): string {
   if (explicitPath) return explicitPath;
   if (process.env.ORBIT_MAC_OBSERVER_HELPER) return process.env.ORBIT_MAC_OBSERVER_HELPER;
+  const packagedRelativePath = "native/macos-observer/Sources/main.swift";
+  const resourcesPath = (process as typeof process & { resourcesPath?: string }).resourcesPath;
+  if (resourcesPath) {
+    const packagedCandidate = join(resourcesPath, packagedRelativePath);
+    if (existsSync(packagedCandidate)) return packagedCandidate;
+  }
+
+  const relativePath = "apps/desktop/native/macos-observer/Sources/main.swift";
+  let current = process.cwd();
+  for (let depth = 0; depth < 6; depth += 1) {
+    const candidate = join(current, relativePath);
+    if (existsSync(candidate)) return candidate;
+    const parent = dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+
   const candidates = [
-    resolve(process.env.INIT_CWD ?? process.cwd(), "apps/desktop/native/macos-observer/Sources/main.swift"),
+    resolve(process.env.INIT_CWD ?? process.cwd(), relativePath),
     resolve(process.cwd(), "native/macos-observer/Sources/main.swift"),
-    resolve(process.cwd(), "apps/desktop/native/macos-observer/Sources/main.swift")
+    resolve(process.cwd(), relativePath)
   ];
   return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0]!;
 }

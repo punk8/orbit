@@ -15,6 +15,7 @@ struct HelperOutput: Encodable {
   let width: Int?
   let height: Int?
   let frameHash: String?
+  let rawImageBase64: String?
   let appName: String?
   let bundleId: String?
   let pid: Int?
@@ -74,7 +75,13 @@ func frontmostWindowTitle(pid: pid_t) -> String? {
   return nil
 }
 
-func hashImage(_ image: CGImage) -> String {
+func hashImageData(_ data: Data?) -> String {
+  guard let data else { return UUID().uuidString }
+  let digest = SHA256.hash(data: data)
+  return digest.map { String(format: "%02x", $0) }.joined()
+}
+
+func pngData(for image: CGImage) -> Data? {
   let data = NSMutableData()
   guard let destination = CGImageDestinationCreateWithData(
     data,
@@ -82,12 +89,13 @@ func hashImage(_ image: CGImage) -> String {
     1,
     nil
   ) else {
-    return UUID().uuidString
+    return nil
   }
   CGImageDestinationAddImage(destination, image, nil)
-  CGImageDestinationFinalize(destination)
-  let digest = SHA256.hash(data: data as Data)
-  return digest.map { String(format: "%02x", $0) }.joined()
+  guard CGImageDestinationFinalize(destination) else {
+    return nil
+  }
+  return data as Data
 }
 
 func recognizeText(in image: CGImage) -> (text: String?, confidence: Double?, warnings: [String]) {
@@ -135,6 +143,8 @@ Task {
     let capture = try await captureMainDisplay()
     let app = frontmostAppInfo()
     let ocr = recognizeText(in: capture.image)
+    let rawImageData = pngData(for: capture.image)
+    let frameHash = hashImageData(rawImageData)
     let warnings = ocr.warnings
     emit(
       HelperOutput(
@@ -146,7 +156,8 @@ Task {
         displayId: capture.displayId,
         width: capture.image.width,
         height: capture.image.height,
-        frameHash: hashImage(capture.image),
+        frameHash: frameHash,
+        rawImageBase64: rawImageData?.base64EncodedString(),
         appName: app.appName,
         bundleId: app.bundleId,
         pid: app.pid,
@@ -179,6 +190,7 @@ Task {
         width: nil,
         height: nil,
         frameHash: nil,
+        rawImageBase64: nil,
         appName: nil,
         bundleId: nil,
         pid: nil,

@@ -87,6 +87,7 @@ export type ManualSmokeScenario =
   | "screenRecordingPermission"
   | "autoStart"
   | "pauseResumeStop"
+  | "playbackEvidence"
   | "permissionRevoke"
   | "restartAutoResume"
   | "resourcePause"
@@ -180,6 +181,16 @@ const requiredAuditOperationGroups: Array<{
     id: "handoff_included_or_excluded",
     operations: ["handoff.generate"],
     mode: "any"
+  },
+  {
+    id: "provider_payload_policy",
+    operations: ["ai.provider_call"],
+    mode: "any"
+  },
+  {
+    id: "evidence_packet_redaction",
+    operations: ["evidence.packet_redacted", "ai.provider_call"],
+    mode: "any"
   }
 ];
 
@@ -187,6 +198,7 @@ const requiredManualSmokeScenarios: ManualSmokeScenario[] = [
   "screenRecordingPermission",
   "autoStart",
   "pauseResumeStop",
+  "playbackEvidence",
   "permissionRevoke",
   "restartAutoResume",
   "resourcePause",
@@ -205,11 +217,13 @@ export function evaluatePerceptionReleaseGate(
   const packaging = buildPackagingSummary(input.packaging);
   const checks = [
     noDefaultCaptureCheck(input.perception),
-    rawStorageDefaultOffCheck(input.perception),
+    rawEvidenceLocalShortTtlCheck(input.perception),
     protectedAppsCheck(input.perception),
     resourceBudgetCheck(input.perception),
     runtimeHardeningCheck(runtimeHardening),
     cleanupCheck(input.cleanup),
+    providerPayloadPolicyCheck(input.auditOperations),
+    evidencePacketRedactionCheck(input.auditOperations),
     auditCoverageCheck(auditReview),
     manualSmokeCheck(manualSmoke),
     packagingCheck(input.packaging)
@@ -263,19 +277,32 @@ function noDefaultCaptureCheck(perception: PerceptionControlPlaneStatus): Releas
   };
 }
 
-function rawStorageDefaultOffCheck(perception: PerceptionControlPlaneStatus): ReleaseGateCheck {
-  const rawEnabled = perception.sources
-    .filter((source) => source.policy.canStoreRaw || source.policy.rawRetentionTtlMinutes !== null)
+function rawEvidenceLocalShortTtlCheck(
+  perception: PerceptionControlPlaneStatus
+): ReleaseGateCheck {
+  const unsafe = perception.sources
+    .filter((source) => {
+      if (!source.policy.canStoreRaw && source.policy.rawRetentionTtlMinutes === null) {
+        return false;
+      }
+      return (
+        source.sourceKind !== "screen" ||
+        source.policy.canExportToAgent ||
+        source.policy.canUseForAI ||
+        source.policy.rawRetentionTtlMinutes === null ||
+        source.policy.rawRetentionTtlMinutes > 7 * 24 * 60
+      );
+    })
     .map((source) => source.sourceKind);
-  const status = rawEnabled.length === 0 ? "pass" : "fail";
+  const status = unsafe.length === 0 ? "pass" : "fail";
   return {
-    id: "raw_storage_default_off",
+    id: "raw_evidence_local_short_ttl",
     status,
     message:
       status === "pass"
-        ? "Raw perception sidecars are off by default."
-        : "One or more perception sources allow raw sidecars.",
-    details: { rawEnabled }
+        ? "Raw frame evidence is local-only, short-retention, and excluded from AI/Handoff by policy."
+        : "One or more raw evidence policies are not local-only, short-retention, and screen-only.",
+    details: { unsafe }
   };
 }
 
@@ -365,6 +392,33 @@ function cleanupCheck(cleanup: PerceptionCleanupSummary | undefined): ReleaseGat
     status: "pass",
     message: "Perception sidecar cleanup is available and reports its result.",
     details: { cleanup }
+  };
+}
+
+function providerPayloadPolicyCheck(auditOperations: string[] | undefined): ReleaseGateCheck {
+  const hasProviderAudit = auditOperations?.includes("ai.provider_call") ?? false;
+  return {
+    id: "provider_payload_policy",
+    status: hasProviderAudit ? "pass" : "needs_data",
+    message: hasProviderAudit
+      ? "Provider calls have auditable payload class and source policy decisions."
+      : "Provider payload policy has not been exercised with audit evidence yet.",
+    ...(hasProviderAudit ? {} : { nextAction: "exercise_provider_payload_policy" })
+  };
+}
+
+function evidencePacketRedactionCheck(auditOperations: string[] | undefined): ReleaseGateCheck {
+  const hasRedactedPacketAudit =
+    auditOperations?.some(
+      (operation) => operation === "evidence.packet_redacted" || operation === "ai.provider_call"
+    ) ?? false;
+  return {
+    id: "evidence_packet_redaction",
+    status: hasRedactedPacketAudit ? "pass" : "needs_data",
+    message: hasRedactedPacketAudit
+      ? "Evidence packet redaction has audit evidence before provider routing."
+      : "Redacted evidence packet routing has not been exercised with audit evidence yet.",
+    ...(hasRedactedPacketAudit ? {} : { nextAction: "exercise_redacted_evidence_packet" })
   };
 }
 

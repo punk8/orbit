@@ -20,13 +20,21 @@ export function extractMemoryCandidates(artifacts: KnowledgeArtifact[]): Memory[
           id: createStableId("memory", { artifactId: artifact.id, insight, index }),
           schemaVersion: 1,
           kind: "project_fact" as const,
+          dimension: project ? ("project" as const) : ("global" as const),
           title: `Memory candidate: ${artifact.title}`,
           body: insight,
           status: "needs_review" as const,
           scope,
+          sourceSessionIds: artifact.metadata.sourceSessionIds,
           tags: ["candidate", artifact.type],
           evidence: artifact.evidence,
           confidence: Math.min(0.7, artifact.confidence),
+          version: 1,
+          indexState: {
+            provider: "fts" as const,
+            status: "indexed" as const,
+            fallbackOrder: ["local_embedding", "local_endpoint", "fts"]
+          },
           createdAt: artifact.updatedAt,
           updatedAt: artifact.updatedAt
         };

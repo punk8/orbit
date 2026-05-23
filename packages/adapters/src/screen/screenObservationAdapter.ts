@@ -8,7 +8,14 @@ import type {
   Sensitivity,
   SourceAdapter
 } from "@orbit/core";
-import { getProtectedObservationMatch, normalizeObservationInputs } from "@orbit/core";
+import {
+  DEFAULT_RAW_FRAME_TTL_MINUTES,
+  getProtectedObservationMatch,
+  normalizeObservationInputs,
+  perceptionRawRetentionPolicyId
+} from "@orbit/core";
+import { existsSync, unlinkSync } from "node:fs";
+import { isAbsolute } from "node:path";
 import { perceptionPermissionScope } from "../perception/perceptionAdapterPolicy";
 import type { ScreenCaptureFrame, ScreenCaptureScope } from "./screenCaptureTypes";
 import { screenPermission } from "./screenCaptureTypes";
@@ -47,7 +54,9 @@ export class ScreenObservationAdapter implements SourceAdapter {
       canUseForAI: options.canUseForAI ?? false,
       canExportToAgent: options.canExportToAgent ?? false,
       retentionPolicyId: options.allowRawFrameStorage
-        ? `perception_raw_ttl_${options.rawRetentionTtlMinutes ?? 60}m`
+        ? perceptionRawRetentionPolicyId(
+            options.rawRetentionTtlMinutes ?? DEFAULT_RAW_FRAME_TTL_MINUTES
+          )
         : "perception_summary_only"
     });
   }
@@ -85,10 +94,12 @@ export class ScreenObservationAdapter implements SourceAdapter {
       seenFrameHashes.add(frame.frameHash);
       const input = frameToScreenObservationInput(
         frame,
-        this.options.allowRawFrameStorage ?? false
+        this.options.allowRawFrameStorage ?? false,
+        this.options.rawRetentionTtlMinutes ?? DEFAULT_RAW_FRAME_TTL_MINUTES
       );
       const protectedMatch = getProtectedObservationMatch(input, this.options.protectedApps);
       if (protectedMatch) {
+        deleteProtectedRawFrameSidecar(frame);
         warnings.push(`Suppressed protected screen frame ${frame.id}.`);
         audit.push({
           operation: "perception.protected_content_dropped",
@@ -116,8 +127,10 @@ export class ScreenObservationAdapter implements SourceAdapter {
 
 export function frameToScreenObservationInput(
   frame: ScreenCaptureFrame,
-  allowRawFrameStorage = false
+  allowRawFrameStorage = false,
+  rawRetentionTtlMinutes = DEFAULT_RAW_FRAME_TTL_MINUTES
 ): ObservationInput {
+  const rawFrameStored = allowRawFrameStorage && Boolean(frame.rawLocalRef);
   return {
     type: "screen_observation",
     tier: "tier3",
@@ -135,10 +148,52 @@ export function frameToScreenObservationInput(
       ...(frame.width ? { width: frame.width } : {}),
       ...(frame.height ? { height: frame.height } : {}),
       ...(frame.redactedSummary ? { redactedSummary: frame.redactedSummary } : {}),
-      ...(allowRawFrameStorage && frame.rawLocalRef ? { rawLocalRef: frame.rawLocalRef } : {}),
-      ...(allowRawFrameStorage && frame.sizeBytes ? { sizeBytes: frame.sizeBytes } : {})
-    }
+      ...(rawFrameStored && frame.rawLocalRef ? { rawLocalRef: frame.rawLocalRef } : {}),
+      ...(rawFrameStored && frame.sizeBytes ? { sizeBytes: frame.sizeBytes } : {}),
+      ...(rawFrameStored
+        ? {
+            rawRetentionTtlMinutes,
+            rawFrameExpiresAt: addMinutes(frame.capturedAt, rawRetentionTtlMinutes),
+            protectionStatus: "allowed" as const,
+            cleanupState: "retained" as const
+          }
+        : {})
+    },
+    ...(rawFrameStored && frame.rawLocalRef
+      ? {
+          raw: {
+            localRef: frame.rawLocalRef,
+            ...(frame.sizeBytes ? { sizeBytes: frame.sizeBytes } : {})
+          }
+        }
+      : {})
   };
+}
+
+export function screenFrameRetentionMetadata(
+  frame: ScreenCaptureFrame,
+  rawRetentionTtlMinutes = DEFAULT_RAW_FRAME_TTL_MINUTES
+): Record<string, unknown> {
+  const retentionPolicyId = perceptionRawRetentionPolicyId(rawRetentionTtlMinutes);
+  return {
+    capturedAt: frame.capturedAt,
+    retentionPolicyId,
+    rawFrameExpiresAt: addMinutes(frame.capturedAt, rawRetentionTtlMinutes),
+    rawFrameState: "available",
+    rawFrameLocalRef: frame.rawLocalRef,
+    rawFrameSizeBytes: frame.sizeBytes,
+    protectionStatus: "allowed",
+    cleanupState: "retained"
+  };
+}
+
+function addMinutes(timestamp: string, minutes: number): string {
+  return new Date(new Date(timestamp).getTime() + minutes * 60_000).toISOString();
+}
+
+function deleteProtectedRawFrameSidecar(frame: ScreenCaptureFrame): void {
+  if (!frame.rawLocalRef || !isAbsolute(frame.rawLocalRef) || !existsSync(frame.rawLocalRef)) return;
+  unlinkSync(frame.rawLocalRef);
 }
 
 export function scopeAllowsFrame(frame: ScreenCaptureFrame, scope: ScreenCaptureScope): boolean {

@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { Event } from "@orbit/core";
 import { defaultProtectedAppRules, ingestEventsFromAdapter } from "@orbit/core";
 import { MockOcrEngine } from "./ocr/mockOcrEngine";
@@ -36,6 +39,10 @@ describe("screen/OCR perception adapters", () => {
   });
 
   it("suppresses protected app frames before screen storage and OCR", async () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-protected-frame-drop-"));
+    const rawLocalRef = join(orbitHome, "perception-sidecars", "secret.png");
+    mkdirSync(join(orbitHome, "perception-sidecars"), { recursive: true });
+    writeFileSync(rawLocalRef, "secret pixels");
     const protectedFrame = frame("frame_secret", {
       app: {
         name: "1Password",
@@ -45,6 +52,8 @@ describe("screen/OCR perception adapters", () => {
       window: {
         title: "API token abc123"
       },
+      rawLocalRef,
+      sizeBytes: 13,
       ocrText: "password=hunter2"
     });
     const options = {
@@ -62,14 +71,19 @@ describe("screen/OCR perception adapters", () => {
       })
     );
 
-    expect(screen.events).toHaveLength(0);
-    expect(screen.result.warnings).toContain("Suppressed protected screen frame frame_secret.");
-    expect(ocr.events).toHaveLength(0);
-    expect(ocr.result.warnings).toContain(
-      "Suppressed OCR for protected screen frame frame_secret."
-    );
-    expect(JSON.stringify([...screen.events, ...ocr.events])).not.toContain("hunter2");
-    expect(JSON.stringify([...screen.events, ...ocr.events])).not.toContain("abc123");
+    try {
+      expect(screen.events).toHaveLength(0);
+      expect(screen.result.warnings).toContain("Suppressed protected screen frame frame_secret.");
+      expect(ocr.events).toHaveLength(0);
+      expect(ocr.result.warnings).toContain(
+        "Suppressed OCR for protected screen frame frame_secret."
+      );
+      expect(JSON.stringify([...screen.events, ...ocr.events])).not.toContain("hunter2");
+      expect(JSON.stringify([...screen.events, ...ocr.events])).not.toContain("abc123");
+      expect(existsSync(rawLocalRef)).toBe(false);
+    } finally {
+      rmSync(orbitHome, { recursive: true, force: true });
+    }
   });
 
   it("reports protected suppression audit counts without protected title or OCR payload", async () => {
@@ -120,7 +134,7 @@ describe("screen/OCR perception adapters", () => {
     );
   });
 
-  it("stores bounded screen and OCR summaries without raw screenshots by default", async () => {
+  it("stores bounded screen and OCR summaries without raw screenshots unless local retention is allowed", async () => {
     const frames = [
       frame("frame_goal_8", {
         rawLocalRef: "sidecar://raw/frame_goal_8.png",
@@ -169,6 +183,49 @@ describe("screen/OCR perception adapters", () => {
       redactionState: "redacted"
     });
     expect(JSON.stringify(ocr.events[0])).not.toContain("hunter2");
+  });
+
+  it("registers allowed local frame sidecars with retention metadata", async () => {
+    const frames = [
+      frame("frame_goal_t", {
+        rawLocalRef: "/orbit-home/perception-sidecars/frame_goal_t.png",
+        sizeBytes: 120_000
+      })
+    ];
+
+    const screen = await readAdapter(
+      new ScreenObservationAdapter({
+        frames,
+        scope: displayScope,
+        permission: screenPermission("granted"),
+        allowRawFrameStorage: true,
+        rawRetentionTtlMinutes: 72 * 60
+      })
+    );
+
+    expect(screen.events[0]?.content.rawRef).toBe(
+      "/orbit-home/perception-sidecars/frame_goal_t.png"
+    );
+    expect(screen.events[0]?.content.attachments?.[0]).toMatchObject({
+      id: "frame_goal_t",
+      kind: "image",
+      localRef: "/orbit-home/perception-sidecars/frame_goal_t.png",
+      sizeBytes: 120_000,
+      hash: "frame_goal_t"
+    });
+    expect(screen.events[0]?.content.metadata).toMatchObject({
+      frameHash: "frame_goal_t",
+      rawFrameStored: true,
+      rawFrameState: "available",
+      rawFrameLocalRef: "/orbit-home/perception-sidecars/frame_goal_t.png",
+      rawFrameSizeBytes: 120_000,
+      capturedAt: "2026-05-21T02:00:00.000Z",
+      retentionPolicyId: "perception_raw_ttl_72h",
+      rawFrameExpiresAt: "2026-05-24T02:00:00.000Z",
+      protectionStatus: "allowed",
+      cleanupState: "retained"
+    });
+    expect(screen.events[0]?.privacy.retentionPolicyId).toBe("perception_raw_ttl_72h");
   });
 
   it("suppresses duplicate frame hashes before OCR", async () => {

@@ -53,6 +53,38 @@ pnpm source-install:verify
 It runs tests, typecheck, lint, desktop build, packaged directory build, packaged smoke, and the CLI
 release gate with `ORBIT_HOME="$PWD/.tmp/source-install-release-gate"`.
 
+## What Orbit records
+
+After macOS Screen Recording permission is granted, Orbit can auto-start low-frequency Screen/OCR
+observation when the user has not paused, stopped, disabled the source, entered a protected context,
+or hit a resource pause. Screen frame evidence is stored only as short-retention local sidecars under
+`ORBIT_HOME/perception-sidecars`; the database keeps source pointers, hashes, sizes, capture time,
+retention policy, expiry, protection status, and cleanup state. Derived Activity, Knowledge, Memory,
+Recommendation, and Handoff records keep safe summaries and source pointers after raw evidence
+expires or is deleted.
+
+## What AI sees
+
+External AI is disabled unless a provider route and source policy both allow the task. Even then,
+Screen/OCR routes send only redacted evidence packets or bounded summaries. Raw image bytes, raw OCR
+dumps, protected content, failed-redaction data, private payloads, microphone audio, transcripts,
+browser scraping, filesystem scans, and keystrokes are not sent by default.
+
+## What Handoff exports
+
+Handoff is local-only and review-first. By default it exports confirmed, evidence-backed summaries,
+safe source pointers, decisions, blockers, and next actions. It does not export raw screenshots,
+thumbnails, raw OCR dumps, audio, transcripts, failed-redaction data, protected/private evidence,
+draft Knowledge, or unconfirmed Memory.
+
+## How to pause, stop, delete, and audit
+
+Use the menu bar, Settings, and CLI to pause/resume/stop Screen/OCR, run cleanup, disable a source
+and delete registered raw sidecars, delete source-derived Events, delete Activity, delete Knowledge,
+delete or roll back Memory, manage protected rules, manage provider routes, and review audit
+coverage. Cleanup writes to `ORBIT_HOME/perception/cleanup-ledger.jsonl` and only deletes
+database-registered local sidecars under `ORBIT_HOME`.
+
 ## Runtime hardening status
 
 The menu bar, Settings, CLI status, and release gate expose the same source-install runtime hardening

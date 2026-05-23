@@ -2,8 +2,10 @@ import type Database from "better-sqlite3";
 import { migration0001 } from "./migrations/0001_initial";
 import { migration0002 } from "./migrations/0002_source_runtime";
 import { migration0003 } from "./migrations/0003_source_permissions";
+import { migration0004 } from "./migrations/0004_memory_replication_metadata";
+import { migration0005 } from "./migrations/0005_memory_version_history";
 
-const migrations = [migration0001, migration0002, migration0003];
+const migrations = [migration0001, migration0002, migration0003, migration0004, migration0005];
 
 export function migrate(db: Database.Database): void {
   const transaction = db.transaction(() => {

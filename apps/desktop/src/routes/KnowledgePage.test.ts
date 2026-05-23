@@ -10,6 +10,11 @@ describe("KnowledgePage review workbench", () => {
     expect(source).toContain("onEditKnowledge");
     expect(source).toContain("navigator.clipboard.writeText");
     expect(source).toContain("knowledge.providerMetadata");
+    expect(source).toContain("knowledge.openQuestions");
+    expect(source).toContain("knowledge.evidenceAvailability");
+    expect(source).toContain("action.regenerate");
+    expect(source).toContain("action.translate");
+    expect(source).toContain("action.delete");
     expect(source).toContain("knowledge.evidencePreserved");
     expect(source).toContain("confirm.rejectKnowledge");
     expect(source).toContain("changedFields");

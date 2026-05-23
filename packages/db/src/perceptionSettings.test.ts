@@ -265,7 +265,7 @@ describe("perception control-plane settings", () => {
       const source = sources.getSource("perception_screen");
       expect(source?.permissionScope.canExportToAgent).toBe(true);
       expect(source?.permissionScope.canUseForAI).toBe(true);
-      expect(source?.permissionScope.retentionPolicyId).toBe("perception_summary_only");
+      expect(source?.permissionScope.retentionPolicyId).toBe("perception_raw_ttl_72h");
     } finally {
       close();
     }

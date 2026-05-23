@@ -1,8 +1,15 @@
 import type { ActivitySession, Event } from "@orbit/core";
 import { ActivityRepository, EventRepository, openOrbitDatabase } from "@orbit/db";
+import { existsSync } from "node:fs";
 import { getCliConfig } from "../config";
 
-export type ActivityFrameRawState = "available" | "raw_expired" | "not_stored";
+export type ActivityFrameRawState =
+  | "available"
+  | "expired"
+  | "deleted"
+  | "blocked_protected"
+  | "source_disabled"
+  | "not_stored";
 
 export interface ActivityFrameLinkedEvent {
   id: string;
@@ -20,8 +27,15 @@ export interface ActivityPlaybackFrame {
   app?: string;
   windowTitle?: string;
   summary: string;
+  localRef?: string;
   rawAvailable: boolean;
   rawState: ActivityFrameRawState;
+  retention?: {
+    policyId?: string;
+    expiresAt?: string;
+    cleanupState?: string;
+    protectionStatus?: string;
+  };
   redactionState: Event["privacy"]["redactionState"];
   ocrStatus: "pending" | "completed" | "skipped" | "failed";
   linkedEvents: ActivityFrameLinkedEvent[];
@@ -101,7 +115,10 @@ function buildActivityFrames(session: ActivitySession, events: Event[]): Activit
     const metadata = event.content.metadata ?? {};
     const frameHash = readString(metadata.frameHash) ?? event.source.pointer;
     const linkedEvents = sortLinkedFrameEvents(eventsByFrameHash.get(frameHash) ?? [event]);
-    const rawAvailable = Boolean(event.content.rawRef);
+    const rawState = frameRawState(event);
+    const rawAvailable = rawState === "available";
+    const localRef = readString(metadata.rawFrameLocalRef) ?? event.content.rawRef;
+    const retention = frameRetention(metadata);
     return {
       frameId: frameHash,
       frameIndex: index,
@@ -110,13 +127,53 @@ function buildActivityFrames(session: ActivitySession, events: Event[]): Activit
       ...(event.context.app ? { app: event.context.app } : {}),
       ...(event.context.windowTitle ? { windowTitle: event.context.windowTitle } : {}),
       summary: event.content.summary ?? event.content.title ?? event.source.pointer,
+      ...(localRef ? { localRef } : {}),
       rawAvailable,
-      rawState: rawAvailable ? "available" : "raw_expired",
+      rawState,
+      ...(retention ? { retention } : {}),
       redactionState: event.privacy.redactionState,
       ocrStatus: linkedEvents.some((item) => item.type === "ocr_text") ? "completed" : "pending",
       linkedEvents: linkedEvents.map(linkedEvent)
     };
   });
+}
+
+function frameRawState(event: Event): ActivityFrameRawState {
+  const metadata = event.content.metadata ?? {};
+  const state = readString(metadata.rawFrameState);
+  if (state === "blocked_protected" || state === "source_disabled" || state === "deleted") {
+    return state;
+  }
+  if (state === "expired") return "expired";
+  const protectionStatus = readString(metadata.protectionStatus);
+  if (protectionStatus === "blocked_protected") return "blocked_protected";
+  const localRef = readString(metadata.rawFrameLocalRef) ?? event.content.rawRef;
+  if (!localRef) {
+    const cleanupState = readString(metadata.cleanupState);
+    if (cleanupState === "deleted") return "deleted";
+    if (cleanupState === "source_disabled") return "source_disabled";
+    return "not_stored";
+  }
+  const expiresAt = readString(metadata.rawFrameExpiresAt);
+  if (expiresAt && new Date(expiresAt).getTime() <= Date.now()) return "expired";
+  if (!existsSync(localRef)) return "deleted";
+  return "available";
+}
+
+function frameRetention(metadata: Record<string, unknown>):
+  | ActivityPlaybackFrame["retention"]
+  | undefined {
+  const policyId = readString(metadata.retentionPolicyId);
+  const expiresAt = readString(metadata.rawFrameExpiresAt);
+  const cleanupState = readString(metadata.cleanupState);
+  const protectionStatus = readString(metadata.protectionStatus);
+  if (!policyId && !expiresAt && !cleanupState && !protectionStatus) return undefined;
+  return {
+    ...(policyId ? { policyId } : {}),
+    ...(expiresAt ? { expiresAt } : {}),
+    ...(cleanupState ? { cleanupState } : {}),
+    ...(protectionStatus ? { protectionStatus } : {})
+  };
 }
 
 function groupEventsByFrameHash(events: Event[]): Map<string, Event[]> {

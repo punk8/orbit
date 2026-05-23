@@ -92,13 +92,43 @@ describe("perception release gate", () => {
     expect(report.checks.find((check) => check.id === "no_default_capture")?.status).toBe("pass");
   });
 
-  it("fails when raw sidecars or external providers are enabled by default", () => {
+  it("allows default local short-TTL screen evidence while failing unsafe raw retention or external providers", () => {
+    const localEvidenceReport = evaluatePerceptionReleaseGate({
+      perception: createDefaultPerceptionStatus(),
+      cleanup: {
+        scannedEvents: 0,
+        cleanedEvents: 0,
+        removedRawRefs: 0,
+        removedAttachments: 0,
+        deletedLocalSidecars: 0,
+        preservedSummaries: 0
+      },
+      auditOperations: [],
+      packaging: {
+        excludesTmp: true,
+        excludesFixtures: true,
+        nativeHelperMode: "mock",
+        signed: false,
+        notarized: false
+      }
+    });
+
+    expect(localEvidenceReport.status).toBe("pass");
+    expect(
+      localEvidenceReport.checks.find((check) => check.id === "raw_evidence_local_short_ttl")
+        ?.status
+    ).toBe("pass");
+
     const perception = createDefaultPerceptionStatus(
       [
         {
           sourceKind: "screen",
           enabled: true,
-          policy: { canStoreRaw: true, rawRetentionTtlMinutes: 60 }
+          policy: {
+            canStoreRaw: true,
+            rawRetentionTtlMinutes: 14 * 24 * 60,
+            retentionPolicyId: "perception_raw_ttl_14d"
+          }
         }
       ],
       [
@@ -114,7 +144,7 @@ describe("perception release gate", () => {
 
     expect(report.status).toBe("fail");
     expect(report.checks.find((check) => check.id === "no_default_capture")?.status).toBe("fail");
-    expect(report.checks.find((check) => check.id === "raw_storage_default_off")?.status).toBe(
+    expect(report.checks.find((check) => check.id === "raw_evidence_local_short_ttl")?.status).toBe(
       "fail"
     );
   });
@@ -177,6 +207,7 @@ describe("perception release gate", () => {
         screenRecordingPermission: "passed",
         autoStart: "passed",
         pauseResumeStop: "passed",
+        playbackEvidence: "passed",
         permissionRevoke: "needs_data",
         restartAutoResume: "needs_data",
         resourcePause: "needs_data",
@@ -192,6 +223,7 @@ describe("perception release gate", () => {
       "screenRecordingPermission",
       "autoStart",
       "pauseResumeStop",
+      "playbackEvidence",
       "protectedContext",
       "auditReview",
       "cleanup"
@@ -231,6 +263,7 @@ describe("perception release gate", () => {
         screenRecordingPermission: "passed",
         autoStart: "passed",
         pauseResumeStop: "passed",
+        playbackEvidence: "passed",
         permissionRevoke: "passed",
         restartAutoResume: "passed",
         resourcePause: "passed",
@@ -317,7 +350,9 @@ describe("perception release gate", () => {
         "perception.events_delete",
         "knowledge.generated",
         "knowledge.suppressed",
-        "handoff.generate"
+        "handoff.generate",
+        "ai.provider_call",
+        "evidence.packet_redacted"
       ],
       packaging: {
         excludesTmp: true,
@@ -362,6 +397,93 @@ describe("perception release gate", () => {
     expect(missingKnowledge.auditReview.requiredGroups).toContain(
       "knowledge_generated_or_suppressed"
     );
+  });
+
+  it("requires Yansu safety gates for redacted evidence packets and playback evidence smoke", () => {
+    const report = evaluatePerceptionReleaseGate({
+      perception: createDefaultPerceptionStatus(),
+      cleanup: {
+        scannedEvents: 4,
+        cleanedEvents: 1,
+        removedRawRefs: 1,
+        removedAttachments: 1,
+        deletedLocalSidecars: 1,
+        preservedSummaries: 3
+      },
+      auditOperations: ["ai.provider_call", "evidence.packet_redacted", "perception.sidecar_cleanup"],
+      packaging: {
+        excludesTmp: true,
+        excludesFixtures: true,
+        nativeHelperMode: "mock",
+        signed: false,
+        notarized: false
+      },
+      manualSmoke: {
+        screenRecordingPermission: "passed",
+        autoStart: "passed",
+        pauseResumeStop: "passed",
+        playbackEvidence: "passed",
+        permissionRevoke: "passed",
+        restartAutoResume: "passed",
+        resourcePause: "passed",
+        protectedContext: "passed",
+        auditReview: "passed",
+        cleanup: "passed",
+        handoffExclusion: "passed"
+      }
+    });
+
+    expect(report.manualSmoke.required).toContain("playbackEvidence");
+    expect(report.checks.find((check) => check.id === "manual_smoke")).toMatchObject({
+      status: "pass"
+    });
+    expect(report.auditReview.requiredGroups).toEqual(
+      expect.arrayContaining(["provider_payload_policy", "evidence_packet_redaction"])
+    );
+    expect(report.checks.find((check) => check.id === "provider_payload_policy")).toMatchObject({
+      status: "pass"
+    });
+    expect(report.checks.find((check) => check.id === "evidence_packet_redaction")).toMatchObject({
+      status: "pass"
+    });
+    expect(report.checks.find((check) => check.id === "sidecar_cleanup")).toMatchObject({
+      status: "pass",
+      details: {
+        cleanup: expect.objectContaining({
+          deletedLocalSidecars: 1
+        })
+      }
+    });
+
+    const missing = evaluatePerceptionReleaseGate({
+      perception: createDefaultPerceptionStatus(),
+      cleanup: {
+        scannedEvents: 4,
+        cleanedEvents: 0,
+        removedRawRefs: 0,
+        removedAttachments: 0,
+        deletedLocalSidecars: 0,
+        preservedSummaries: 4
+      },
+      auditOperations: [],
+      packaging: {
+        excludesTmp: true,
+        excludesFixtures: true,
+        nativeHelperMode: "mock",
+        signed: false,
+        notarized: false
+      }
+    });
+
+    expect(missing.manualSmoke.missing).toContain("playbackEvidence");
+    expect(missing.checks.find((check) => check.id === "provider_payload_policy")).toMatchObject({
+      status: "needs_data",
+      nextAction: "exercise_provider_payload_policy"
+    });
+    expect(missing.checks.find((check) => check.id === "evidence_packet_redaction")).toMatchObject({
+      status: "needs_data",
+      nextAction: "exercise_redacted_evidence_packet"
+    });
   });
 
   it("requires source-install runtime hardening failure-state coverage in the release gate", () => {

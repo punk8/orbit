@@ -2,7 +2,14 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
-import type { Event, KnowledgeArtifact, Memory, SourceKind, SourceRecord } from "@orbit/core";
+import type {
+  ActivitySession,
+  Event,
+  KnowledgeArtifact,
+  Memory,
+  SourceKind,
+  SourceRecord
+} from "@orbit/core";
 import {
   createStableId,
   defaultPermissionScopeForSource,
@@ -17,6 +24,9 @@ import { AuditRepository } from "./repositories/auditRepository";
 import {
   editKnowledgeArtifact,
   editMemory,
+  deleteActivitySession,
+  deleteMemory,
+  rollbackMemoryVersion,
   reviewKnowledgeArtifact,
   reviewMemory,
   reviewRecommendation
@@ -63,6 +73,16 @@ describe("sqlite store", () => {
       const memory = makeMemory(event);
       memoryRepo.upsertMemory(memory);
       expect(memoryRepo.countMemories()).toBe(1);
+      expect(memoryRepo.getMemory(memory.id)).toMatchObject({
+        dimension: "project",
+        sourceSessionIds: ["activity_fixture"],
+        version: 2,
+        indexState: {
+          provider: "fts",
+          status: "indexed",
+          fallbackOrder: ["local_embedding", "local_endpoint", "fts"]
+        }
+      });
       expect(memoryRepo.searchMemory("fixture").map((item) => item.id)).toEqual([memory.id]);
       memoryRepo.deleteMemory(memory.id);
       expect(memoryRepo.countMemories()).toBe(0);
@@ -233,11 +253,55 @@ describe("sqlite store", () => {
       });
 
       expect(updated.evidence).toEqual([evidenceFromEvent(event, "Synthetic fixture event")]);
+      expect(updated.version).toBe(3);
       expect(repository.searchMemory("Edited").map((memory) => memory.id)).toContain(
         "memory_fixture"
       );
       const operations = new AuditRepository(db).listAuditLogs().map((log) => log.operation);
       expect(operations).toContain("memory.edit");
+    } finally {
+      close();
+    }
+  });
+
+  it("deletes Activity and Memory with audit and can roll Memory back to the previous version", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-db-governance-delete-test-"));
+    tempDirs.push(orbitHome);
+    const { db, close } = openOrbitDatabase({ orbitHome });
+    try {
+      const event = makeEvent();
+      new EventRepository(db).upsertEvent(event);
+      const activityRepository = new ActivityRepository(db);
+      activityRepository.upsertActivitySession(makeActivity(event));
+      const memoryRepository = new MemoryRepository(db);
+      memoryRepository.upsertMemory(makeMemory(event));
+
+      const edited = editMemory(db, "memory_fixture", {
+        title: "Edited fixture memory",
+        body: "Edited body for rollback."
+      });
+      expect(edited.version).toBe(3);
+
+      const rolledBack = rollbackMemoryVersion(db, "memory_fixture");
+      expect(rolledBack.version).toBe(4);
+      expect(rolledBack.title).toBe("Fixture memory");
+      expect(rolledBack.body).toBe("Synthetic fixture memory.");
+
+      deleteActivitySession(db, "activity_fixture");
+      expect(activityRepository.getActivitySession("activity_fixture")).toBeUndefined();
+
+      deleteMemory(db, "memory_fixture");
+      expect(memoryRepository.getMemory("memory_fixture")).toBeUndefined();
+
+      const operations = new AuditRepository(db).listAuditLogs().map((log) => log.operation);
+      expect(operations).toEqual(
+        expect.arrayContaining([
+          "memory.edit",
+          "memory.rollback",
+          "activity.delete",
+          "memory.delete"
+        ])
+      );
     } finally {
       close();
     }
@@ -558,18 +622,48 @@ function makeKnowledge(event: Event): KnowledgeArtifact {
   };
 }
 
+function makeActivity(event: Event): ActivitySession {
+  return {
+    id: "activity_fixture",
+    schemaVersion: 1,
+    title: "Fixture activity",
+    startAt: "2026-05-20T09:00:00.000Z",
+    endAt: "2026-05-20T09:10:00.000Z",
+    durationSeconds: 600,
+    sourceKinds: ["codex"],
+    apps: ["Codex"],
+    eventCount: 1,
+    eventIds: [event.id],
+    project: "orbit",
+    summary: "Synthetic fixture activity.",
+    evidence: [evidenceFromEvent(event, "Synthetic fixture event")],
+    localState: { rawAvailable: false, indexed: true },
+    privacy: { sensitivity: "internal", retentionPolicyId: "default" },
+    createdAt: "2026-05-20T09:00:00.000Z",
+    updatedAt: "2026-05-20T09:10:00.000Z"
+  };
+}
+
 function makeMemory(event: Event): Memory {
   return {
     id: "memory_fixture",
     schemaVersion: 1,
     kind: "project_fact",
+    dimension: "project",
     title: "Fixture memory",
     body: "Synthetic fixture memory.",
     status: "confirmed",
     scope: { project: "orbit", sourceKinds: ["codex"] },
+    sourceSessionIds: ["activity_fixture"],
     tags: ["fixture"],
     evidence: [evidenceFromEvent(event, "Synthetic fixture event")],
     confidence: 0.8,
+    version: 2,
+    indexState: {
+      provider: "fts",
+      status: "indexed",
+      fallbackOrder: ["local_embedding", "local_endpoint", "fts"]
+    },
     createdAt: "2026-05-20T09:06:00.000Z",
     updatedAt: "2026-05-20T09:06:00.000Z"
   };

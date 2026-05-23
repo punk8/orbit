@@ -1,13 +1,31 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import type { ActivitySession, Event } from "@orbit/core";
-import { ChevronLeft, ChevronRight, Maximize2, Play, Search, ShieldCheck } from "lucide-react";
+import {
+  AlertTriangle,
+  BarChart3,
+  ChevronLeft,
+  ChevronRight,
+  Maximize2,
+  Play,
+  Search,
+  ShieldCheck
+} from "lucide-react";
 import type { DesktopActivitySessionDetail } from "../orbitApi";
 import { EvidenceList } from "../components/EvidenceList";
 import { Section } from "../components/Section";
 import { useI18n } from "../i18n";
+import {
+  buildActivityOverview,
+  currentActivityOverviewLabels,
+  type ActivityOverview,
+  type ActivityOverviewBucket,
+  type ActivityOverviewRange,
+  type ActivityOverviewWorkItem
+} from "./activityOverview";
 
 type DateFilter = "all" | "today" | "yesterday" | "custom";
+type ActivityWorkbenchView = "timeline" | "overview";
 
 interface ActivityFilters {
   date: DateFilter;
@@ -28,7 +46,13 @@ interface PlaybackFrame {
   frameCount: number;
   eventCount: number;
   linkedEvents: Event[];
-  rawState: "available" | "raw_expired" | "not_stored";
+  rawState:
+    | "available"
+    | "expired"
+    | "deleted"
+    | "blocked_protected"
+    | "source_disabled"
+    | "not_stored";
   rawRef?: string;
 }
 
@@ -44,10 +68,12 @@ const defaultFilters: ActivityFilters = {
 
 export function ActivityPage({
   sessions,
-  onCaptureScreenOcr
+  onCaptureScreenOcr,
+  onDeleteActivitySession
 }: {
   sessions: ActivitySession[];
   onCaptureScreenOcr(): Promise<void>;
+  onDeleteActivitySession(id: string): Promise<void>;
 }): ReactElement {
   const { t, sourceKind, formatTimeRange } = useI18n();
   const [filters, setFilters] = useState<ActivityFilters>(defaultFilters);
@@ -56,6 +82,8 @@ export function ActivityPage({
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | undefined>();
   const [isCapturingScreenOcr, setIsCapturingScreenOcr] = useState(false);
+  const [workbenchView, setWorkbenchView] = useState<ActivityWorkbenchView>("timeline");
+  const [overviewRange, setOverviewRange] = useState<ActivityOverviewRange>("day");
 
   const filterOptions = useMemo(() => buildFilterOptions(sessions), [sessions]);
   const filteredSessions = useMemo(
@@ -63,6 +91,19 @@ export function ActivityPage({
     [filters, sessions]
   );
   const selectedSession = filteredSessions.find((session) => session.id === selectedId);
+  const overviewLabels = useMemo(
+    () => currentActivityOverviewLabels(latestSessionDate(filteredSessions)),
+    [filteredSessions]
+  );
+  const overview = useMemo(
+    () =>
+      buildActivityOverview(
+        filteredSessions,
+        overviewRange,
+        overviewRange === "day" ? overviewLabels.day : overviewLabels.week
+      ),
+    [filteredSessions, overviewLabels.day, overviewLabels.week, overviewRange]
+  );
 
   useEffect(() => {
     if (filteredSessions.some((session) => session.id === selectedId)) return;
@@ -133,10 +174,20 @@ export function ActivityPage({
         <div className="activity-playback-workbench">
           <aside className="activity-timeline-rail" aria-label={t("activity.sessionList")}>
             <div className="activity-rail-tabs" aria-label={t("activity.timelineViews")}>
-              <button className="active" type="button">
+              <button
+                className={workbenchView === "timeline" ? "active" : ""}
+                onClick={() => setWorkbenchView("timeline")}
+                type="button"
+              >
                 {t("activity.timeline")}
               </button>
-              <button type="button">{t("activity.overview")}</button>
+              <button
+                className={workbenchView === "overview" ? "active" : ""}
+                onClick={() => setWorkbenchView("overview")}
+                type="button"
+              >
+                {t("activity.overview")}
+              </button>
             </div>
 
             <label className="activity-rail-search">
@@ -194,37 +245,49 @@ export function ActivityPage({
               </select>
             </div>
 
-            <div className="activity-rail-list">
-              <div className="activity-day-label">{t("filter.today")}</div>
-              {filteredSessions.map((session) => (
-                <button
-                  className={`activity-timeline-item ${selectedId === session.id ? "active" : ""}`}
-                  key={session.id}
-                  onClick={() => setSelectedId(session.id)}
-                  type="button"
-                >
-                  <span className="activity-timeline-accent" aria-hidden="true" />
-                  <span className="activity-timeline-main">
-                    <span className="activity-timeline-time">
-                      {formatTimeRange(session.startAt, session.endAt)}
+            {workbenchView === "timeline" ? (
+              <div className="activity-rail-list">
+                <div className="activity-day-label">{t("filter.today")}</div>
+                {filteredSessions.map((session) => (
+                  <button
+                    className={`activity-timeline-item ${selectedId === session.id ? "active" : ""}`}
+                    key={session.id}
+                    onClick={() => setSelectedId(session.id)}
+                    type="button"
+                  >
+                    <span className="activity-timeline-accent" aria-hidden="true" />
+                    <span className="activity-timeline-main">
+                      <span className="activity-timeline-time">
+                        {formatTimeRange(session.startAt, session.endAt)}
+                      </span>
+                      <span className="activity-timeline-context">
+                        {formatSessionContext(
+                          session.sourceKinds.map(sourceKind),
+                          session.apps,
+                          t("fallback.unknownApp")
+                        )}
+                      </span>
                     </span>
-                    <span className="activity-timeline-context">
-                      {formatSessionContext(
-                        session.sourceKinds.map(sourceKind),
-                        session.apps,
-                        t("fallback.unknownApp")
-                      )}
+                    <span className="activity-timeline-count">
+                      {session.eventCount} {t("unit.events")}
                     </span>
-                  </span>
-                  <span className="activity-timeline-count">
-                    {session.eventCount} {t("unit.events")}
-                  </span>
-                </button>
-              ))}
-              {filteredSessions.length === 0 ? (
-                <div className="empty-state compact">{t("empty.noActivitySessions")}</div>
-              ) : null}
-            </div>
+                  </button>
+                ))}
+                {filteredSessions.length === 0 ? (
+                  <div className="empty-state compact">{t("empty.noActivitySessions")}</div>
+                ) : null}
+              </div>
+            ) : (
+              <ActivityOverviewRail
+                overview={overview}
+                range={overviewRange}
+                onRangeChange={setOverviewRange}
+                onSelectSession={(id) => {
+                  setSelectedId(id);
+                  setWorkbenchView("timeline");
+                }}
+              />
+            )}
 
             <div className="activity-local-note">
               <ShieldCheck aria-hidden="true" size={15} />
@@ -240,6 +303,7 @@ export function ActivityPage({
                 isLoading={isDetailLoading}
                 error={detailError}
                 formatTimeRange={formatTimeRange}
+                onDeleteActivitySession={onDeleteActivitySession}
               />
             ) : (
               <div className="empty-state">{t("empty.noActivitySessions")}</div>
@@ -256,13 +320,15 @@ function ActivityDetail({
   fallbackSession,
   isLoading,
   error,
-  formatTimeRange
+  formatTimeRange,
+  onDeleteActivitySession
 }: {
   detail: DesktopActivitySessionDetail | undefined;
   fallbackSession: ActivitySession;
   isLoading: boolean;
   error: string | undefined;
   formatTimeRange(startAt: string, endAt: string): string;
+  onDeleteActivitySession(id: string): Promise<void>;
 }): ReactElement {
   const { t, sourceKind, status } = useI18n();
   const session = detail?.session ?? fallbackSession;
@@ -301,6 +367,17 @@ function ActivityDetail({
           type="button"
         >
           ×
+        </button>
+        <button
+          className="secondary-button danger-button"
+          data-activity-action="delete-session"
+          onClick={() => {
+            if (!window.confirm(t("confirm.deleteActivity"))) return;
+            void onDeleteActivitySession(session.id);
+          }}
+          type="button"
+        >
+          {t("action.delete")}
         </button>
       </header>
 
@@ -526,6 +603,182 @@ function ActivityDetail({
   );
 }
 
+function ActivityOverviewRail({
+  overview,
+  range,
+  onRangeChange,
+  onSelectSession
+}: {
+  overview: ActivityOverview;
+  range: ActivityOverviewRange;
+  onRangeChange(range: ActivityOverviewRange): void;
+  onSelectSession(id: string): void;
+}): ReactElement {
+  const { t } = useI18n();
+  return (
+    <div className="activity-overview-panel">
+      <div className="activity-overview-header">
+        <div>
+          <span>{range === "day" ? t("activity.overviewDaily") : t("activity.overviewWeekly")}</span>
+          <strong>{overview.label}</strong>
+        </div>
+        <div className="segmented-control" aria-label={t("activity.overviewRange")}>
+          <button
+            className={range === "day" ? "active" : ""}
+            onClick={() => onRangeChange("day")}
+            type="button"
+          >
+            {t("activity.day")}
+          </button>
+          <button
+            className={range === "week" ? "active" : ""}
+            onClick={() => onRangeChange("week")}
+            type="button"
+          >
+            {t("activity.week")}
+          </button>
+        </div>
+      </div>
+
+      <div className="activity-overview-metrics">
+        <OverviewMetric label={t("activity.activeTime")} value={formatDuration(overview.activeSeconds)} />
+        <OverviewMetric label={t("activity.sessionCount")} value={String(overview.sessionCount)} />
+        <OverviewMetric label={t("activity.appCount")} value={String(overview.appCount)} />
+        <OverviewMetric label={t("activity.peakTime")} value={overview.peakHourLabel} />
+        <OverviewMetric label={t("activity.frameCount")} value={String(overview.frameCount)} />
+        <OverviewMetric label={t("activity.ocrPages")} value={String(overview.ocrPageCount)} />
+        <OverviewMetric label={t("activity.ocrChars")} value={String(overview.ocrTextChars)} />
+        <OverviewMetric
+          label={t("activity.protectedSkips")}
+          value={String(overview.protectedSkipCount)}
+        />
+      </div>
+
+      <OverviewBucketList
+        title={t("activity.topApps")}
+        buckets={overview.topApps}
+        onSelectSession={onSelectSession}
+      />
+      <OverviewBucketList
+        title={t("activity.topicClusters")}
+        buckets={overview.topicClusters}
+        onSelectSession={onSelectSession}
+      />
+
+      <div className="activity-overview-work">
+        <OverviewWorkList
+          title={t("activity.done")}
+          items={overview.done}
+          onSelectSession={onSelectSession}
+        />
+        <OverviewWorkList
+          title={t("activity.decisions")}
+          items={overview.decisions}
+          onSelectSession={onSelectSession}
+        />
+        <OverviewWorkList
+          title={t("activity.open")}
+          items={overview.open}
+          onSelectSession={onSelectSession}
+        />
+        <OverviewWorkList
+          title={t("activity.next")}
+          items={overview.next}
+          onSelectSession={onSelectSession}
+        />
+      </div>
+
+      <div className="activity-overview-warnings">
+        <div className="overview-block-heading">
+          <AlertTriangle aria-hidden="true" size={14} />
+          <span>{t("activity.lowQualityWarnings")}</span>
+        </div>
+        {overview.lowQualityWarnings.length ? (
+          overview.lowQualityWarnings.map((warning) => (
+            <button key={warning.sessionId} onClick={() => onSelectSession(warning.sessionId)} type="button">
+              <span>{warning.title}</span>
+              <small>{warning.reason}</small>
+            </button>
+          ))
+        ) : (
+          <p className="muted">{t("fallback.none")}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function OverviewMetric({ label, value }: { label: string; value: string }): ReactElement {
+  return (
+    <div className="overview-metric">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function OverviewBucketList({
+  title,
+  buckets,
+  onSelectSession
+}: {
+  title: string;
+  buckets: ActivityOverviewBucket[];
+  onSelectSession(id: string): void;
+}): ReactElement {
+  const { t } = useI18n();
+  return (
+    <div className="activity-overview-block">
+      <div className="overview-block-heading">
+        <BarChart3 aria-hidden="true" size={14} />
+        <span>{title}</span>
+      </div>
+      {buckets.length ? (
+        buckets.map((bucket) => (
+          <button
+            className="overview-bucket"
+            key={bucket.label}
+            onClick={() => onSelectSession(bucket.sessionIds[0]!)}
+            type="button"
+          >
+            <span>{bucket.label}</span>
+            <strong>{bucket.count}</strong>
+          </button>
+        ))
+      ) : (
+        <p className="muted">{t("fallback.none")}</p>
+      )}
+    </div>
+  );
+}
+
+function OverviewWorkList({
+  title,
+  items,
+  onSelectSession
+}: {
+  title: string;
+  items: ActivityOverviewWorkItem[];
+  onSelectSession(id: string): void;
+}): ReactElement {
+  const { t } = useI18n();
+  return (
+    <div className="overview-work-list">
+      <h4>{title}</h4>
+      {items.length ? (
+        items.slice(0, 4).map((item) => (
+          <button key={`${item.sessionId}-${item.text}`} onClick={() => onSelectSession(item.sessionId)} type="button">
+            <span>{item.text}</span>
+            {item.sourcePointer ? <code>{item.sourcePointer}</code> : null}
+          </button>
+        ))
+      ) : (
+        <p className="muted">{t("fallback.none")}</p>
+      )}
+    </div>
+  );
+}
+
 function DetailBlock({
   title,
   children
@@ -587,9 +840,10 @@ function buildPlaybackFrames(session: ActivitySession, events: Event[]): Playbac
       frameCount: screenEvents.length,
       eventCount: linkedEvents.length,
       linkedEvents,
-      rawState: event.content.rawRef ? "available" : "raw_expired"
+      rawState: playbackRawState(event)
     };
-    if (event.content.rawRef) frame.rawRef = event.content.rawRef;
+    const rawRef = readString(event.content.metadata?.rawFrameLocalRef) ?? event.content.rawRef;
+    if (rawRef) frame.rawRef = rawRef;
     return frame;
   });
 
@@ -650,6 +904,22 @@ function frameHashForEvent(event: Event): string | undefined {
   if (typeof frameHash === "string" && frameHash) return frameHash;
   const sourceFrameHash = metadata.sourceFrameHash;
   return typeof sourceFrameHash === "string" && sourceFrameHash ? sourceFrameHash : undefined;
+}
+
+function playbackRawState(event: Event): PlaybackFrame["rawState"] {
+  const state = readString(event.content.metadata?.rawFrameState);
+  if (
+    state === "available" ||
+    state === "expired" ||
+    state === "deleted" ||
+    state === "blocked_protected" ||
+    state === "source_disabled"
+  ) {
+    return state;
+  }
+  return event.content.rawRef || readString(event.content.metadata?.rawFrameLocalRef)
+    ? "available"
+    : "not_stored";
 }
 
 function formatFrameSummary(event: Event): string {
@@ -782,6 +1052,18 @@ function formatRedactionState(
 
 function sortedUnique<T extends string>(values: Array<T | undefined>): T[] {
   return Array.from(new Set(values.filter(Boolean) as T[])).sort((a, b) => a.localeCompare(b));
+}
+
+function latestSessionDate(sessions: ActivitySession[]): Date {
+  const latest = sessions
+    .map((session) => new Date(session.startAt))
+    .filter((date) => !Number.isNaN(date.getTime()))
+    .sort((left, right) => right.getTime() - left.getTime())[0];
+  return latest ?? new Date();
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value : undefined;
 }
 
 function localDateKey(value: string | Date): string {

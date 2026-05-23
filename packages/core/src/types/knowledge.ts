@@ -30,6 +30,7 @@ export interface KnowledgeArtifact {
     description: string;
     keyInsights: string[];
     decisions?: string[];
+    openQuestions?: string[];
     blockers?: string[];
     followUps?: FollowUp[];
     markdown: string;

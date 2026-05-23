@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { Buffer } from "node:buffer";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { hashText, type ObservationPermissionStatus } from "@orbit/core";
 import type { LocalOcrEngine, OcrRecognitionResult } from "../ocr/ocrObservationAdapter";
@@ -42,6 +43,8 @@ export interface MacScreenOcrCaptureHelperOptions {
   timeoutMs?: number;
   runtimeSessionId?: string;
   sequence?: number;
+  allowRawFrameStorage?: boolean;
+  sidecarRoot?: string;
 }
 
 interface HelperSuccessPayload {
@@ -52,6 +55,7 @@ interface HelperSuccessPayload {
   width?: number;
   height?: number;
   frameHash: string;
+  rawImageBase64?: string;
   appName?: string;
   bundleId?: string;
   pid?: number;
@@ -83,9 +87,16 @@ export class MacScreenOcrCaptureHelper implements ScreenOcrCaptureHelper {
   }
 
   async captureOnce(): Promise<ScreenOcrCaptureResult> {
-    const parseOptions: Pick<MacScreenOcrCaptureHelperOptions, "runtimeSessionId" | "sequence"> = {};
+    const parseOptions: Pick<
+      MacScreenOcrCaptureHelperOptions,
+      "runtimeSessionId" | "sequence" | "allowRawFrameStorage" | "sidecarRoot"
+    > = {};
     if (this.options.runtimeSessionId) parseOptions.runtimeSessionId = this.options.runtimeSessionId;
     if (this.options.sequence !== undefined) parseOptions.sequence = this.options.sequence;
+    if (this.options.allowRawFrameStorage !== undefined) {
+      parseOptions.allowRawFrameStorage = this.options.allowRawFrameStorage;
+    }
+    if (this.options.sidecarRoot) parseOptions.sidecarRoot = this.options.sidecarRoot;
     try {
       const output = await runSwiftHelper(this.helperPath, this.timeoutMs);
       return parseMacScreenOcrCapturePayload(output, parseOptions);
@@ -122,7 +133,10 @@ export class CapturedTextOcrEngine implements LocalOcrEngine {
 
 export function parseMacScreenOcrCapturePayload(
   raw: string,
-  options: Pick<MacScreenOcrCaptureHelperOptions, "runtimeSessionId" | "sequence"> = {}
+  options: Pick<
+    MacScreenOcrCaptureHelperOptions,
+    "runtimeSessionId" | "sequence" | "allowRawFrameStorage" | "sidecarRoot"
+  > = {}
 ): ScreenOcrCaptureResult {
   const payload = JSON.parse(raw) as HelperPayload;
   if (!payload.ok) {
@@ -165,6 +179,11 @@ export function parseMacScreenOcrCapturePayload(
   }
   if (payload.width) frame.width = payload.width;
   if (payload.height) frame.height = payload.height;
+  const rawSidecar = writeRawFrameSidecar(payload, options);
+  if (rawSidecar) {
+    frame.rawLocalRef = rawSidecar.localRef;
+    frame.sizeBytes = rawSidecar.sizeBytes;
+  }
 
   const result: ScreenOcrCaptureResult = {
     frame,
@@ -185,6 +204,26 @@ export function parseMacScreenOcrCapturePayload(
     };
   }
   return result;
+}
+
+function writeRawFrameSidecar(
+  payload: HelperSuccessPayload,
+  options: Pick<MacScreenOcrCaptureHelperOptions, "allowRawFrameStorage" | "sidecarRoot">
+): { localRef: string; sizeBytes: number } | undefined {
+  if (!options.allowRawFrameStorage || !options.sidecarRoot || !payload.rawImageBase64) {
+    return undefined;
+  }
+
+  const bytes = Buffer.from(payload.rawImageBase64, "base64");
+  if (bytes.byteLength === 0) return undefined;
+  mkdirSync(options.sidecarRoot, { recursive: true });
+  const filename = `${payload.frameHash.replaceAll(/[^0-9A-Za-z_-]/g, "_")}.png`;
+  const localRef = join(options.sidecarRoot, filename);
+  writeFileSync(localRef, bytes);
+  return {
+    localRef,
+    sizeBytes: bytes.byteLength
+  };
 }
 
 export function defaultMacScreenOcrHelperPath(): string {

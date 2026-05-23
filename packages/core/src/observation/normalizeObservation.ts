@@ -2,6 +2,7 @@ import type { Event } from "../types/event";
 import type { Sensitivity } from "../types/common";
 import { createStableId } from "../id";
 import { hashObject } from "../hash";
+import { perceptionRawRetentionPolicyId } from "../perception/perceptionCapabilities";
 import { DESKTOP_OBSERVATION_ADAPTER_ID, isProtectedObservation } from "./observationPolicy";
 import type { ObservationInput, ObservationInputType, ProtectedAppRule } from "./observationTypes";
 import { observationSourceKindToCoreSourceKind } from "./observationTypes";
@@ -343,6 +344,27 @@ function buildContent(
           width: input.screen?.width,
           height: input.screen?.height,
           rawFrameStored: Boolean(input.screen?.rawLocalRef),
+          ...(input.screen?.rawLocalRef
+            ? {
+                rawFrameState:
+                  input.screen.cleanupState === "deleted"
+                    ? "deleted"
+                    : input.screen.cleanupState === "expired"
+                      ? "expired"
+                      : input.screen.cleanupState === "source_disabled"
+                        ? "source_disabled"
+                        : "available",
+                rawFrameLocalRef: input.screen.rawLocalRef,
+                rawFrameSizeBytes: input.screen.sizeBytes,
+                capturedAt: input.occurredAt,
+                retentionPolicyId: input.screen.rawRetentionTtlMinutes
+                  ? perceptionRawRetentionPolicyId(input.screen.rawRetentionTtlMinutes)
+                  : "perception_summary_only",
+                rawFrameExpiresAt: input.screen.rawFrameExpiresAt,
+                protectionStatus: input.screen.protectionStatus ?? "allowed",
+                cleanupState: input.screen.cleanupState ?? "retained"
+              }
+            : {}),
           ocrStatus: "pending",
           redactionState: input.redactionState ?? "none",
           exportEligibility: "summary_only"

@@ -33,12 +33,33 @@ describe("ActivityPage evidence workbench", () => {
     expect(source).toContain("activity-timeline-rail");
     expect(source).toContain("activity-recording-viewer");
     expect(source).toContain("activity-frame-scrubber");
+    expect(source).toContain("onDeleteActivitySession");
+    expect(source).toContain("confirm.deleteActivity");
     expect(source).toContain("activity.noRawFramesYet");
     expect(source).toContain("buildPlaybackFrames");
-    expect(source).toContain("raw_expired");
+    expect(source).toContain("expired");
+    expect(source).toContain("blocked_protected");
     expect(source).toContain("linkedEvents");
     expect(source).toContain("frameCount");
     expect(source).toContain("eventCount");
+  });
+
+  it("renders daily and weekly overview panels with evidence-backed work buckets", () => {
+    const source = readFileSync(new URL("./ActivityPage.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("buildActivityOverview");
+    expect(source).toContain("activity.overviewDaily");
+    expect(source).toContain("activity.overviewWeekly");
+    expect(source).toContain("activity.activeTime");
+    expect(source).toContain("activity.peakTime");
+    expect(source).toContain("activity.ocrPages");
+    expect(source).toContain("activity.protectedSkips");
+    expect(source).toContain("activity.done");
+    expect(source).toContain("activity.decisions");
+    expect(source).toContain("activity.open");
+    expect(source).toContain("activity.next");
+    expect(source).toContain("activity.lowQualityWarnings");
+    expect(source).toContain("onSelectSession");
   });
 
   it("offers a real manual Screen/OCR capture action for product dogfooding", () => {

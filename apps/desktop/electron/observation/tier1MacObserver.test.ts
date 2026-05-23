@@ -1,10 +1,45 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { Event, ProtectedAppRule } from "@orbit/core";
 import { DESKTOP_OBSERVATION_ADAPTER_ID } from "@orbit/core";
 import { InProcessObservationQueue } from "@orbit/adapters";
-import { tier1MacHelperEventToObservationInputs } from "./tier1MacObserver";
+import {
+  resolveMacObserverHelperPath,
+  tier1MacHelperEventToObservationInputs
+} from "./tier1MacObserver";
 
 describe("Tier1MacObserver normalization", () => {
+  it("resolves the packaged macOS observer helper from Electron resources", () => {
+    const root = mkdtempSync(join(tmpdir(), "orbit-mac-observer-helper-"));
+    const helperPath = join(root, "native/macos-observer/Sources/main.swift");
+    mkdirSync(join(root, "native/macos-observer/Sources"), { recursive: true });
+    writeFileSync(helperPath, "print(\"observer\")");
+
+    const processWithResources = process as typeof process & { resourcesPath?: string };
+    const originalResourcesPath = processWithResources.resourcesPath;
+    const originalEnv = process.env.ORBIT_MAC_OBSERVER_HELPER;
+    try {
+      processWithResources.resourcesPath = root;
+      delete process.env.ORBIT_MAC_OBSERVER_HELPER;
+
+      expect(resolveMacObserverHelperPath()).toBe(helperPath);
+    } finally {
+      if (originalResourcesPath === undefined) {
+        Reflect.deleteProperty(processWithResources, "resourcesPath");
+      } else {
+        processWithResources.resourcesPath = originalResourcesPath;
+      }
+      if (originalEnv === undefined) {
+        delete process.env.ORBIT_MAC_OBSERVER_HELPER;
+      } else {
+        process.env.ORBIT_MAC_OBSERVER_HELPER = originalEnv;
+      }
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("maps frontmost app helper events to app and window observations", () => {
     let sequence = 0;
     const inputs = tier1MacHelperEventToObservationInputs(
