@@ -73,6 +73,71 @@ describe("vision summary adapter", () => {
     expect(failed.result.warnings[0]).toContain("failed-redaction");
     expect(calls).toBe(0);
   });
+
+  it("passes retained raw screen frame evidence as bounded image input when external vision is allowed", async () => {
+    let inputImage: unknown;
+    const provider: VisionProvider = {
+      ...mockVisionProvider,
+      kind: "openai-compatible",
+      async summarizeVision(input) {
+        inputImage = input.image;
+        return mockVisionProvider.summarizeVision({
+          ...input,
+          policy: {
+            ...input.policy,
+            allowExternal: false
+          }
+        });
+      }
+    };
+
+    await readAdapter(
+      new VisionSummaryAdapter({
+        screenEvents: [
+          screenEvent({
+            content: {
+              title: "Screen observation in Cursor",
+              summary: "Settings scroll split is visible in Orbit.",
+              rawRef: "/private/orbit/frame.png",
+              attachments: [
+                {
+                  id: "frame_hash_1",
+                  kind: "image",
+                  name: "screen-frame",
+                  localRef: "/private/orbit/frame.png",
+                  sourcePointer: "screen://capture/runtime/display/frame_hash_1#1",
+                  sizeBytes: 2048,
+                  hash: "frame_hash_1"
+                }
+              ],
+              metadata: {
+                frameHash: "frame_hash_1",
+                width: 800,
+                height: 400,
+                rawFrameStored: true,
+                rawFrameLocalRef: "/private/orbit/frame.png",
+                rawFrameSizeBytes: 2048
+              }
+            }
+          })
+        ],
+        provider,
+        policy: {
+          ...allowVisionPolicy(),
+          allowExternal: true
+        }
+      })
+    );
+
+    expect(inputImage).toEqual({
+      localPath: "/private/orbit/frame.png",
+      mimeType: "image/png",
+      filename: "screen-frame.png",
+      sizeBytes: 2048,
+      width: 800,
+      height: 400
+    });
+  });
 });
 
 async function readAdapter(adapter: Parameters<typeof ingestEventsFromAdapter>[0]): Promise<{

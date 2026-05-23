@@ -37,7 +37,6 @@ import {
   FixtureAdapter,
   LocalAgentAdapter,
   MacScreenOcrCaptureHelper,
-  MockOcrEngine,
   OCR_OBSERVATION_ADAPTER_ID,
   OcrObservationAdapter,
   SeaTalkAdapter,
@@ -45,6 +44,7 @@ import {
   SCREEN_OBSERVATION_ADAPTER_ID,
   ScreenObservationAdapter,
   screenPermission,
+  visionPolicyFromPerceptionStatus,
   type ScreenCaptureFrame,
   type ScreenCaptureNativeHelper,
   type ScreenCaptureScope,
@@ -53,14 +53,17 @@ import {
 import {
   buildAIProvider,
   buildAIProviderRuntimeRegistry,
+  createOpenAICompatibleVisionProvider,
   DEFAULT_OPENAI_COMPATIBLE_MAX_TOKENS,
   DEFAULT_OPENAI_COMPATIBLE_TEST_MAX_TOKENS,
+  disabledVisionProvider,
   normalizeChatCompletionsUrl,
   readOpenAICompatibleTokenLimitParameter,
   testAIProviderConnection,
   type AIProvider,
   type AIProviderConfig,
   type AIProviderConnectionTestResult,
+  type VisionProvider,
   type OpenAICompatibleTokenLimitParameter
 } from "@orbit/ai";
 import {
@@ -117,6 +120,10 @@ import type {
   RecommendationReviewAction
 } from "@orbit/db";
 import { isAbsolute, join, resolve } from "node:path";
+import {
+  ingestVisionSummariesForDesktop,
+  selectVisionIngestionEvents
+} from "./screenOcrVisionIngestion";
 import type {
   DesktopActionResult,
   DesktopActivitySessionDetail,
@@ -1015,6 +1022,15 @@ export async function captureScreenOcrForDesktop(): Promise<DesktopActionResult>
       }
       results.push(result);
     }
+    await runDesktopVisionSummaryIngestion({
+      eventRepository,
+      sourceRepository,
+      auditRepository,
+      settingsRepository,
+      perception,
+      mode: "desktop_manual_live_screen_ocr",
+      language: readEffectiveDesktopLanguage(settingsRepository)
+    });
 
     const boundaryEvent = normalizeObservationInput(
       {
@@ -1053,7 +1069,9 @@ export async function captureScreenOcrForDesktop(): Promise<DesktopActionResult>
   }
 }
 
-export async function captureScreenOcrBurstForDesktop(): Promise<DesktopActionResult> {
+export async function captureScreenOcrBurstForDesktop(
+  trigger: "manual" | "timer" = "manual"
+): Promise<DesktopActionResult> {
   const database = openOrbitDatabase();
   try {
     const sourceRepository = new SourceRepository(database.db);
@@ -1072,14 +1090,19 @@ export async function captureScreenOcrBurstForDesktop(): Promise<DesktopActionRe
       perception.sources.find((source) => source.sourceKind === "screen")?.policy
         ?.canStoreRaw === true
     );
+    const lastBurstAt =
+      trigger === "timer"
+        ? sourceRepository.getSource(SCREEN_OBSERVATION_ADAPTER_ID)?.lastEventAt
+        : undefined;
     const schedulerResult = await runScreenBurstScheduler({
       helper,
       perception,
       scope,
       runtimeSessionId,
-      trigger: "manual",
+      trigger,
       resourceState: readDesktopPerceptionResourceState(perception),
       protectedApps: perception.protectedApps,
+      ...(lastBurstAt ? { lastBurstAt } : {}),
       readPerception: () => readPerceptionStatus(database.db),
       readResourceState: () => readDesktopPerceptionResourceState(readPerceptionStatus(database.db))
     });
@@ -1108,6 +1131,14 @@ export async function captureScreenOcrBurstForDesktop(): Promise<DesktopActionRe
         (source) => source.sourceKind === "screen"
       )?.policy;
       const ocrPolicy = perception.sources.find((source) => source.sourceKind === "ocr")?.policy;
+      const ocrByFrameHash = new Map<string, ScreenOcrTextResult>();
+      for (const frame of frames) {
+        if (!frame.ocrText?.trim()) continue;
+        ocrByFrameHash.set(frame.frameHash, {
+          text: frame.ocrText,
+          languages: ["en-US", "zh-Hans"]
+        });
+      }
       for (const adapter of [
         new ScreenObservationAdapter({
           id: SCREEN_OBSERVATION_ADAPTER_ID,
@@ -1125,7 +1156,7 @@ export async function captureScreenOcrBurstForDesktop(): Promise<DesktopActionRe
           id: OCR_OBSERVATION_ADAPTER_ID,
           frames,
           scope,
-          engine: new MockOcrEngine(),
+          engine: new CapturedTextOcrEngine(ocrByFrameHash),
           permission: screenPermission("granted"),
           protectedApps: perception.protectedApps,
           canUseForAI: ocrPolicy?.canUseForAI === true,
@@ -1157,6 +1188,15 @@ export async function captureScreenOcrBurstForDesktop(): Promise<DesktopActionRe
           });
         }
       }
+      await runDesktopVisionSummaryIngestion({
+        eventRepository,
+        sourceRepository,
+        auditRepository,
+        settingsRepository,
+        perception,
+        mode: "desktop_screen_ocr_burst",
+        language: readEffectiveDesktopLanguage(settingsRepository)
+      });
       const lastFrame = frames[frames.length - 1]!;
       eventRepository.upsertEvent(
         normalizeObservationInput(
@@ -1981,6 +2021,67 @@ function buildDesktopPipelineOptions(settings: SettingsRepository): {
   const aiProvider = buildDesktopAIProvider(settings);
   const language = readEffectiveDesktopLanguage(settings);
   return aiProvider ? { aiProvider, language } : { language };
+}
+
+function buildDesktopVisionProvider(
+  settings: SettingsRepository,
+  perception: ReturnType<typeof readPerceptionStatus>
+): VisionProvider {
+  const route = perception.providerRoutes.find((providerRoute) => providerRoute.task === "vision");
+  if (!route?.enabled || route.provider === "disabled") return disabledVisionProvider;
+  if (route.provider !== "openai-compatible") return disabledVisionProvider;
+  const config = buildDesktopAIProviderConfig(settings, { providerKind: "openai-compatible" });
+  if (!config.baseUrl || !config.model) return disabledVisionProvider;
+  return createOpenAICompatibleVisionProvider({
+    baseUrl: config.baseUrl,
+    model: route.model ?? config.model,
+    ...(config.apiKey ? { apiKey: config.apiKey } : {}),
+    ...(config.maxTokens ? { maxTokens: config.maxTokens } : {})
+  });
+}
+
+async function runDesktopVisionSummaryIngestion(options: {
+  eventRepository: EventRepository;
+  sourceRepository: SourceRepository;
+  auditRepository: AuditRepository;
+  settingsRepository: SettingsRepository;
+  perception: ReturnType<typeof readPerceptionStatus>;
+  mode: string;
+  language: "en" | "zh-CN";
+}): Promise<void> {
+  const policy = visionPolicyFromPerceptionStatus(options.perception);
+  const provider = buildDesktopVisionProvider(options.settingsRepository, options.perception);
+  const { screenEvents, ocrEvents } = selectVisionIngestionEvents(
+    options.eventRepository.listEvents()
+  );
+  const result = await ingestVisionSummariesForDesktop({
+    screenEvents,
+    ocrEvents,
+    provider,
+    policy,
+    sourceRepository: options.sourceRepository,
+    eventRepository: options.eventRepository,
+    language: options.language
+  });
+  options.auditRepository.log("perception.vision_summary_ingest", "source", result.adapterId, {
+    mode: options.mode,
+    provider: {
+      id: provider.id,
+      kind: provider.kind,
+      model: provider.model
+    },
+    read: result.read,
+    inserted: result.inserted,
+    skipped: result.skipped,
+    warnings: result.warnings,
+    policy: {
+      providerEnabled: policy.providerEnabled,
+      allowExternal: policy.allowExternal,
+      canUseScreenForAI: policy.canUseScreenForAI,
+      canUseVisionForAI: policy.canUseVisionForAI,
+      exportEligible: policy.exportEligible
+    }
+  });
 }
 
 function readAIProviderKind(value: string | undefined): "disabled" | "openai-compatible" {

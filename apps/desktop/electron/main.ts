@@ -58,6 +58,7 @@ import type { DesktopLanguage, DesktopSnapshot } from "../src/orbitApi";
 import type { DesktopIgnoreCurrentContextInput, DesktopProtectedRuleInput } from "../src/orbitApi";
 import { DesktopObservationService } from "./observation/observationService";
 import { detectScreenRecordingPermissionStatus } from "./observation/permissionStatus";
+import { runScreenOcrAutoCaptureTick } from "./screenOcrAutoWorker";
 
 const currentDir = __dirname;
 const backgroundIngestionIntervalMs = 60_000;
@@ -65,6 +66,7 @@ let mainWindow: BrowserWindow | undefined;
 let tray: Tray | undefined;
 let backgroundIngestionTimer: NodeJS.Timeout | undefined;
 let backgroundIngestionRunning = false;
+let screenOcrAutoCaptureRunning = false;
 const observationService = new DesktopObservationService({ notifyChanged: notifySnapshotChanged });
 
 async function createMainWindow(): Promise<BrowserWindow> {
@@ -501,6 +503,14 @@ async function runBackgroundIngestionTick(): Promise<void> {
   backgroundIngestionRunning = true;
   try {
     await runBackgroundIngestionForDesktop();
+    await runScreenOcrAutoCaptureTick({
+      readSnapshot: readDesktopSnapshot,
+      captureBurst: () => captureScreenOcrBurstForDesktop("timer"),
+      isRunning: () => screenOcrAutoCaptureRunning,
+      setRunning: (running) => {
+        screenOcrAutoCaptureRunning = running;
+      }
+    });
   } finally {
     backgroundIngestionRunning = false;
     applyRuntimeSettings();
