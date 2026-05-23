@@ -44,6 +44,9 @@ describe("SettingsPage privacy and provider hardening", () => {
     expect(source).toContain("settings.screenOcrOnboardingOpenPermission");
     expect(source).toContain("settings.screenOcrLastTransition");
     expect(source).toContain("settings.screenOcrNextAction");
+    expect(source).toContain("settings.runtimeHardeningTitle");
+    expect(source).toContain("dogfoodRuntime.hardening.cases.map");
+    expect(source).toContain("runtimeHardening.status.covered");
     expect(source).toContain("data-screen-ocr-action=\"resume\"");
     expect(source).toContain("data-screen-ocr-action=\"pause\"");
     expect(source).toContain("data-screen-ocr-action=\"stop\"");
@@ -78,6 +81,12 @@ describe("SettingsPage privacy and provider hardening", () => {
     expect(i18n).toContain('"dogfoodRuntime.observing"');
     expect(i18n).toContain('"dogfoodRuntime.needs_permission"');
     expect(i18n).toContain('"dogfoodNextAction.grant_screen_recording_permission"');
+    expect(i18n).toContain('"settings.runtimeHardeningTitle"');
+    expect(i18n).toContain('"runtimeHardening.helper_missing"');
+    expect(i18n).toContain('"runtimeHardening.native_abi_mismatch"');
+    expect(i18n).toContain('"dogfoodReason.sqlite_lock_or_migration_failed"');
+    expect(i18n).toContain('"dogfoodNextAction.rebuild_native_modules"');
+    expect(i18n).toContain('"runtimeHardening.status.covered"');
     expect(i18n).toContain('"action.cleanupPerceptionSidecarsDryRun"');
     expect(i18n).toContain('"action.disableSourceDeleteRaw"');
     expect(i18n).toContain('"action.previewDeleteEvents"');
@@ -87,6 +96,7 @@ describe("SettingsPage privacy and provider hardening", () => {
     expect(i18n).toContain('"audit.status.covered"');
     expect(i18n).toContain('"audit.status.missing"');
     expect(i18n).toContain("屏幕 / OCR");
+    expect(i18n).toContain("运行时硬化");
     expect(i18n).toContain("删除源事件");
   });
 

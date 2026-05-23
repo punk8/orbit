@@ -1,4 +1,8 @@
-import type { PerceptionControlPlaneStatus } from "@orbit/core";
+import {
+  buildSourceInstallRuntimeHardeningReview,
+  type PerceptionControlPlaneStatus,
+  type SourceInstallRuntimeHardeningReview
+} from "@orbit/core";
 
 const secretPatterns = [
   /authorization:\s*bearer\s+[a-z0-9._~+/=-]+/gi,
@@ -57,6 +61,7 @@ export interface PerceptionReleaseGateReport {
   checks: ReleaseGateCheck[];
   auditReview: PerceptionAuditReview;
   manualSmoke: PerceptionManualSmokeReview;
+  runtimeHardening: SourceInstallRuntimeHardeningReview;
   nextActions: PerceptionReleaseGateNextAction[];
   packaging: {
     excludesTmp: boolean;
@@ -196,12 +201,14 @@ export function evaluatePerceptionReleaseGate(
 ): PerceptionReleaseGateReport {
   const auditReview = buildAuditReview(input.auditOperations);
   const manualSmoke = buildManualSmokeReview(input.manualSmoke);
+  const runtimeHardening = input.perception.dogfoodRuntime.hardening ?? buildSourceInstallRuntimeHardeningReview();
   const packaging = buildPackagingSummary(input.packaging);
   const checks = [
     noDefaultCaptureCheck(input.perception),
     rawStorageDefaultOffCheck(input.perception),
     protectedAppsCheck(input.perception),
     resourceBudgetCheck(input.perception),
+    runtimeHardeningCheck(runtimeHardening),
     cleanupCheck(input.cleanup),
     auditCoverageCheck(auditReview),
     manualSmokeCheck(manualSmoke),
@@ -210,6 +217,7 @@ export function evaluatePerceptionReleaseGate(
   const nextActions = buildReleaseGateNextActions({
     auditReview,
     manualSmoke,
+    runtimeHardening,
     packagingCheck: checks.find((check) => check.id === "packaging_policy")
   });
   return {
@@ -217,6 +225,7 @@ export function evaluatePerceptionReleaseGate(
     checks,
     auditReview,
     manualSmoke,
+    runtimeHardening,
     nextActions,
     packaging
   };
@@ -314,6 +323,32 @@ function resourceBudgetCheck(perception: PerceptionControlPlaneStatus): ReleaseG
         ? "CPU, battery, storage, queue, and provider budgets are configured."
         : "One or more perception resource budgets are missing or unsafe.",
     details: { budget }
+  };
+}
+
+function runtimeHardeningCheck(
+  hardening: SourceInstallRuntimeHardeningReview
+): ReleaseGateCheck {
+  const status = hardening.missing.length === 0 ? "pass" : "fail";
+  return {
+    id: "source_install_runtime_hardening",
+    status,
+    message:
+      status === "pass"
+        ? "Source-install runtime failure states have user-visible reasons and next actions."
+        : "Some source-install runtime failure states are missing status mappings.",
+    ...(status === "pass" ? {} : { nextAction: "cover_source_install_runtime_failures" }),
+    details: {
+      covered: hardening.covered,
+      missing: hardening.missing,
+      cases: hardening.cases.map((item) => ({
+        kind: item.kind,
+        state: item.state,
+        reason: item.reason,
+        nextAction: item.nextAction,
+        status: item.status
+      }))
+    }
   };
 }
 
@@ -440,6 +475,7 @@ function packagingCheck(
 function buildReleaseGateNextActions(input: {
   auditReview: PerceptionAuditReview;
   manualSmoke: PerceptionManualSmokeReview;
+  runtimeHardening: SourceInstallRuntimeHardeningReview;
   packagingCheck: ReleaseGateCheck | undefined;
 }): PerceptionReleaseGateNextAction[] {
   const actions: PerceptionReleaseGateNextAction[] = [];
@@ -475,6 +511,15 @@ function buildReleaseGateNextActions(input: {
       title: `Exercise missing audit groups: ${input.auditReview.missingGroups.join(", ")}.`,
       command: "pnpm --filter @orbit/cli orbit perception audit-review --json",
       docs: "docs/source-install-manual-smoke.md"
+    });
+  }
+
+  if (input.runtimeHardening.missing.length > 0) {
+    actions.push({
+      id: "runtime_hardening.cover_failure_states",
+      severity: "required",
+      title: `Cover source-install runtime failure states: ${input.runtimeHardening.missing.join(", ")}.`,
+      docs: "docs/source-install-dogfood-production-spec.md"
     });
   }
 

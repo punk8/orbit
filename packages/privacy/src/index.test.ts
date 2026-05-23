@@ -363,4 +363,62 @@ describe("perception release gate", () => {
       "knowledge_generated_or_suppressed"
     );
   });
+
+  it("requires source-install runtime hardening failure-state coverage in the release gate", () => {
+    const report = evaluatePerceptionReleaseGate({
+      perception: createDefaultPerceptionStatus(),
+      cleanup: {
+        scannedEvents: 0,
+        cleanedEvents: 0,
+        removedRawRefs: 0,
+        removedAttachments: 0,
+        deletedLocalSidecars: 0,
+        preservedSummaries: 0
+      },
+      auditOperations: [],
+      packaging: {
+        excludesTmp: true,
+        excludesFixtures: true,
+        nativeHelperMode: "unsigned",
+        signed: false,
+        notarized: false,
+        privateDataScan: { scanned: 3, violations: [] }
+      }
+    });
+
+    const hardening = report.runtimeHardening;
+    expect(hardening.cases.map((item) => item.kind)).toEqual([
+      "helper_missing",
+      "helper_timeout",
+      "permission_missing",
+      "permission_revoked",
+      "protected_context",
+      "resource_paused",
+      "sqlite_lock",
+      "native_abi_mismatch",
+      "storage_cap_reached"
+    ]);
+    expect(hardening.cases.every((item) => item.status === "covered")).toBe(true);
+    expect(
+      report.checks.find((check) => check.id === "source_install_runtime_hardening")
+    ).toMatchObject({
+      status: "pass",
+      details: {
+        covered: [
+          "helper_missing",
+          "helper_timeout",
+          "permission_missing",
+          "permission_revoked",
+          "protected_context",
+          "resource_paused",
+          "sqlite_lock",
+          "native_abi_mismatch",
+          "storage_cap_reached"
+        ]
+      }
+    });
+    expect(report.nextActions.map((action) => action.id)).not.toContain(
+      "runtime_hardening.cover_failure_states"
+    );
+  });
 });

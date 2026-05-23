@@ -26,6 +26,7 @@ import {
   getPerceptionReleaseGate,
   getPerceptionStatus,
   ignoreCurrentPerceptionContext,
+  setPerceptionSourcePolicy,
   setPerceptionProtectedRule,
   runScreenOcrSmoke,
   setPerceptionSamplingPreset,
@@ -922,6 +923,47 @@ describe("cli commands", () => {
     expect(JSON.stringify(listKnowledgeArtifacts())).toContain("## 关键洞察");
   });
 
+  it("keeps Screen/OCR Handoff blocked until source export is explicitly allowed", async () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-source-dogfood-handoff-test-"));
+    tempDirs.push(orbitHome);
+    process.env.ORBIT_HOME = orbitHome;
+
+    await ingestPerceptionFixtures({
+      pack: "source-install-dogfood"
+    });
+
+    const blocked = getTodayHandoff({ date: "2026-05-21" });
+    expect(blocked.recentActivity).toHaveLength(0);
+    expect(blocked.excluded.map((item) => item.reason)).toContain("source_export_blocked");
+
+    setPerceptionSourcePolicy({ sourceKind: "screen", patch: { canExportToAgent: true } });
+    setPerceptionSourcePolicy({ sourceKind: "ocr", patch: { canExportToAgent: true } });
+    const exportable = await ingestPerceptionFixtures({
+      pack: "source-install-dogfood"
+    });
+    const quality = expectPipelineQuality(exportable.pipeline);
+    expect(quality.handoff.includedActivity).toBeGreaterThan(0);
+    expect(quality.handoff.rawLeakCount).toBe(0);
+    expect(quality.handoff.safeSummaryPointersOnly).toBe(true);
+
+    const handoff = getTodayHandoff({ date: "2026-05-21" });
+    expect(handoff.recentActivity.length).toBeGreaterThan(0);
+    expect(handoff.evidenceIndex.length).toBeGreaterThan(0);
+    expect(handoff.evidenceIndex.some((item) => item.sourcePointer.startsWith("screen://"))).toBe(
+      true
+    );
+    expect(handoff.evidenceIndex.some((item) => item.sourcePointer.startsWith("ocr://"))).toBe(
+      true
+    );
+    expect(
+      JSON.stringify({
+        recentActivity: handoff.recentActivity,
+        recommendedNextActions: handoff.recommendedNextActions,
+        evidenceIndex: handoff.evidenceIndex
+      })
+    ).not.toMatch(/RAW_|raw-ocr|raw-screen|hunter2|sk-test|api[-_\s]?key|password/i);
+  });
+
   it("runs a mock screen/OCR start pause resume stop smoke", async () => {
     const smoke = await runScreenOcrSmoke("window");
     expect(smoke.scope.kind).toBe("window");
@@ -1231,6 +1273,36 @@ describe("cli commands", () => {
     expect(status.perception.dogfoodRuntime).toMatchObject({
       state: "observing",
       reason: "screen_recording_permission_granted"
+    });
+    expect(status.perception.dogfoodRuntime.hardening).toMatchObject({
+      cases: expect.arrayContaining([
+        expect.objectContaining({
+          kind: "helper_missing",
+          status: "covered",
+          nextAction: "repair_native_helper"
+        }),
+        expect.objectContaining({
+          kind: "sqlite_lock",
+          status: "covered",
+          nextAction: "repair_local_database"
+        }),
+        expect.objectContaining({
+          kind: "storage_cap_reached",
+          status: "covered",
+          nextAction: "run_cleanup_or_increase_storage_budget"
+        })
+      ])
+    });
+
+    const gate = getPerceptionReleaseGate();
+    expect(gate.releaseGate.runtimeHardening.cases).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "helper_timeout", status: "covered" }),
+        expect.objectContaining({ kind: "native_abi_mismatch", status: "covered" })
+      ])
+    );
+    expect(gate.releaseGate.checks.find((check) => check.id === "source_install_runtime_hardening")).toMatchObject({
+      status: "pass"
     });
 
     const program = buildProgram();

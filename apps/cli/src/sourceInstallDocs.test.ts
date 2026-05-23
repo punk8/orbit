@@ -47,6 +47,18 @@ describe("source install dogfood guide", () => {
     expect(guide).toContain("Packaged helper missing");
     expect(guide).toContain("SQLite lock");
     expect(guide).toContain("Stale ORBIT_HOME");
+    expect(guide).toContain("Runtime hardening status");
+    expect(guide).toContain("helper_missing");
+    expect(guide).toContain("helper_timeout");
+    expect(guide).toContain("permission_revoked");
+    expect(guide).toContain("sqlite_lock");
+    expect(guide).toContain("native_abi_mismatch");
+    expect(guide).toContain("storage_cap_reached");
+    expect(guide).toContain("notarized public distribution");
+    expect(guide).toContain("auto-update");
+    expect(guide).toContain("cloud sync");
+    expect(guide).toContain("hosted support");
+    expect(guide).toContain("broad telemetry");
 
     expect(manualSmoke).toContain("# Source Install Manual macOS Smoke");
     expect(manualSmoke).toContain("screenRecordingPermission=passed");

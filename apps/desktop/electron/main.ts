@@ -318,6 +318,7 @@ function ensureTray(): void {
       `Orbit: ${runtimeLocale.runtimeStatus(status)}`,
       `${runtimeLocale.tray.observation}: ${runtimeLocale.observationStatus(observation.status)}`,
       `${runtimeLocale.tray.screenOcr}: ${runtimeLocale.dogfoodRuntimeState(dogfoodRuntime.state)}`,
+      `${runtimeLocale.tray.status}: ${runtimeLocale.dogfoodNextAction(dogfoodRuntime.nextAction)}`,
       `${runtimeLocale.tray.lastEvent}: ${lastEventAt ?? runtimeLocale.tray.none}`,
       `${runtimeLocale.tray.sources}: ${activeSources.length > 0 ? activeSources.join(", ") : runtimeLocale.tray.none}`
     ].join("; ")
@@ -360,7 +361,7 @@ function ensureTray(): void {
         }
       },
       {
-        label: `${runtimeLocale.tray.screenOcr}: ${runtimeLocale.dogfoodRuntimeState(dogfoodRuntime.state)}`,
+        label: `${runtimeLocale.tray.screenOcr}: ${runtimeLocale.dogfoodRuntimeState(dogfoodRuntime.state)} · ${runtimeLocale.dogfoodNextAction(dogfoodRuntime.nextAction)}`,
         enabled: false
       },
       {
@@ -845,6 +846,40 @@ function readDesktopRuntimeLocale(language: DesktopLanguage) {
             error: "Error"
           };
       return labels[state];
+    },
+    dogfoodNextAction(
+      nextAction: DesktopSnapshot["perception"]["dogfoodRuntime"]["nextAction"]
+    ): string {
+      const labels = zh
+        ? {
+            grant_screen_recording_permission: "授予屏幕录制权限",
+            wait_for_next_burst: "等待下一次 burst",
+            resume_observation: "恢复观察",
+            resume_or_enable_observation: "恢复或启用观察",
+            reduce_resource_pressure: "降低资源压力",
+            switch_context_or_update_protection: "切换上下文或更新规则",
+            inspect_runtime_error: "检查运行时错误",
+            repair_native_helper: "重建或恢复 helper",
+            retry_or_rebuild_native_helper: "重试或重建 helper",
+            repair_local_database: "修复本地数据库",
+            rebuild_native_modules: "重建 native 模块",
+            run_cleanup_or_increase_storage_budget: "清理或提高存储预算"
+          }
+        : {
+            grant_screen_recording_permission: "Grant Screen Recording",
+            wait_for_next_burst: "Wait for next burst",
+            resume_observation: "Resume observation",
+            resume_or_enable_observation: "Resume or enable observation",
+            reduce_resource_pressure: "Reduce resource pressure",
+            switch_context_or_update_protection: "Switch context or update rules",
+            inspect_runtime_error: "Inspect runtime error",
+            repair_native_helper: "Repair native helper",
+            retry_or_rebuild_native_helper: "Retry or rebuild helper",
+            repair_local_database: "Repair local database",
+            rebuild_native_modules: "Rebuild native modules",
+            run_cleanup_or_increase_storage_budget: "Cleanup or increase storage"
+          };
+      return labels[nextAction];
     }
   };
 }

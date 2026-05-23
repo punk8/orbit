@@ -53,6 +53,27 @@ pnpm source-install:verify
 It runs tests, typecheck, lint, desktop build, packaged directory build, packaged smoke, and the CLI
 release gate with `ORBIT_HOME="$PWD/.tmp/source-install-release-gate"`.
 
+## Runtime hardening status
+
+The menu bar, Settings, CLI status, and release gate expose the same source-install runtime hardening
+map. Each entry has a user-visible state, root reason, next action, and audit coverage so trusted
+dogfood users can recover locally without guessing.
+
+| Failure kind | Expected state | Next action |
+| --- | --- | --- |
+| `helper_missing` | Error | Rebuild/package again and rerun `pnpm --filter @orbit/desktop package:smoke`. |
+| `helper_timeout` | Error | Retry after checking Screen/OCR helper health and packaged helper permissions. |
+| `permission_missing` | Needs permission | Grant macOS Screen Recording to the Orbit app that is currently running. |
+| `permission_revoked` | Needs permission | Re-grant Screen Recording and confirm Orbit returns to observing only when not paused/stopped/disabled. |
+| `protected_context` | Protected | Leave the protected app/window/domain or adjust protected rules deliberately. |
+| `resource_paused` | Paused by resource policy | Reduce resource pressure or wait for the scheduler to resume. |
+| `sqlite_lock` | Error | Stop other Orbit processes using the same `ORBIT_HOME`, then retry with a repo-local home. |
+| `native_abi_mismatch` | Error | Run Electron and Node native rebuilds so `better-sqlite3` matches the active runtime ABI. |
+| `storage_cap_reached` | Paused by resource policy | Run cleanup or increase the local storage budget before continuing observation. |
+
+This source-install dogfood path is intentionally not a notarized public distribution. It does not
+cover notarized public distribution, auto-update, cloud sync, hosted support, or broad telemetry.
+
 ## Run The Desktop App
 
 For development:

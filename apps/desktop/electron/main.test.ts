@@ -41,6 +41,9 @@ describe("desktop main process runtime guards", () => {
     expect(main).toContain("syncDogfoodRuntimePermissionForDesktop");
     expect(main).toContain("readDesktopRuntimeLocale");
     expect(main).toContain("runtimeLocale.dogfoodRuntimeState");
+    expect(main).toContain("runtimeLocale.dogfoodNextAction");
+    expect(main).toContain("dogfoodRuntime.nextAction");
+    expect(main).toContain("repair_native_helper");
     expect(main).toContain("runtimeLocale.tray.showOrbit");
     expect(main).toContain("runtimeLocale.tray.openActivity");
     expect(main).toContain("runtimeLocale.tray.openSettings");

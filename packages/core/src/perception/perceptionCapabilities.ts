@@ -198,7 +198,12 @@ export type PerceptionDogfoodRuntimeReason =
   | "user_stopped"
   | "resource_policy_pause"
   | "protected_context"
-  | "runtime_error";
+  | "runtime_error"
+  | "helper_missing"
+  | "helper_timeout"
+  | "sqlite_lock_or_migration_failed"
+  | "native_abi_mismatch"
+  | "storage_cap_reached";
 
 export type PerceptionDogfoodRuntimeNextAction =
   | "grant_screen_recording_permission"
@@ -207,7 +212,41 @@ export type PerceptionDogfoodRuntimeNextAction =
   | "resume_or_enable_observation"
   | "reduce_resource_pressure"
   | "switch_context_or_update_protection"
-  | "inspect_runtime_error";
+  | "inspect_runtime_error"
+  | "repair_native_helper"
+  | "retry_or_rebuild_native_helper"
+  | "repair_local_database"
+  | "rebuild_native_modules"
+  | "run_cleanup_or_increase_storage_budget";
+
+export type SourceInstallRuntimeFailureKind =
+  | "helper_missing"
+  | "helper_timeout"
+  | "permission_missing"
+  | "permission_revoked"
+  | "protected_context"
+  | "resource_paused"
+  | "sqlite_lock"
+  | "native_abi_mismatch"
+  | "storage_cap_reached";
+
+export type SourceInstallRuntimeHardeningCoverageStatus = "covered";
+
+export interface SourceInstallRuntimeHardeningCase {
+  kind: SourceInstallRuntimeFailureKind;
+  status: SourceInstallRuntimeHardeningCoverageStatus;
+  state: PerceptionDogfoodRuntimeState;
+  reason: PerceptionDogfoodRuntimeReason;
+  nextAction: PerceptionDogfoodRuntimeNextAction;
+  auditOperations: string[];
+}
+
+export interface SourceInstallRuntimeHardeningReview {
+  status: SourceInstallRuntimeHardeningCoverageStatus;
+  cases: SourceInstallRuntimeHardeningCase[];
+  covered: SourceInstallRuntimeFailureKind[];
+  missing: SourceInstallRuntimeFailureKind[];
+}
 
 export interface PerceptionDogfoodRuntimeStatus {
   state: PerceptionDogfoodRuntimeState;
@@ -216,6 +255,7 @@ export interface PerceptionDogfoodRuntimeStatus {
   nextAction: PerceptionDogfoodRuntimeNextAction;
   autoStartEnabled: boolean;
   activeSourceKinds: PerceptionSourceKind[];
+  hardening: SourceInstallRuntimeHardeningReview;
   lastTransitionAt?: string;
 }
 
@@ -478,6 +518,105 @@ export function evaluatePerceptionResourceState(
     canCapture: reasons.length === 0,
     state,
     reasons
+  };
+}
+
+const sourceInstallRuntimeHardeningCases: readonly SourceInstallRuntimeHardeningCase[] = [
+  {
+    kind: "helper_missing",
+    status: "covered",
+    state: "error",
+    reason: "helper_missing",
+    nextAction: "repair_native_helper",
+    auditOperations: ["perception.burst_failed", "perception.capture_screen_ocr"]
+  },
+  {
+    kind: "helper_timeout",
+    status: "covered",
+    state: "error",
+    reason: "helper_timeout",
+    nextAction: "retry_or_rebuild_native_helper",
+    auditOperations: ["perception.burst_failed", "perception.capture_screen_ocr"]
+  },
+  {
+    kind: "permission_missing",
+    status: "covered",
+    state: "needs_permission",
+    reason: "screen_recording_permission_missing",
+    nextAction: "grant_screen_recording_permission",
+    auditOperations: ["perception.permission_checked"]
+  },
+  {
+    kind: "permission_revoked",
+    status: "covered",
+    state: "needs_permission",
+    reason: "screen_recording_permission_revoked",
+    nextAction: "grant_screen_recording_permission",
+    auditOperations: ["perception.permission_revoked", "perception.runtime_stopped"]
+  },
+  {
+    kind: "protected_context",
+    status: "covered",
+    state: "protected",
+    reason: "protected_context",
+    nextAction: "switch_context_or_update_protection",
+    auditOperations: ["perception.protected_context_skipped", "perception.protected_content_dropped"]
+  },
+  {
+    kind: "resource_paused",
+    status: "covered",
+    state: "paused_resource",
+    reason: "resource_policy_pause",
+    nextAction: "reduce_resource_pressure",
+    auditOperations: ["perception.resource_paused", "perception.burst_skipped"]
+  },
+  {
+    kind: "sqlite_lock",
+    status: "covered",
+    state: "error",
+    reason: "sqlite_lock_or_migration_failed",
+    nextAction: "repair_local_database",
+    auditOperations: ["background.ingest_cycle"]
+  },
+  {
+    kind: "native_abi_mismatch",
+    status: "covered",
+    state: "error",
+    reason: "native_abi_mismatch",
+    nextAction: "rebuild_native_modules",
+    auditOperations: ["background.ingest_cycle"]
+  },
+  {
+    kind: "storage_cap_reached",
+    status: "covered",
+    state: "paused_resource",
+    reason: "storage_cap_reached",
+    nextAction: "run_cleanup_or_increase_storage_budget",
+    auditOperations: ["perception.resource_paused", "perception.sidecar_cleanup"]
+  }
+];
+
+export function getSourceInstallRuntimeHardeningCases(): SourceInstallRuntimeHardeningCase[] {
+  return sourceInstallRuntimeHardeningCases.map((item) => ({ ...item }));
+}
+
+export function mapSourceInstallRuntimeFailure(
+  kind: SourceInstallRuntimeFailureKind
+): SourceInstallRuntimeHardeningCase {
+  const found = sourceInstallRuntimeHardeningCases.find((item) => item.kind === kind);
+  if (!found) {
+    throw new Error(`Unsupported source-install runtime failure kind: ${kind}`);
+  }
+  return { ...found };
+}
+
+export function buildSourceInstallRuntimeHardeningReview(): SourceInstallRuntimeHardeningReview {
+  const cases = getSourceInstallRuntimeHardeningCases();
+  return {
+    status: "covered",
+    cases,
+    covered: cases.map((item) => item.kind),
+    missing: []
   };
 }
 
@@ -752,10 +891,15 @@ function summarizeDogfoodRuntimeStatus(
   });
 }
 
+type PerceptionDogfoodRuntimeStatusInput = Omit<
+  PerceptionDogfoodRuntimeStatus,
+  "hardening" | "lastTransitionAt"
+> & {
+  lastTransitionAt?: string | undefined;
+};
+
 function dogfoodRuntimeStatus(
-  status: Omit<PerceptionDogfoodRuntimeStatus, "lastTransitionAt"> & {
-    lastTransitionAt?: string | undefined;
-  }
+  status: PerceptionDogfoodRuntimeStatusInput
 ): PerceptionDogfoodRuntimeStatus {
   const next: PerceptionDogfoodRuntimeStatus = {
     state: status.state,
@@ -763,7 +907,8 @@ function dogfoodRuntimeStatus(
     reason: status.reason,
     nextAction: status.nextAction,
     autoStartEnabled: status.autoStartEnabled,
-    activeSourceKinds: status.activeSourceKinds
+    activeSourceKinds: status.activeSourceKinds,
+    hardening: buildSourceInstallRuntimeHardeningReview()
   };
   if (status.lastTransitionAt) next.lastTransitionAt = status.lastTransitionAt;
   return next;

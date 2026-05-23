@@ -1064,6 +1064,29 @@ export function SettingsPage({
                   </div>
                   <p className="muted">{t("settings.cleanupControlsNote")}</p>
                 </div>
+                <div className="settings-policy-block runtime-hardening-panel">
+                  <h4>{t("settings.runtimeHardeningTitle")}</h4>
+                  <div className="audit-review-list">
+                    {dogfoodRuntime.hardening.cases.map((item) => (
+                      <article className="audit-review-item" key={item.kind}>
+                        <div>
+                          <strong>
+                            {t(`runtimeHardening.${item.kind}` as Parameters<typeof t>[0])}
+                          </strong>
+                          <p className="muted">
+                            {`${tDogfoodRuntimeReason(t, item.reason)} · ${tDogfoodNextAction(t, item.nextAction)}`}
+                          </p>
+                        </div>
+                        <div className="source-policy-badges">
+                          <span className={`status-pill ${item.status}`}>
+                            {tRuntimeHardeningStatus(t, item.status)}
+                          </span>
+                          <span>{tDogfoodRuntimeState(t, item.state)}</span>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </div>
                 <p className="muted">{t("settings.screenOcrRuntimeNote")}</p>
               </div>
 
@@ -1590,6 +1613,14 @@ function tDogfoodNextAction(
   nextAction: DesktopSnapshot["perception"]["dogfoodRuntime"]["nextAction"]
 ): string {
   return t(`dogfoodNextAction.${nextAction}` as Parameters<typeof t>[0]);
+}
+
+function tRuntimeHardeningStatus(
+  t: ReturnType<typeof useI18n>["t"],
+  status: DesktopSnapshot["perception"]["dogfoodRuntime"]["hardening"]["cases"][number]["status"]
+): string {
+  if (status === "covered") return t("runtimeHardening.status.covered");
+  return status;
 }
 
 function tRuntimeStatus(

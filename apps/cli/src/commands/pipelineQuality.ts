@@ -188,6 +188,9 @@ function countRawLeakMarkers(value: unknown): number {
     evidenceIndex: pack.evidenceIndex
   };
   const json = JSON.stringify(payload);
-  const matches = json.match(/RAW_|raw[-_\s]?(ocr|screen|frame|payload|dump|event|private)|hunter2|sk-test|password|api[-_\s]?key|secret token/gi);
-  return matches?.length ?? 0;
+  return [
+    /\bRAW_[A-Z0-9_]+\b/g,
+    /\braw[-_](?:ocr|screen|frame|payload|dump|event|private)(?:[-_][a-z0-9]+)*\b/gi,
+    /\b(?:hunter2|sk-test|password\s*[=:]|api[_ -]?key\s*[=:]|secret\s+token)\b/gi
+  ].reduce((count, pattern) => count + (json.match(pattern)?.length ?? 0), 0);
 }

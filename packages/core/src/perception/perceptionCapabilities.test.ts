@@ -5,6 +5,8 @@ import {
   defaultPerceptionResourcePolicy,
   evaluatePerceptionResourceState,
   createPerceptionPolicySnapshot,
+  getSourceInstallRuntimeHardeningCases,
+  mapSourceInstallRuntimeFailure,
   readPerceptionSamplingPreset,
   perceptionCapabilityDescriptors
 } from "../index";
@@ -207,6 +209,66 @@ describe("perception capability descriptors", () => {
         "provider_input_size_cap",
         "provider_token_cap"
       ])
+    });
+  });
+
+  it("maps source-install runtime failures to visible status reasons and next actions", () => {
+    expect(getSourceInstallRuntimeHardeningCases().map((item) => item.kind)).toEqual([
+      "helper_missing",
+      "helper_timeout",
+      "permission_missing",
+      "permission_revoked",
+      "protected_context",
+      "resource_paused",
+      "sqlite_lock",
+      "native_abi_mismatch",
+      "storage_cap_reached"
+    ]);
+
+    expect(mapSourceInstallRuntimeFailure("helper_missing")).toMatchObject({
+      state: "error",
+      reason: "helper_missing",
+      nextAction: "repair_native_helper"
+    });
+    expect(mapSourceInstallRuntimeFailure("helper_timeout")).toMatchObject({
+      state: "error",
+      reason: "helper_timeout",
+      nextAction: "retry_or_rebuild_native_helper"
+    });
+    expect(mapSourceInstallRuntimeFailure("permission_missing")).toMatchObject({
+      state: "needs_permission",
+      reason: "screen_recording_permission_missing",
+      nextAction: "grant_screen_recording_permission"
+    });
+    expect(mapSourceInstallRuntimeFailure("permission_revoked")).toMatchObject({
+      state: "needs_permission",
+      reason: "screen_recording_permission_revoked",
+      nextAction: "grant_screen_recording_permission"
+    });
+    expect(mapSourceInstallRuntimeFailure("protected_context")).toMatchObject({
+      state: "protected",
+      reason: "protected_context",
+      nextAction: "switch_context_or_update_protection"
+    });
+    expect(mapSourceInstallRuntimeFailure("resource_paused")).toMatchObject({
+      state: "paused_resource",
+      reason: "resource_policy_pause",
+      nextAction: "reduce_resource_pressure"
+    });
+    expect(mapSourceInstallRuntimeFailure("sqlite_lock")).toMatchObject({
+      state: "error",
+      reason: "sqlite_lock_or_migration_failed",
+      nextAction: "repair_local_database"
+    });
+    expect(mapSourceInstallRuntimeFailure("native_abi_mismatch")).toMatchObject({
+      state: "error",
+      reason: "native_abi_mismatch",
+      nextAction: "rebuild_native_modules"
+    });
+    expect(mapSourceInstallRuntimeFailure("storage_cap_reached")).toMatchObject({
+      state: "paused_resource",
+      reason: "storage_cap_reached",
+      nextAction: "run_cleanup_or_increase_storage_budget"
     });
   });
 });
