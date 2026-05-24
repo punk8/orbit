@@ -78,6 +78,43 @@ describe("perception sidecar cleanup", () => {
     }
   });
 
+  it("retains raw sidecars until their local storage TTL expires", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-perception-cleanup-stored-at-test-"));
+    tempDirs.push(orbitHome);
+    const sidecarDir = join(orbitHome, "perception-sidecars");
+    mkdirSync(sidecarDir, { recursive: true });
+    const rawPath = join(sidecarDir, "historical-frame.png");
+    writeFileSync(rawPath, "mock historical raw frame");
+    const database = openOrbitDatabase({ orbitHome });
+
+    try {
+      updatePerceptionSourcePolicy(database.db, "screen", {
+        canStoreRaw: true,
+        rawRetentionTtlMinutes: 72 * 60
+      });
+      new SourceRepository(database.db).upsertSource(makePerceptionSource());
+      new EventRepository(database.db).upsertEvent(
+        makeRawScreenEvent(rawPath, {
+          occurredAt: "2026-05-21T00:00:00.000Z",
+          rawFrameStoredAt: "2026-05-24T08:00:00.000Z"
+        })
+      );
+
+      const result = cleanupPerceptionSidecars(database, {
+        now: "2026-05-24T09:00:00.000Z"
+      });
+
+      expect(result.cleanedEvents).toBe(0);
+      expect(result.retainedRawSidecars).toBe(1);
+      expect(existsSync(rawPath)).toBe(true);
+      expect(new EventRepository(database.db).getEvent("evt_raw_screen")?.content.rawRef).toBe(
+        rawPath
+      );
+    } finally {
+      database.close();
+    }
+  });
+
   it("deletes source-derived events by time range while preserving derived summaries with unavailable evidence state", () => {
     const orbitHome = mkdtempSync(join(tmpdir(), "orbit-perception-delete-events-test-"));
     tempDirs.push(orbitHome);
@@ -188,7 +225,11 @@ function makePerceptionSource(): SourceRecord {
   };
 }
 
-function makeRawScreenEvent(rawPath: string): Event {
+function makeRawScreenEvent(
+  rawPath: string,
+  overrides: { occurredAt?: string; rawFrameStoredAt?: string } = {}
+): Event {
+  const occurredAt = overrides.occurredAt ?? "2026-05-21T00:00:00.000Z";
   return {
     id: "evt_raw_screen",
     schemaVersion: 1,
@@ -198,8 +239,8 @@ function makeRawScreenEvent(rawPath: string): Event {
       externalId: "frame",
       pointer: "screen://capture/frame"
     },
-    occurredAt: "2026-05-21T00:00:00.000Z",
-    observedAt: "2026-05-21T00:00:00.000Z",
+    occurredAt,
+    observedAt: occurredAt,
     context: {
       app: "Orbit",
       windowTitle: "Alpha"
@@ -217,7 +258,10 @@ function makeRawScreenEvent(rawPath: string): Event {
           sourcePointer: "screen://capture/frame",
           hash: "frame_hash"
         }
-      ]
+      ],
+      metadata: {
+        ...(overrides.rawFrameStoredAt ? { rawFrameStoredAt: overrides.rawFrameStoredAt } : {})
+      }
     },
     privacy: {
       sensitivity: "confidential",

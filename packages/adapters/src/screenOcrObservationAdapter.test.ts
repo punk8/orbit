@@ -228,6 +228,35 @@ describe("screen/OCR perception adapters", () => {
     expect(screen.events[0]?.privacy.retentionPolicyId).toBe("perception_raw_ttl_72h");
   });
 
+  it("starts raw sidecar retention from the local storage time while preserving capture time", async () => {
+    const frames = [
+      frame("frame_historical_capture", {
+        rawLocalRef: "/orbit-home/perception-sidecars/frame_historical_capture.png",
+        rawStoredAt: "2026-05-24T08:00:00.000Z",
+        sizeBytes: 80_000
+      })
+    ];
+
+    const screen = await readAdapter(
+      new ScreenObservationAdapter({
+        frames,
+        scope: displayScope,
+        permission: screenPermission("granted"),
+        allowRawFrameStorage: true,
+        rawRetentionTtlMinutes: 72 * 60
+      })
+    );
+
+    expect(screen.events[0]?.occurredAt).toBe("2026-05-21T02:00:00.000Z");
+    expect(screen.events[0]?.content.metadata).toMatchObject({
+      frameHash: "frame_historical_capture",
+      capturedAt: "2026-05-21T02:00:00.000Z",
+      rawFrameStoredAt: "2026-05-24T08:00:00.000Z",
+      rawFrameExpiresAt: "2026-05-27T08:00:00.000Z",
+      rawFrameState: "available"
+    });
+  });
+
   it("suppresses duplicate frame hashes before OCR", async () => {
     const frames = [
       frame("duplicate_frame_1", {

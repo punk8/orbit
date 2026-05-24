@@ -14,7 +14,7 @@ import {
   normalizeObservationInputs,
   perceptionRawRetentionPolicyId
 } from "@orbit/core";
-import { existsSync, unlinkSync } from "node:fs";
+import { existsSync, statSync, unlinkSync } from "node:fs";
 import { isAbsolute } from "node:path";
 import { perceptionPermissionScope } from "../perception/perceptionAdapterPolicy";
 import type { ScreenCaptureFrame, ScreenCaptureScope } from "./screenCaptureTypes";
@@ -131,6 +131,7 @@ export function frameToScreenObservationInput(
   rawRetentionTtlMinutes = DEFAULT_RAW_FRAME_TTL_MINUTES
 ): ObservationInput {
   const rawFrameStored = allowRawFrameStorage && Boolean(frame.rawLocalRef);
+  const rawStoredAt = rawFrameStored ? rawFrameStoredAt(frame) : undefined;
   return {
     type: "screen_observation",
     tier: "tier3",
@@ -153,7 +154,8 @@ export function frameToScreenObservationInput(
       ...(rawFrameStored
         ? {
             rawRetentionTtlMinutes,
-            rawFrameExpiresAt: addMinutes(frame.capturedAt, rawRetentionTtlMinutes),
+            ...(rawStoredAt ? { rawStoredAt } : {}),
+            rawFrameExpiresAt: addMinutes(rawStoredAt ?? frame.capturedAt, rawRetentionTtlMinutes),
             protectionStatus: "allowed" as const,
             cleanupState: "retained" as const
           }
@@ -175,10 +177,12 @@ export function screenFrameRetentionMetadata(
   rawRetentionTtlMinutes = DEFAULT_RAW_FRAME_TTL_MINUTES
 ): Record<string, unknown> {
   const retentionPolicyId = perceptionRawRetentionPolicyId(rawRetentionTtlMinutes);
+  const rawStoredAt = rawFrameStoredAt(frame);
   return {
     capturedAt: frame.capturedAt,
     retentionPolicyId,
-    rawFrameExpiresAt: addMinutes(frame.capturedAt, rawRetentionTtlMinutes),
+    ...(rawStoredAt ? { rawFrameStoredAt: rawStoredAt } : {}),
+    rawFrameExpiresAt: addMinutes(rawStoredAt ?? frame.capturedAt, rawRetentionTtlMinutes),
     rawFrameState: "available",
     rawFrameLocalRef: frame.rawLocalRef,
     rawFrameSizeBytes: frame.sizeBytes,
@@ -189,6 +193,15 @@ export function screenFrameRetentionMetadata(
 
 function addMinutes(timestamp: string, minutes: number): string {
   return new Date(new Date(timestamp).getTime() + minutes * 60_000).toISOString();
+}
+
+function rawFrameStoredAt(frame: ScreenCaptureFrame): string | undefined {
+  if (frame.rawStoredAt) return frame.rawStoredAt;
+  if (!frame.rawLocalRef || !isAbsolute(frame.rawLocalRef) || !existsSync(frame.rawLocalRef)) {
+    return undefined;
+  }
+  const mtimeMs = statSync(frame.rawLocalRef).mtimeMs;
+  return new Date(mtimeMs).toISOString();
 }
 
 function deleteProtectedRawFrameSidecar(frame: ScreenCaptureFrame): void {

@@ -403,9 +403,18 @@ function rawCleanupReason(
   if (source.policy.deleteRawOnDisable && !sourceEnabled) return "source_disabled";
   const ttl = source.policy.rawRetentionTtlMinutes;
   if (!ttl) return "raw_ttl_missing";
-  const ageMs = now.getTime() - new Date(event.occurredAt).getTime();
+  const ageMs = now.getTime() - rawRetentionStartAt(event).getTime();
   if (ageMs >= ttl * 60_000) return "raw_ttl_expired";
   return undefined;
+}
+
+function rawRetentionStartAt(event: Event): Date {
+  const storedAt = readString(event.content.metadata?.rawFrameStoredAt);
+  return new Date(storedAt ?? event.occurredAt);
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value : undefined;
 }
 
 function removeRawSidecar(event: Event): Event {

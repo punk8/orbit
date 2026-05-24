@@ -357,6 +357,7 @@ function buildContent(
                 rawFrameLocalRef: input.screen.rawLocalRef,
                 rawFrameSizeBytes: input.screen.sizeBytes,
                 capturedAt: input.occurredAt,
+                rawFrameStoredAt: input.screen.rawStoredAt ?? input.occurredAt,
                 retentionPolicyId: input.screen.rawRetentionTtlMinutes
                   ? perceptionRawRetentionPolicyId(input.screen.rawRetentionTtlMinutes)
                   : "perception_summary_only",

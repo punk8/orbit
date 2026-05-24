@@ -103,6 +103,7 @@ export interface ObservationInput {
     rawLocalRef?: string;
     sizeBytes?: number;
     rawRetentionTtlMinutes?: number;
+    rawStoredAt?: string;
     rawFrameExpiresAt?: string;
     protectionStatus?: "allowed" | "blocked_protected";
     cleanupState?: "retained" | "expired" | "deleted" | "blocked" | "source_disabled";

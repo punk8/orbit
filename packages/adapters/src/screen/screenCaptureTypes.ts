@@ -39,6 +39,7 @@ export interface ScreenCaptureFrame {
   frameHash: string;
   redactedSummary?: string;
   rawLocalRef?: string;
+  rawStoredAt?: string;
   sizeBytes?: number;
   ocrText?: string;
 }
