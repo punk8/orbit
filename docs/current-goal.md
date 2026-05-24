@@ -4,6 +4,8 @@
 
 Orbit 接下来的设计和开发目标是从“工程骨架可运行”推进到“产品可用”。后续所有 UI、数据链路、权限治理、AI provider、测试和文档决策，都应优先服务这个目标。
 
+如果开启新的 Codex goal 模式线程，请先使用 [Codex Goal 模式启动说明](goal-mode-launch.md) 中的启动 prompt 和验收边界。
+
 ## 目标定义
 
 产品可用不是逐像素复刻 `assets/product-vision`，而是让一个可信的本地优先工作上下文产品真正能被 dogfood：
@@ -48,4 +50,3 @@ Orbit 接下来的设计和开发目标是从“工程骨架可运行”推进�
 - 用户能看到来源、证据、状态、限制和下一步动作。
 - `pnpm typecheck`、`pnpm test`、`pnpm lint` 或该 checkpoint 对应验收命令已运行并记录结果。
 - 没有扩大默认采集范围、默认 raw 存储、默认外部 AI 发送或默认 Agent 导出。
-
