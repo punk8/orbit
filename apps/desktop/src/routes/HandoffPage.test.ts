@@ -20,6 +20,11 @@ describe("HandoffPage", () => {
     expect(source).toContain("handoff.currentState");
     expect(source).toContain("handoff.completedOrAttempted");
     expect(source).toContain("handoff.nextSteps");
+    expect(source).toContain("handoff.safeToExport");
+    expect(source).toContain("handoff.excludedByPolicy");
+    expect(source).toContain("handoff.preflightTotalRecentActivity");
+    expect(source).toContain("HandoffSafetySummary");
+    expect(source).toContain("buildHandoffMetrics");
     expect(source).toContain("handoff.empty");
     expect(source).toContain("handoff.error");
     expect(source).toContain("navigator.clipboard.writeText");

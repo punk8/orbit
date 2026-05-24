@@ -22,6 +22,7 @@ export function HandoffPage({
   const [copied, setCopied] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [previewFormat, setPreviewFormat] = useState<"Markdown" | "JSON">("Markdown");
+  const metrics = buildHandoffMetrics(snapshot, result, t);
 
   async function generate(
     input: { kind: "today"; date?: string } | { kind: "project"; project: string }
@@ -48,20 +49,24 @@ export function HandoffPage({
     <div className="page-grid">
       <div className="metrics-row">
         <MetricCard
+          label={t("handoff.safeToExport")}
+          value={metrics.safeToExport}
+          detail={metrics.safeDetail}
+        />
+        <MetricCard
+          label={t("handoff.preflightTotalRecentActivity")}
+          value={metrics.totalRecentActivity}
+          detail={metrics.totalRecentActivityDetail}
+        />
+        <MetricCard
+          label={t("handoff.excludedByPolicy")}
+          value={metrics.excludedByPolicy}
+          detail={metrics.excludedDetail}
+        />
+        <MetricCard
           label={t("handoff.evidence")}
-          value={result?.handoff.evidenceIndex.length ?? 0}
-        />
-        <MetricCard
-          label={t("section.recentActivity")}
-          value={result?.handoff.recentActivity.length ?? snapshot.today.activitySessions.length}
-        />
-        <MetricCard
-          label={t("section.knowledgeArtifacts")}
-          value={result?.handoff.confirmedKnowledge.length ?? 0}
-        />
-        <MetricCard
-          label={t("section.memoryStore")}
-          value={result?.handoff.activeMemories.length ?? 0}
+          value={metrics.evidencePointers}
+          detail={metrics.evidenceDetail}
         />
       </div>
 
@@ -98,6 +103,14 @@ export function HandoffPage({
       </Section>
 
       {error ? <div className="error-banner">{`${t("handoff.error")}: ${error}`}</div> : null}
+
+      {result ? (
+        <HandoffSafetySummary
+          pack={result.handoff}
+          safeToExport={metrics.safeToExport}
+          excludedByPolicy={metrics.excludedByPolicy}
+        />
+      ) : null}
 
       {result ? (
         <div className="page-grid two-column compact-page-grid">
@@ -252,6 +265,82 @@ function HandoffBulletList({ items }: { items: string[] }): ReactElement {
   );
 }
 
+function HandoffSafetySummary({
+  pack,
+  safeToExport,
+  excludedByPolicy
+}: {
+  pack: HandoffPack;
+  safeToExport: number | string;
+  excludedByPolicy: number | string;
+}): ReactElement {
+  const { t } = useI18n();
+  return (
+    <Section title={t("handoff.safetySummary")}>
+      <div className="handoff-safety-summary">
+        <div>
+          <p className="eyebrow">{t("handoff.safeToExport")}</p>
+          <strong>{safeToExport}</strong>
+          <span>{t("handoff.safeToExportDetail")}</span>
+        </div>
+        <div>
+          <p className="eyebrow">{t("handoff.excludedByPolicy")}</p>
+          <strong>{excludedByPolicy}</strong>
+          <span>{t("handoff.excludedByPolicyDetail")}</span>
+        </div>
+        <div>
+          <p className="eyebrow">{t("handoff.evidence")}</p>
+          <strong>{pack.evidenceIndex.length}</strong>
+          <span>{t("handoff.evidenceDetail")}</span>
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+function buildHandoffMetrics(
+  snapshot: DesktopSnapshot,
+  result: DesktopHandoffResult | undefined,
+  t: ReturnType<typeof useI18n>["t"]
+): {
+  safeToExport: number | string;
+  safeDetail: string;
+  totalRecentActivity: number;
+  totalRecentActivityDetail: string;
+  excludedByPolicy: number | string;
+  excludedDetail: string;
+  evidencePointers: number;
+  evidenceDetail: string;
+} {
+  if (!result) {
+    return {
+      safeToExport: t("handoff.notGenerated"),
+      safeDetail: t("handoff.safePendingDetail"),
+      totalRecentActivity: snapshot.today.activitySessions.length,
+      totalRecentActivityDetail: t("handoff.preflightTotalRecentActivityDetail"),
+      excludedByPolicy: t("handoff.notGenerated"),
+      excludedDetail: t("handoff.excludedPendingDetail"),
+      evidencePointers: 0,
+      evidenceDetail: t("handoff.evidencePendingDetail")
+    };
+  }
+  const pack = result.handoff;
+  return {
+    safeToExport:
+      pack.recentActivity.length +
+      pack.confirmedKnowledge.length +
+      pack.activeMemories.length +
+      pack.recommendedNextActions.length,
+    safeDetail: t("handoff.safeToExportDetail"),
+    totalRecentActivity: snapshot.today.activitySessions.length,
+    totalRecentActivityDetail: t("handoff.preflightTotalRecentActivityDetail"),
+    excludedByPolicy: pack.excluded.length,
+    excludedDetail: t("handoff.excludedByPolicyDetail"),
+    evidencePointers: pack.evidenceIndex.length,
+    evidenceDetail: t("handoff.evidenceDetail")
+  };
+}
+
 function formatCurrentStateForDisplay(pack: HandoffPack, zh: boolean): string[] {
   if (!zh) return pack.currentState;
   return [
@@ -286,6 +375,8 @@ function handoffExclusionReasonLabel(
   if (reason === "missing_evidence") return t("handoff.exclusion.missingEvidence");
   if (reason === "secret_content") return t("handoff.exclusion.secretContent");
   if (reason === "failed_redaction") return t("handoff.exclusion.failedRedaction");
+  if (reason === "raw_payload_excluded") return t("handoff.exclusion.rawPayloadExcluded");
+  if (reason === "private_payload_excluded") return t("handoff.exclusion.privatePayloadExcluded");
   return t("handoff.exclusion.sourceExportBlocked");
 }
 
@@ -303,6 +394,12 @@ function handoffExclusionDescription(
   if (reason === "missing_evidence") return t("handoff.exclusion.description.missingEvidence");
   if (reason === "secret_content") return t("handoff.exclusion.description.secretContent");
   if (reason === "failed_redaction") return t("handoff.exclusion.description.failedRedaction");
+  if (reason === "raw_payload_excluded") {
+    return t("handoff.exclusion.description.rawPayloadExcluded");
+  }
+  if (reason === "private_payload_excluded") {
+    return t("handoff.exclusion.description.privatePayloadExcluded");
+  }
   return t("handoff.exclusion.description.sourceExportBlocked");
 }
 
@@ -318,5 +415,7 @@ function handoffExclusionNextAction(
   if (reason === "missing_evidence") return t("handoff.exclusion.nextAction.rebuildEvidence");
   if (reason === "secret_content") return t("handoff.exclusion.nextAction.redactSecret");
   if (reason === "failed_redaction") return t("handoff.exclusion.nextAction.fixRedaction");
+  if (reason === "raw_payload_excluded") return t("handoff.exclusion.nextAction.useSummary");
+  if (reason === "private_payload_excluded") return t("handoff.exclusion.nextAction.redactPrivate");
   return t("handoff.exclusion.nextAction.allowExport");
 }

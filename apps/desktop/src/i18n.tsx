@@ -148,6 +148,21 @@ const translations = {
     "activity.notIndexed": "not indexed",
     "activity.rawAvailable": "raw available",
     "activity.rawUnavailable": "raw unavailable",
+    "activity.rawAvailableDetail": "Raw frame is still inside the local short-retention store.",
+    "activity.rawNotStored": "raw not stored",
+    "activity.rawExpired": "raw expired",
+    "activity.rawExpiredDetail":
+      "The raw frame passed its short-retention window; Orbit keeps the summary and evidence pointer only.",
+    "activity.rawDeleted": "raw cleaned",
+    "activity.rawDeletedDetail":
+      "The raw frame was removed by cleanup; derived Activity, Knowledge, and Handoff pointers remain.",
+    "activity.rawBlockedProtected": "raw blocked by protected app",
+    "activity.rawBlockedProtectedDetail":
+      "Capture was skipped before storage because this context matched a protected app policy.",
+    "activity.rawSourceDisabled": "raw source disabled",
+    "activity.rawSourceDisabledDetail":
+      "The source is disabled, so Orbit keeps only existing summaries and evidence pointers.",
+    "activity.rawPointerPreserved": "Evidence pointer preserved; raw path is hidden from this view.",
     "activity.localOnly": "local only",
     "activity.evidenceLayer": "Evidence layer",
     "activity.loadingDetail": "Loading activity detail",
@@ -429,6 +444,19 @@ const translations = {
     "handoff.noneCompletedOrAttempted": "No completed or attempted work yet",
     "handoff.noNextSteps": "No next steps available",
     "handoff.nextStepConfidence": "Confidence",
+    "handoff.safeToExport": "Safe to export",
+    "handoff.safeToExportDetail": "Agent-ready Activity, confirmed Knowledge, Memory, and recommendations.",
+    "handoff.safePendingDetail": "Generate a handoff to compute exportable context.",
+    "handoff.excludedByPolicy": "Excluded by policy",
+    "handoff.excludedByPolicyDetail": "Drafts, unconfirmed memory, raw/private payloads, or blocked sources.",
+    "handoff.excludedPendingDetail": "Generate a handoff to see excluded content and reasons.",
+    "handoff.preflightTotalRecentActivity": "Total recent activity",
+    "handoff.preflightTotalRecentActivityDetail":
+      "All recent Activity before Agent export filtering is applied.",
+    "handoff.evidenceDetail": "Traceable source pointers included in the generated pack.",
+    "handoff.evidencePendingDetail": "Evidence pointers appear after generation.",
+    "handoff.notGenerated": "Not generated",
+    "handoff.safetySummary": "Safety Summary",
     "handoff.progress.completed": "Completed",
     "handoff.progress.attempted": "Attempted",
     "handoff.safetyBoundaries": "Safety Boundaries",
@@ -445,6 +473,8 @@ const translations = {
     "handoff.exclusion.missingEvidence": "Missing evidence",
     "handoff.exclusion.secretContent": "Secret content",
     "handoff.exclusion.failedRedaction": "Redaction failed",
+    "handoff.exclusion.rawPayloadExcluded": "Raw payload excluded",
+    "handoff.exclusion.privatePayloadExcluded": "Private payload excluded",
     "handoff.exclusion.sourceExportBlocked": "Source export blocked",
     "handoff.exclusion.reason": "Reason",
     "handoff.exclusion.description.draftKnowledge":
@@ -459,6 +489,10 @@ const translations = {
       "Secret-classified evidence is blocked from Handoff by default.",
     "handoff.exclusion.description.failedRedaction":
       "Evidence with failed redaction is excluded from persistence-sensitive exports.",
+    "handoff.exclusion.description.rawPayloadExcluded":
+      "Raw screenshots, OCR dumps, audio, or transcript payloads stay out of default handoff.",
+    "handoff.exclusion.description.privatePayloadExcluded":
+      "Private payload fields are excluded; only summary and source pointers may be used.",
     "handoff.exclusion.description.sourceExportBlocked":
       "The source policy does not allow this evidence to be exported to agents.",
     "handoff.exclusion.nextAction": "Next action",
@@ -471,6 +505,10 @@ const translations = {
     "handoff.exclusion.nextAction.redactSecret":
       "Remove or redact the secret content before export.",
     "handoff.exclusion.nextAction.fixRedaction": "Fix redaction before allowing export.",
+    "handoff.exclusion.nextAction.useSummary":
+      "Use the reviewed summary and evidence pointer instead of raw payload.",
+    "handoff.exclusion.nextAction.redactPrivate":
+      "Review or redact private fields before allowing export.",
     "handoff.exclusion.nextAction.allowExport":
       "Enable agent export for this source after confirming the scope is safe.",
     "handoff.empty": "No handoff generated yet",
@@ -1015,6 +1053,17 @@ const translations = {
     "activity.notIndexed": "未索引",
     "activity.rawAvailable": "raw 可用",
     "activity.rawUnavailable": "raw 不可用",
+    "activity.rawAvailableDetail": "Raw 帧仍保存在本地短期保留区。",
+    "activity.rawNotStored": "未保存 raw",
+    "activity.rawExpired": "raw 已过期",
+    "activity.rawExpiredDetail": "Raw 帧已超过短期保留窗口；Orbit 只保留摘要和证据指针。",
+    "activity.rawDeleted": "raw 已清理",
+    "activity.rawDeletedDetail": "Raw 帧已被清理；Activity、Knowledge 和 Handoff 的证据指针仍保留。",
+    "activity.rawBlockedProtected": "受保护应用已阻止 raw",
+    "activity.rawBlockedProtectedDetail": "该上下文命中受保护应用策略，捕获在存储前被跳过。",
+    "activity.rawSourceDisabled": "raw 来源已禁用",
+    "activity.rawSourceDisabledDetail": "来源已禁用，Orbit 只保留已有摘要和证据指针。",
+    "activity.rawPointerPreserved": "证据指针已保留；此视图隐藏 raw 路径。",
     "activity.localOnly": "仅本地",
     "activity.evidenceLayer": "证据层",
     "activity.loadingDetail": "正在加载活动详情",
@@ -1292,6 +1341,18 @@ const translations = {
     "handoff.noneCompletedOrAttempted": "还没有可交接的已完成或已尝试事项",
     "handoff.noNextSteps": "暂无建议下一步",
     "handoff.nextStepConfidence": "置信度",
+    "handoff.safeToExport": "可安全交接",
+    "handoff.safeToExportDetail": "可交给 Agent 的活动、已确认知识、记忆和建议。",
+    "handoff.safePendingDetail": "生成交接包后计算可导出的上下文。",
+    "handoff.excludedByPolicy": "按策略排除",
+    "handoff.excludedByPolicyDetail": "草稿、未确认记忆、raw/private 载荷或禁止导出的来源。",
+    "handoff.excludedPendingDetail": "生成交接包后查看被排除内容和原因。",
+    "handoff.preflightTotalRecentActivity": "最近活动总数",
+    "handoff.preflightTotalRecentActivityDetail": "应用 Agent 导出过滤前的全部最近 Activity。",
+    "handoff.evidenceDetail": "交接包中包含的可追溯来源指针。",
+    "handoff.evidencePendingDetail": "生成后会显示证据指针。",
+    "handoff.notGenerated": "未生成",
+    "handoff.safetySummary": "安全摘要",
     "handoff.progress.completed": "已完成",
     "handoff.progress.attempted": "已尝试",
     "handoff.safetyBoundaries": "安全边界",
@@ -1308,6 +1369,8 @@ const translations = {
     "handoff.exclusion.missingEvidence": "缺少证据",
     "handoff.exclusion.secretContent": "包含 secret 内容",
     "handoff.exclusion.failedRedaction": "脱敏失败",
+    "handoff.exclusion.rawPayloadExcluded": "raw 载荷已排除",
+    "handoff.exclusion.privatePayloadExcluded": "私密载荷已排除",
     "handoff.exclusion.sourceExportBlocked": "来源禁止导出",
     "handoff.exclusion.reason": "原因",
     "handoff.exclusion.description.draftKnowledge":
@@ -1322,6 +1385,10 @@ const translations = {
       "被标记为 secret 的证据默认会被 Handoff 阻止。",
     "handoff.exclusion.description.failedRedaction":
       "脱敏失败的证据不会进入需要长期保存或导出的上下文。",
+    "handoff.exclusion.description.rawPayloadExcluded":
+      "raw 截图、OCR dump、音频或转写原文默认不会进入交接包。",
+    "handoff.exclusion.description.privatePayloadExcluded":
+      "私密 payload 字段会被排除；默认只使用摘要和来源指针。",
     "handoff.exclusion.description.sourceExportBlocked":
       "该来源策略不允许把这条证据导出给 Agent。",
     "handoff.exclusion.nextAction": "下一步",
@@ -1332,6 +1399,8 @@ const translations = {
     "handoff.exclusion.nextAction.rebuildEvidence": "重建流水线，或检查来源事件证据。",
     "handoff.exclusion.nextAction.redactSecret": "先删除或脱敏 secret 内容，再允许导出。",
     "handoff.exclusion.nextAction.fixRedaction": "先修复脱敏结果，再允许导出。",
+    "handoff.exclusion.nextAction.useSummary": "使用已审阅摘要和证据指针，不导出 raw 载荷。",
+    "handoff.exclusion.nextAction.redactPrivate": "先审阅或脱敏私密字段，再允许导出。",
     "handoff.exclusion.nextAction.allowExport": "确认范围安全后，为该来源开启 Agent 导出。",
     "handoff.empty": "尚未生成交接包",
     "handoff.error": "交接包生成失败",

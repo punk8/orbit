@@ -237,6 +237,40 @@ button {
   font-weight: 650;
 }
 
+.metric-detail {
+  margin-top: 7px;
+  color: #73736b;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.handoff-safety-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.handoff-safety-summary > div {
+  border: 1px solid #e2dfd8;
+  border-radius: 8px;
+  background: #fbfaf7;
+  padding: 14px;
+}
+
+.handoff-safety-summary strong {
+  display: block;
+  color: #151b1f;
+  font-size: 24px;
+  line-height: 1.1;
+  margin: 4px 0 8px;
+}
+
+.handoff-safety-summary span {
+  color: #5d6465;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .today-workbench {
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.75fr);
@@ -1187,6 +1221,13 @@ button {
   place-items: center;
   gap: 9px;
   text-align: center;
+}
+
+.activity-frame-empty small,
+.activity-frame-pointer {
+  color: #596266;
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .activity-frame-empty-mark {

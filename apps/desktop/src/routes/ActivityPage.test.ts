@@ -39,6 +39,12 @@ describe("ActivityPage evidence workbench", () => {
     expect(source).toContain("buildPlaybackFrames");
     expect(source).toContain("expired");
     expect(source).toContain("blocked_protected");
+    expect(source).toContain("formatPlaybackRawState");
+    expect(source).toContain("activity.rawExpired");
+    expect(source).toContain("activity.rawDeleted");
+    expect(source).toContain("activity.rawBlockedProtected");
+    expect(source).toContain("activity.rawPointerPreserved");
+    expect(source).not.toContain("<code>{currentFrame.rawRef}</code>");
     expect(source).toContain("linkedEvents");
     expect(source).toContain("frameCount");
     expect(source).toContain("eventCount");

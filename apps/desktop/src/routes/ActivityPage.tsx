@@ -335,6 +335,9 @@ function ActivityDetail({
   const events = detail?.events ?? [];
   const frames = buildPlaybackFrames(session, events);
   const currentFrame = frames[0];
+  const currentFrameRawState = currentFrame
+    ? formatPlaybackRawState(currentFrame, session.localState.rawAvailable, t)
+    : undefined;
 
   if (error) {
     return <div className="error-banner inline">{error}</div>;
@@ -395,19 +398,22 @@ function ActivityDetail({
           </button>
 
           <div className="activity-frame-stage">
-            {session.localState.rawAvailable && currentFrame?.rawRef ? (
+            {currentFrame?.rawState === "available" && currentFrame.rawRef ? (
               <div className="activity-frame-available">
                 <p>{currentFrame.summary}</p>
-                <code>{currentFrame.rawRef}</code>
+                <span className="activity-frame-pointer">{t("activity.rawPointerPreserved")}</span>
               </div>
             ) : (
               <div className="activity-frame-empty">
                 <div className="activity-frame-empty-mark">
                   <Play aria-hidden="true" size={34} />
                 </div>
-                <h4>{t("activity.noRawFramesYet")}</h4>
+                <h4>{currentFrameRawState?.label ?? t("activity.noRawFramesYet")}</h4>
                 <p>{currentFrame?.summary ?? session.summary ?? t("fallback.noSummary")}</p>
-                <span>{t("activity.noRawFramesReason")}</span>
+                <span>{currentFrameRawState?.description ?? t("activity.noRawFramesReason")}</span>
+                {currentFrame?.rawRef ? (
+                  <small>{t("activity.rawPointerPreserved")}</small>
+                ) : null}
               </div>
             )}
           </div>
@@ -447,7 +453,7 @@ function ActivityDetail({
             <ChevronLeft aria-hidden="true" size={14} />
           </button>
           <span>{frames.length ? `1 / ${frames.length}` : `0 / 0`}</span>
-          <span>{currentFrame?.rawState ?? "not_stored"}</span>
+          <span>{currentFrameRawState?.label ?? t("activity.rawNotStored")}</span>
           <span>{currentFrame ? `${currentFrame.eventCount} ${t("unit.events")}` : "0"}</span>
           <button aria-label={t("activity.nextFrame")} type="button">
             <ChevronRight aria-hidden="true" size={14} />
@@ -556,9 +562,11 @@ function ActivityDetail({
             <DetailField
               label={t("activity.rawState")}
               value={
-                session.localState.rawAvailable
-                  ? t("activity.rawAvailable")
-                  : t("activity.rawUnavailable")
+                currentFrameRawState
+                  ? currentFrameRawState.label
+                  : session.localState.rawAvailable
+                    ? t("activity.rawAvailable")
+                    : t("activity.rawUnavailable")
               }
             />
             <DetailField
@@ -920,6 +928,47 @@ function playbackRawState(event: Event): PlaybackFrame["rawState"] {
   return event.content.rawRef || readString(event.content.metadata?.rawFrameLocalRef)
     ? "available"
     : "not_stored";
+}
+
+function formatPlaybackRawState(
+  frame: PlaybackFrame,
+  sessionRawAvailable: boolean,
+  t: ReturnType<typeof useI18n>["t"]
+): { label: string; description: string } {
+  if (frame.rawState === "available" && sessionRawAvailable) {
+    return {
+      label: t("activity.rawAvailable"),
+      description: t("activity.rawAvailableDetail")
+    };
+  }
+  if (frame.rawState === "expired") {
+    return {
+      label: t("activity.rawExpired"),
+      description: t("activity.rawExpiredDetail")
+    };
+  }
+  if (frame.rawState === "deleted") {
+    return {
+      label: t("activity.rawDeleted"),
+      description: t("activity.rawDeletedDetail")
+    };
+  }
+  if (frame.rawState === "blocked_protected") {
+    return {
+      label: t("activity.rawBlockedProtected"),
+      description: t("activity.rawBlockedProtectedDetail")
+    };
+  }
+  if (frame.rawState === "source_disabled") {
+    return {
+      label: t("activity.rawSourceDisabled"),
+      description: t("activity.rawSourceDisabledDetail")
+    };
+  }
+  return {
+    label: t("activity.rawNotStored"),
+    description: t("activity.noRawFramesReason")
+  };
 }
 
 function formatFrameSummary(event: Event): string {
