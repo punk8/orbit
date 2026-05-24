@@ -491,7 +491,8 @@ export function App(): ReactElement {
                 clearLocalData,
                 exportContext,
                 generateHandoff,
-                testAIProvider
+                testAIProvider,
+                navigate: setActivePage
               })
             : null}
         </main>
@@ -572,12 +573,13 @@ interface PageActions {
     input: { kind: "today"; date?: string } | { kind: "project"; project: string }
   ): Promise<DesktopHandoffResult>;
   testAIProvider(config: DesktopAIProviderTestConfig): Promise<DesktopAIProviderTestResult>;
+  navigate(page: PageId): void;
 }
 
 function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageActions): ReactElement {
   switch (page) {
     case "today":
-      return <TodayPage snapshot={snapshot} />;
+      return <TodayPage snapshot={snapshot} onNavigate={actions.navigate} />;
     case "activity":
       return (
         <ActivityPage

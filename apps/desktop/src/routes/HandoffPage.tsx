@@ -21,6 +21,7 @@ export function HandoffPage({
   const [error, setError] = useState<string | undefined>();
   const [copied, setCopied] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [previewFormat, setPreviewFormat] = useState<"Markdown" | "JSON">("Markdown");
 
   async function generate(
     input: { kind: "today"; date?: string } | { kind: "project"; project: string }
@@ -177,14 +178,34 @@ export function HandoffPage({
         title={t("handoff.preview")}
         action={
           result ? (
-            <button className="secondary-button" onClick={() => void copyMarkdown()} type="button">
-              {copied ? t("handoff.copied") : t("handoff.copyMarkdown")}
-            </button>
+            <div className="handoff-preview-actions">
+              <div className="segmented-control" aria-label={t("handoff.preview")}>
+                <button
+                  className={previewFormat === "Markdown" ? "active" : ""}
+                  onClick={() => setPreviewFormat("Markdown")}
+                  type="button"
+                >
+                  Markdown
+                </button>
+                <button
+                  className={previewFormat === "JSON" ? "active" : ""}
+                  onClick={() => setPreviewFormat("JSON")}
+                  type="button"
+                >
+                  JSON
+                </button>
+              </div>
+              <button className="secondary-button" onClick={() => void copyMarkdown()} type="button">
+                {copied ? t("handoff.copied") : t("handoff.copyMarkdown")}
+              </button>
+            </div>
           ) : null
         }
       >
         {result ? (
-          <pre className="handoff-preview">{result.markdown}</pre>
+          <pre className="handoff-preview">
+            {previewFormat === "JSON" ? JSON.stringify(result.handoff, null, 2) : result.markdown}
+          </pre>
         ) : (
           <div className="empty-state">{t("handoff.empty")}</div>
         )}

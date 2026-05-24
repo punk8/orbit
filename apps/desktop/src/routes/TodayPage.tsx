@@ -1,13 +1,26 @@
 import type { ReactElement } from "react";
-import type { DesktopSnapshot } from "../orbitApi";
+import type { SourceKind } from "@orbit/core";
+import type { DesktopPageId, DesktopSnapshot } from "../orbitApi";
 import { EvidenceList } from "../components/EvidenceList";
 import { MetricCard } from "../components/MetricCard";
 import { Section } from "../components/Section";
 import { useI18n } from "../i18n";
+import type { TranslationKey } from "../i18n";
 
-export function TodayPage({ snapshot }: { snapshot: DesktopSnapshot }): ReactElement {
-  const { t, sensitivity, sourceKind, status, impact, recommendationType, formatTimeRange } =
-    useI18n();
+export function TodayPage({
+  snapshot,
+  onNavigate
+}: {
+  snapshot: DesktopSnapshot;
+  onNavigate?(page: DesktopPageId): void;
+}): ReactElement {
+  const i18n = useI18n();
+  const { t, sensitivity, sourceKind, status, impact, recommendationType, formatTimeRange } = i18n;
+  const sourceStatus = buildSourceStatus(snapshot, {
+    t,
+    sourceKind
+  });
+  const nextActions = buildNextActions(snapshot, t);
 
   return (
     <div className="page-grid">
@@ -33,6 +46,66 @@ export function TodayPage({ snapshot }: { snapshot: DesktopSnapshot }): ReactEle
           detail={t("detail.open")}
         />
       </div>
+
+      <section className="today-workbench" aria-label={t("today.workbench")}>
+        <div className="today-source-status-panel">
+          <div className="today-panel-heading">
+            <p className="eyebrow">source status</p>
+            <h2>{t("section.sourceStatus")}</h2>
+          </div>
+          <div className="today-source-status-grid">
+            {sourceStatus.map((source) => (
+              <article className="today-source-card" key={`${source.kind}:${source.label}`}>
+                <div className="item-heading">
+                  <h3>{source.label}</h3>
+                  <span className={`runtime-pill ${source.state}`}>{source.stateLabel}</span>
+                </div>
+                <p>{source.description}</p>
+                <div className="meta-line">
+                  <span>{source.rawLabel}</span>
+                  <span>{source.exportLabel}</span>
+                  <span>{source.aiLabel}</span>
+                </div>
+              </article>
+            ))}
+            {sourceStatus.length === 0 ? (
+              <div className="empty-state compact">{t("empty.noSources")}</div>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="today-next-action-panel">
+          <div className="today-panel-heading">
+            <p className="eyebrow">next action</p>
+            <h2>{t("today.nextActions")}</h2>
+          </div>
+          <div className="today-next-action-grid">
+            {nextActions.map((action) => (
+              <button
+                className="today-next-action"
+                key={action.id}
+                onClick={() => onNavigate?.(action.page)}
+                type="button"
+              >
+                <span>{action.label}</span>
+                <strong>{action.value}</strong>
+                <small>{action.description}</small>
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="today-handoff-strip" aria-label={t("today.handoffStrip")}>
+        <div>
+          <p className="eyebrow">handoff</p>
+          <h2>{t("nav.handoff")}</h2>
+          <p>{t("today.handoffBoundary")}</p>
+        </div>
+        <button className="secondary-button" onClick={() => onNavigate?.("handoff")} type="button">
+          {t("today.openHandoff")}
+        </button>
+      </section>
 
       <Section title={t("section.recentActivity")}>
         <div className="item-list">
@@ -109,4 +182,103 @@ export function TodayPage({ snapshot }: { snapshot: DesktopSnapshot }): ReactEle
       </Section>
     </div>
   );
+}
+
+interface TodaySourceStatus {
+  kind: SourceKind;
+  label: string;
+  state: "ready" | "paused" | "blocked";
+  stateLabel: string;
+  description: string;
+  rawLabel: string;
+  exportLabel: string;
+  aiLabel: string;
+}
+
+interface TodayNextAction {
+  id: string;
+  page: DesktopPageId;
+  label: string;
+  value: string;
+  description: string;
+}
+
+function buildSourceStatus(
+  snapshot: DesktopSnapshot,
+  labels: {
+    t(key: TranslationKey): string;
+    sourceKind(value: string): string;
+  }
+): TodaySourceStatus[] {
+  const { t, sourceKind } = labels;
+  return snapshot.sources.slice(0, 6).map((source) => {
+    const state =
+      source.enabled && !source.paused && !source.lastError
+        ? "ready"
+        : source.paused
+          ? "paused"
+          : "blocked";
+    return {
+      kind: source.kind,
+      label: source.displayName || sourceKind(source.kind),
+      state,
+      stateLabel:
+        state === "ready"
+          ? t("today.sourceReady")
+          : state === "paused"
+            ? t("today.sourcePaused")
+            : t("today.sourceBlocked"),
+      description: source.lastError ?? source.lastEventAt ?? source.updatedAt,
+      rawLabel: source.permissionScope.canStoreRaw
+        ? t("source.rawStored")
+        : t("source.rawNotStored"),
+      exportLabel: source.permissionScope.canExportToAgent
+        ? t("source.agentExportAllowed")
+        : t("source.agentExportBlocked"),
+      aiLabel: source.permissionScope.canUseForAI ? t("source.aiAllowed") : t("source.aiBlocked")
+    };
+  });
+}
+
+function buildNextActions(
+  snapshot: DesktopSnapshot,
+  t: (key: TranslationKey) => string
+): TodayNextAction[] {
+  const knowledgeDrafts = snapshot.knowledgeArtifacts.filter(
+    (artifact) => artifact.status === "draft"
+  );
+  const memoryCandidates = snapshot.memories.filter((memory) => memory.status === "needs_review");
+  const openRecommendations = snapshot.recommendations.filter((recommendation) =>
+    ["new", "accepted", "snoozed"].includes(recommendation.status)
+  );
+  return [
+    {
+      id: "activity",
+      page: "activity",
+      label: t("nav.activity"),
+      value: String(snapshot.today.activitySessions.length),
+      description: t("today.nextActionActivity")
+    },
+    {
+      id: "review",
+      page: "review",
+      label: t("nav.review"),
+      value: String(knowledgeDrafts.length + memoryCandidates.length),
+      description: t("today.nextActionReview")
+    },
+    {
+      id: "recommendations",
+      page: "recommendations",
+      label: t("nav.recommendations"),
+      value: String(openRecommendations.length),
+      description: t("today.nextActionRecommendations")
+    },
+    {
+      id: "handoff",
+      page: "handoff",
+      label: t("nav.handoff"),
+      value: String(snapshot.today.activitySessions.length + snapshot.today.knowledgeArtifacts.length),
+      description: t("today.nextActionHandoff")
+    }
+  ];
 }

@@ -11,4 +11,17 @@ describe("TodayPage context completion", () => {
     expect(source).toContain("sourceKind");
     expect(source).toContain("snapshot.today.recommendations");
   });
+
+  it("renders a product workbench with source status, next action, and handoff entry points", () => {
+    const source = readFileSync(new URL("./TodayPage.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("source status");
+    expect(source).toContain("next action");
+    expect(source).toContain("handoff");
+    expect(source).toContain("today-source-status-grid");
+    expect(source).toContain("today-next-action-grid");
+    expect(source).toContain("today-handoff-strip");
+    expect(source).toContain("section.sourceStatus");
+    expect(source).toContain("nav.handoff");
+  });
 });

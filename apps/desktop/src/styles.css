@@ -237,6 +237,124 @@ button {
   font-weight: 650;
 }
 
+.today-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.75fr);
+  gap: 12px;
+}
+
+.today-source-status-panel,
+.today-next-action-panel,
+.today-handoff-strip {
+  border: 1px solid #e2dfd8;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.today-source-status-panel,
+.today-next-action-panel {
+  padding: 14px;
+}
+
+.today-panel-heading {
+  margin-bottom: 12px;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  color: #6f817a;
+  font-size: 11px;
+  font-weight: 760;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.today-panel-heading h2,
+.today-handoff-strip h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.today-source-status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.today-source-card {
+  min-width: 0;
+  border: 1px solid #eeeae3;
+  border-radius: 7px;
+  background: #fbfaf7;
+  padding: 11px;
+}
+
+.today-source-card h3 {
+  margin: 0;
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.today-source-card p,
+.today-handoff-strip p {
+  margin: 7px 0 0;
+  color: #5a6364;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.today-next-action-grid {
+  display: grid;
+  gap: 9px;
+}
+
+.today-next-action {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 12px;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #e5e2dc;
+  border-radius: 7px;
+  background: #fbfaf7;
+  cursor: pointer;
+  padding: 11px;
+  text-align: left;
+}
+
+.today-next-action:hover {
+  border-color: #bfc8c4;
+  background: #f4f7f5;
+}
+
+.today-next-action span {
+  color: #20292d;
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.today-next-action strong {
+  color: #2f7468;
+  font-size: 18px;
+}
+
+.today-next-action small {
+  grid-column: span 2;
+  color: #68706f;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.today-handoff-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 16px;
+}
+
 .section {
   padding: 0;
 }
@@ -1958,6 +2076,12 @@ button {
 .handoff-project-control label {
   color: #73736b;
   font-size: 12px;
+}
+
+.handoff-preview-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .handoff-preview {
