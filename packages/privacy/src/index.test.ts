@@ -51,20 +51,20 @@ describe("perception release gate", () => {
     expect(report.checks.find((check) => check.id === "audit_review")?.status).toBe("needs_data");
   });
 
-  it("passes permission-granted Screen/OCR dogfood auto-start without treating it as unsafe default capture", () => {
+  it("passes explicitly enabled Screen/OCR dogfood capture without treating it as unsafe default capture", () => {
     const perception = createDefaultPerceptionStatus([
       {
         sourceKind: "screen",
         enabled: true,
         paused: false,
-        userIntent: "auto",
+        userIntent: "manual",
         permissionStatuses: { screen: "granted" }
       },
       {
         sourceKind: "ocr",
         enabled: true,
         paused: false,
-        userIntent: "auto",
+        userIntent: "manual",
         permissionStatuses: { screen: "granted" }
       }
     ]);
@@ -78,7 +78,7 @@ describe("perception release gate", () => {
         deletedLocalSidecars: 0,
         preservedSummaries: 0
       },
-      auditOperations: ["perception.permission_granted", "perception.runtime_auto_started"],
+      auditOperations: ["perception.permission_granted", "perception.runtime_resumed"],
       packaging: {
         excludesTmp: true,
         excludesFixtures: true,

@@ -778,7 +778,7 @@ function buildPerceptionSourceControl(
   const paused = stored?.paused ?? false;
   const userIntent = stored?.userIntent ?? (paused ? "paused_user" : "manual");
   const permissionGates = descriptor.requiredPermissions.map((permission) =>
-    buildPermissionGate(permission, stored?.permissionStatuses?.[permission], enabled)
+    buildPermissionGate(permission, stored?.permissionStatuses?.[permission])
   );
   const source: PerceptionSourceControl = {
     sourceKind: descriptor.sourceKind,
@@ -803,12 +803,11 @@ function buildPerceptionSourceControl(
 
 function buildPermissionGate(
   kind: PerceptionPermissionKind,
-  storedStatus: PerceptionPermissionStatus | undefined,
-  required: boolean
+  storedStatus: PerceptionPermissionStatus | undefined
 ): PerceptionPermissionGate {
   return {
     kind,
-    status: required ? (storedStatus ?? "not_determined") : "not_required",
+    status: storedStatus ?? "not_determined",
     canRequestFromApp: kind !== "system_audio",
     instructions: readPermissionInstructions(kind)
   };
@@ -903,14 +902,25 @@ function summarizeDogfoodRuntimeStatus(
     });
   }
 
+  if (activeSourceKinds.length === 0) {
+    return dogfoodRuntimeStatus({
+      state: "stopped",
+      permission: screenPermission,
+      reason: "user_stopped",
+      nextAction: "resume_or_enable_observation",
+      autoStartEnabled: false,
+      activeSourceKinds: [],
+      lastTransitionAt
+    });
+  }
+
   return dogfoodRuntimeStatus({
     state: "observing",
     permission: screenPermission,
     reason: "screen_recording_permission_granted",
     nextAction: "wait_for_next_burst",
     autoStartEnabled: true,
-    activeSourceKinds:
-      activeSourceKinds.length > 0 ? activeSourceKinds : (["screen", "ocr"] as PerceptionSourceKind[]),
+    activeSourceKinds,
     lastTransitionAt
   });
 }

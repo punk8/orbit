@@ -252,16 +252,16 @@ function noDefaultCaptureCheck(perception: PerceptionControlPlaneStatus): Releas
   const enabledProviders = perception.providerRoutes
     .filter((route) => route.enabled || route.allowExternal)
     .map((route) => route.task);
-  const dogfoodAutoStart =
+  const explicitDogfoodCapture =
     perception.dogfoodRuntime.state === "observing" &&
     perception.dogfoodRuntime.permission === "granted" &&
     enabledSources.length > 0 &&
     enabledSources.every((sourceKind) => sourceKind === "screen" || sourceKind === "ocr") &&
     perception.sources
       .filter((source) => source.enabled)
-      .every((source) => source.userIntent === "auto");
+      .every((source) => source.userIntent === "manual" || source.userIntent === "auto");
   const status =
-    (enabledSources.length === 0 || dogfoodAutoStart) && enabledProviders.length === 0
+    (enabledSources.length === 0 || explicitDogfoodCapture) && enabledProviders.length === 0
       ? "pass"
       : "fail";
   return {
@@ -269,11 +269,11 @@ function noDefaultCaptureCheck(perception: PerceptionControlPlaneStatus): Releas
     status,
     message:
       status === "pass"
-        ? dogfoodAutoStart
-          ? "Screen/OCR dogfood runtime starts only after Screen Recording permission is granted."
+        ? explicitDogfoodCapture
+          ? "Screen/OCR dogfood runtime is enabled only by explicit Orbit source control."
           : "All high-risk perception sources and provider routes are disabled by default."
         : "Perception capture or provider routes are enabled by default.",
-    details: { enabledSources, enabledProviders, dogfoodAutoStart }
+    details: { enabledSources, enabledProviders, explicitDogfoodCapture }
   };
 }
 

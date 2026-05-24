@@ -53,6 +53,15 @@
 - 把桌面手动验证脚本转为真实本地数据流程，而不是内置样本流程。
 - 建立真实 dogfood 数据的脱敏审计流程，不把私人原文提交进仓库。
 
+## 近期人工验收发现
+
+- 2026-05-24 packaged app + Computer Use 走查：使用最新 `apps/desktop/release/mac-arm64/Orbit.app` 可打开 Today、Activity、Knowledge、Review Queue、Handoff、Sources 和 Settings；Today 能扫读来源状态、活动、知识草稿、建议和下一步行动；Activity 能看到时间线、事件流、证据、来源策略、处理状态、存储状态和派生产物；Knowledge/Review 能看到 Markdown 预览、证据和确认/拒绝/归档按钮；Handoff 能生成 Markdown/JSON 预览，并默认排除不可导出来源、草稿知识、未确认记忆和 raw 私密载荷。
+- Computer Use 验收需要指定完整 app 路径并核对进程环境；当前多个 worktree 使用相同 `dev.orbit.local` bundle id，容易串到旧打包产物或旧 `ORBIT_HOME`。后续应给本地验收脚本增加明确的 app path、数据目录和进程检查。
+- Handoff 生成前后顶部计数语义不够清晰：生成前显示最近活动总数，生成后显示可导出活动数。应区分“总最近活动”和“可交接活动”，并把安全过滤后的排除原因放在更显眼位置。
+- Activity playback 仍可能直接显示过期或临时 raw sidecar 路径。若 raw 文件不存在、已过期或来自临时目录，应显示“raw 已过期 / 不可用 / 已按策略清理”，同时保留 evidence pointer。
+- CLI 导入后的 Codex/local source 不应在 UI 中表现为后台采集错误；如果没有可持续 adapter path，应标记为“显式导入 / import-only”，或持久化已授权导入路径，避免误导用户需要修复后台来源。
+- 仍需要一条真实同日 dogfood 验收路径，避免 mock Screen/OCR 固定日期或旧临时库导致 Today 空态或跨日误判。
+
 ## 发布前待办
 
 - 明确 Alpha 数据边界和默认关闭项。

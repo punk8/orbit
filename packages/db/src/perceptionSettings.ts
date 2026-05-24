@@ -96,10 +96,9 @@ export function updatePerceptionSourceRuntime(
             next.paused = true;
             next.userIntent = "paused_user";
           } else if (action === "resume") {
-            assertEnabled(previousSource, action);
             next.enabled = true;
             next.paused = false;
-            next.userIntent = "auto";
+            next.userIntent = "manual";
             next.lastPermissionCheckedAt = now;
           }
           next.lastRuntimeChangedAt = now;
@@ -133,20 +132,14 @@ export function syncDogfoodRuntimePermission(
   const previous = readPerceptionStatusFromSettings(settings);
   const storedSources = readStoredSources(settings);
   const screenOcrSources = ["screen", "ocr"] as const;
-  const hasUserStopped = storedSources.some(
-    (source) =>
-      screenOcrSources.includes(source.sourceKind as "screen" | "ocr") &&
-      source.userIntent === "stopped"
-  );
-  const hasUserPaused = storedSources.some(
-    (source) =>
-      screenOcrSources.includes(source.sourceKind as "screen" | "ocr") &&
-      source.userIntent === "paused_user"
-  );
   let nextStoredSources = storedSources;
 
   for (const sourceKind of screenOcrSources) {
     nextStoredSources = upsertStoredSource(nextStoredSources, sourceKind, (source) => {
+      const shouldKeepObserving =
+        source.enabled === true &&
+        source.paused !== true &&
+        (source.userIntent === "manual" || source.userIntent === "auto");
       const next: StoredPerceptionSourceControl = {
         ...source,
         permissionStatuses: {
@@ -156,10 +149,9 @@ export function syncDogfoodRuntimePermission(
         lastPermissionCheckedAt: now
       };
 
-      if (permission === "granted" && !hasUserStopped && !hasUserPaused) {
+      if (permission === "granted" && shouldKeepObserving) {
         next.enabled = true;
         next.paused = false;
-        next.userIntent = "auto";
         next.lastRuntimeChangedAt = now;
       }
 

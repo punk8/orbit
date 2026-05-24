@@ -616,7 +616,7 @@ export function buildProgram(): Command {
     );
   perception
     .command("dogfood-permission")
-    .description("Sync macOS Screen Recording permission into the Alpha dogfood auto-start runtime")
+    .description("Sync macOS Screen Recording permission without starting Screen/OCR capture")
     .requiredOption(
       "--status <status>",
       "not_determined, granted, denied, restricted, unknown, or not_required"

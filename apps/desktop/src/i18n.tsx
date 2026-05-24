@@ -567,10 +567,10 @@ const translations = {
     "settings.backgroundSourceStates": "Scheduled sources",
     "settings.screenOcrRuntimeTitle": "Screen/OCR Runtime",
     "settings.screenOcrRuntimeDescription":
-      "Low-frequency local Screen/OCR bursts start automatically after macOS Screen Recording permission is granted.",
+      "Low-frequency local Screen/OCR bursts require macOS Screen Recording permission and an explicit Orbit resume action.",
     "settings.screenOcrOnboardingTitle": "Screen Recording permission needed",
     "settings.screenOcrOnboardingBody":
-      "Orbit uses local Screen/OCR observation to build Activity and Knowledge. Raw screenshots are off by default, protected apps are skipped before capture, and granting the OS permission is the Alpha dogfood enable intent.",
+      "Orbit uses local Screen/OCR observation to build Activity and Knowledge. Raw screenshots are off by default, protected apps are skipped before capture, and granting the OS permission only unlocks manual resume.",
     "settings.screenOcrOnboardingOpenPermission": "Open Screen Recording Permission",
     "settings.screenOcrPermission": "Permission",
     "settings.screenOcrReason": "Reason",
@@ -1417,10 +1417,10 @@ const translations = {
     "settings.backgroundSourceStates": "已调度来源",
     "settings.screenOcrRuntimeTitle": "屏幕 / OCR 运行时",
     "settings.screenOcrRuntimeDescription":
-      "获得 macOS 屏幕录制权限后，Orbit 会自动开始本地低频屏幕 / OCR burst。",
+      "本地低频屏幕 / OCR burst 需要 macOS 屏幕录制权限，并且需要在 Orbit 内显式恢复。",
     "settings.screenOcrOnboardingTitle": "需要屏幕录制权限",
     "settings.screenOcrOnboardingBody":
-      "Orbit 使用本地屏幕 / OCR 观察生成 Activity 和 Knowledge。默认不保存 raw 截图，受保护应用会在捕获前跳过；授予系统权限即视为 Alpha dogfood 的启用意图。",
+      "Orbit 使用本地屏幕 / OCR 观察生成 Activity 和 Knowledge。默认不保存 raw 截图，受保护应用会在捕获前跳过；授予系统权限只解锁手动恢复。",
     "settings.screenOcrOnboardingOpenPermission": "打开屏幕录制权限",
     "settings.screenOcrPermission": "权限",
     "settings.screenOcrReason": "原因",

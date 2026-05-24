@@ -87,8 +87,8 @@ describe("perception control-plane settings", () => {
     }
   });
 
-  it("auto-starts Screen/OCR when Screen Recording permission is granted", () => {
-    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-perception-autostart-test-"));
+  it("does not start Screen/OCR only because Screen Recording permission is granted", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-perception-permission-only-test-"));
     tempDirs.push(orbitHome);
     const { db, close } = openOrbitDatabase({ orbitHome });
     try {
@@ -97,31 +97,58 @@ describe("perception control-plane settings", () => {
       const ocr = granted.sources.find((source) => source.sourceKind === "ocr");
 
       expect(granted.dogfoodRuntime).toMatchObject({
+        state: "stopped",
+        permission: "granted",
+        reason: "user_stopped",
+        nextAction: "resume_or_enable_observation"
+      });
+      expect(screen).toMatchObject({
+        enabled: false,
+        paused: false,
+        status: "disabled"
+      });
+      expect(ocr).toMatchObject({
+        enabled: false,
+        paused: false,
+        status: "disabled"
+      });
+
+      const reread = readPerceptionStatus(db);
+      expect(reread.dogfoodRuntime.state).toBe("stopped");
+
+      const operations = new AuditRepository(db).listAuditLogs().map((log) => log.operation);
+      expect(operations).toEqual(["perception.permission_checked", "perception.permission_granted"]);
+    } finally {
+      close();
+    }
+  });
+
+  it("resumes Screen/OCR after explicit user enable once permission is granted", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-perception-explicit-enable-test-"));
+    tempDirs.push(orbitHome);
+    const { db, close } = openOrbitDatabase({ orbitHome });
+    try {
+      syncDogfoodRuntimePermission(db, "granted");
+
+      const screenEnabled = updatePerceptionSourceRuntime(db, "screen", "resume");
+      const ocrEnabled = updatePerceptionSourceRuntime(db, "ocr", "resume");
+
+      expect(screenEnabled.sources.find((source) => source.sourceKind === "screen")).toMatchObject({
+        enabled: true,
+        paused: false,
+        status: "ready"
+      });
+      expect(ocrEnabled.sources.find((source) => source.sourceKind === "ocr")).toMatchObject({
+        enabled: true,
+        paused: false,
+        status: "ready"
+      });
+      expect(ocrEnabled.dogfoodRuntime).toMatchObject({
         state: "observing",
         permission: "granted",
         reason: "screen_recording_permission_granted",
         nextAction: "wait_for_next_burst"
       });
-      expect(screen).toMatchObject({
-        enabled: true,
-        paused: false,
-        status: "ready"
-      });
-      expect(ocr).toMatchObject({
-        enabled: true,
-        paused: false,
-        status: "ready"
-      });
-
-      const reread = readPerceptionStatus(db);
-      expect(reread.dogfoodRuntime.state).toBe("observing");
-
-      const operations = new AuditRepository(db).listAuditLogs().map((log) => log.operation);
-      expect(operations).toEqual([
-        "perception.permission_checked",
-        "perception.permission_granted",
-        "perception.runtime_auto_started"
-      ]);
     } finally {
       close();
     }
@@ -133,6 +160,8 @@ describe("perception control-plane settings", () => {
     const { db, close } = openOrbitDatabase({ orbitHome });
     try {
       syncDogfoodRuntimePermission(db, "granted");
+      updatePerceptionSourceRuntime(db, "screen", "resume");
+      updatePerceptionSourceRuntime(db, "ocr", "resume");
 
       const paused = updatePerceptionSourceRuntime(db, "screen", "pause");
       expect(paused.dogfoodRuntime.state).toBe("paused_user");
@@ -165,6 +194,8 @@ describe("perception control-plane settings", () => {
     const { db, close } = openOrbitDatabase({ orbitHome });
     try {
       syncDogfoodRuntimePermission(db, "granted");
+      updatePerceptionSourceRuntime(db, "screen", "resume");
+      updatePerceptionSourceRuntime(db, "ocr", "resume");
       const revoked = syncDogfoodRuntimePermission(db, "denied");
 
       expect(revoked.dogfoodRuntime).toMatchObject({

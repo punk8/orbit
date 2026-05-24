@@ -444,6 +444,10 @@ export async function captureScreenOcrBurstNow(
     if (perception.dogfoodRuntime.permission !== "granted") {
       perception = syncDogfoodRuntimePermission(database.db, "granted");
     }
+    if (perception.dogfoodRuntime.state !== "observing") {
+      updatePerceptionSourceRuntime(database.db, "screen", "resume");
+      perception = updatePerceptionSourceRuntime(database.db, "ocr", "resume");
+    }
     const scope = smokeScope("display");
     const runtimeSessionId = `manual-mock-screen-burst-${Date.now()}`;
     const helper = new MockScreenCaptureNativeHelper({

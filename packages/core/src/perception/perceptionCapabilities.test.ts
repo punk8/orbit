@@ -120,7 +120,7 @@ describe("perception capability descriptors", () => {
     );
   });
 
-  it("models the Alpha dogfood auto-start state separately from source policy", () => {
+  it("models the Alpha dogfood runtime state separately from source policy", () => {
     const firstLaunch = createDefaultPerceptionStatus();
     expect(firstLaunch.dogfoodRuntime).toMatchObject({
       state: "needs_permission",
@@ -128,6 +128,28 @@ describe("perception capability descriptors", () => {
       reason: "screen_recording_permission_missing",
       nextAction: "grant_screen_recording_permission",
       autoStartEnabled: true
+    });
+
+    const permissionOnly = createDefaultPerceptionStatus([
+      {
+        sourceKind: "screen",
+        enabled: false,
+        paused: false,
+        permissionStatuses: { screen: "granted" }
+      },
+      {
+        sourceKind: "ocr",
+        enabled: false,
+        paused: false,
+        permissionStatuses: { screen: "granted" }
+      }
+    ]);
+    expect(permissionOnly.dogfoodRuntime).toMatchObject({
+      state: "stopped",
+      permission: "granted",
+      reason: "user_stopped",
+      nextAction: "resume_or_enable_observation",
+      autoStartEnabled: false
     });
 
     const granted = createDefaultPerceptionStatus([

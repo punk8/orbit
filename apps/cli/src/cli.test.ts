@@ -928,22 +928,22 @@ describe("cli commands", () => {
     }
   });
 
-  it("syncs Alpha dogfood Screen Recording permission into auto-start runtime status", () => {
-    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-dogfood-autostart-test-"));
+  it("syncs Alpha dogfood Screen Recording permission without starting capture", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-cli-dogfood-permission-test-"));
     tempDirs.push(orbitHome);
     process.env.ORBIT_HOME = orbitHome;
 
     const granted = syncPerceptionDogfoodPermission({ permission: "granted" });
     expect(granted.perception.dogfoodRuntime).toMatchObject({
-      state: "observing",
+      state: "stopped",
       permission: "granted",
-      nextAction: "wait_for_next_burst"
+      nextAction: "resume_or_enable_observation"
     });
 
     const status = getPerceptionStatus();
     expect(status.perception.dogfoodRuntime).toMatchObject({
-      state: "observing",
-      reason: "screen_recording_permission_granted"
+      state: "stopped",
+      reason: "user_stopped"
     });
     expect(status.perception.dogfoodRuntime.hardening).toMatchObject({
       cases: expect.arrayContaining([
