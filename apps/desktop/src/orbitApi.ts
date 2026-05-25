@@ -161,6 +161,7 @@ export type DesktopRuntimeStatus = "idle" | "collecting" | "paused" | "error";
 export type DesktopSourceRuntimeAction = "pause" | "resume" | "enable" | "disable";
 
 export type SourceSetupKind = "codex" | "local_agent" | "seatalk";
+export type DesktopSourceAdapterMode = "import_only" | "syncable";
 
 export interface DesktopProtectedRuleInput {
   kind: ProtectedAppRule["match"]["kind"];
@@ -176,7 +177,46 @@ export interface DesktopIgnoreCurrentContextInput {
 
 export interface DesktopSourceAdapterConfig {
   setupKind: SourceSetupKind;
+  mode?: DesktopSourceAdapterMode;
   path?: string;
+  lastImport?: DesktopSourceImportSummary;
+}
+
+export interface DesktopSourceImportSummary {
+  importedAt: string;
+  path: string;
+  mode: "import_only";
+  read: number;
+  inserted: number;
+  skipped: number;
+  warnings: string[];
+  lastEventAt?: string;
+  nextCursor?: string;
+}
+
+export interface DesktopSourceImportPreview {
+  adapterId: string;
+  displayName: string;
+  kind: SourceSetupKind;
+  mode: "import_only";
+  path: string;
+  eventCount: number;
+  warningCount: number;
+  warnings: string[];
+  dateRange?: {
+    from: string;
+    to: string;
+  };
+  projects: string[];
+  apps: string[];
+  permission: {
+    readableFields: string[];
+    canStoreRaw: boolean;
+    canStoreSummary: boolean;
+    canUseForAI: boolean;
+    canExportToAgent: boolean;
+    retentionPolicyId: string;
+  };
 }
 
 export interface DesktopAIProviderTestConfig {
@@ -203,6 +243,10 @@ export interface DesktopActionResult {
   message: string;
   exportPath?: string;
   warnings?: string[];
+}
+
+export interface DesktopSourceImportResult extends DesktopActionResult {
+  importResult: DesktopSourceImportSummary;
 }
 
 export interface DesktopCleanupResult extends DesktopActionResult {
@@ -269,6 +313,11 @@ export interface OrbitDesktopApi {
   updatePerceptionSamplingPreset(preset: PerceptionSamplingPresetName): Promise<DesktopSnapshot>;
   upsertProtectedRule(input: DesktopProtectedRuleInput): Promise<DesktopSnapshot>;
   ignoreCurrentContext(input: DesktopIgnoreCurrentContextInput): Promise<DesktopSnapshot>;
+  previewSourceImport(
+    kind: SourceSetupKind,
+    path: string
+  ): Promise<DesktopSourceImportPreview>;
+  confirmSourceImport(kind: SourceSetupKind, path: string): Promise<DesktopSourceImportResult>;
   setupSource(kind: SourceSetupKind, path?: string): Promise<DesktopActionResult>;
   reconfigureSource(
     sourceId: string,

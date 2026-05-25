@@ -59,8 +59,9 @@
 - Computer Use 验收需要指定完整 app 路径并核对进程环境；当前多个 worktree 使用相同 `dev.orbit.local` bundle id，容易串到旧打包产物或旧 `ORBIT_HOME`。后续应给本地验收脚本增加明确的 app path、数据目录和进程检查。
 - 2026-05-25 已收敛：Handoff 顶部指标已区分“可安全交接”“最近活动总数”“按策略排除”和“证据”，生成后会显示安全摘要和过滤结果，不再让最近活动数像凭空消失。
 - 2026-05-25 已收敛：Activity playback 不再在画面预览里裸露 raw sidecar 本地路径；raw 可用、已过期、已清理、受保护应用阻止、来源禁用等状态会用用户可理解文案表达，并保留 evidence pointer。
-- CLI 导入后的 Codex/local source 不应在 UI 中表现为后台采集错误；如果没有可持续 adapter path，应标记为“显式导入 / import-only”，或持久化已授权导入路径，避免误导用户需要修复后台来源。
-- 仍需要一条真实同日 dogfood 验收路径，避免 mock Screen/OCR 固定日期或旧临时库导致 Today 空态或跨日误判。
+- 2026-05-26 已收敛：Sources 增加显式本地导入入口，Codex/local agent/SeaTalk 路径先预览事件数、时间范围、项目和警告，用户确认后才写入 Event/Activity/Knowledge；导入来源标记为“显式导入 / import-only”，后台调度不会把它误报成缺少 adapter path 的同步错误。
+- 2026-05-26 packaged app + Computer Use 走查：使用 `/tmp` 安全同日 Codex JSONL 可在 Sources 预览 4 条事件并确认导入；Today 显示 Codex Local Sessions、同日活动和知识草稿；Activity 可打开 Codex 片段并看到事件流、证据索引、来源策略和“未保存 raw”；Knowledge 可确认草稿；Handoff 生成后包含确认知识、证据索引和按策略排除列表。
+- 仍需正式解决 packaged app 多 worktree 串台：当前 `dev.orbit.local` bundle id 和 `~/Library/Application Support/Orbit` user-data-dir 会让 Computer Use / macOS 复用旧 Orbit 实例，手动验收必须先核对进程环境中的 `ORBIT_HOME`，并清理旧进程；后续正式 app identity / dev identity 隔离应作为安装启动阶段处理。
 
 ## 发布前待办
 

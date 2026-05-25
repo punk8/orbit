@@ -5,6 +5,13 @@ describe("SourcesPage source governance controls", () => {
   it("renders source reconfiguration, cursor reset, deletion, and cleanup controls", () => {
     const source = readFileSync(new URL("./SourcesPage.tsx", import.meta.url), "utf8");
 
+    expect(source).toContain("onPreviewSourceImport");
+    expect(source).toContain("onConfirmSourceImport");
+    expect(source).toContain("source.importPreview");
+    expect(source).toContain("source.confirmImport");
+    expect(source).toContain("source.importOnly");
+    expect(source).toContain("source.importBoundary");
+    expect(source).toContain("source.previewEventCount");
     expect(source).toContain("action.reconfigure");
     expect(source).toContain("action.resetCursor");
     expect(source).toContain("action.deleteSource");

@@ -6,11 +6,17 @@ import {
   AuditRepository,
   openOrbitDatabase,
   readBackgroundRuntimeSnapshot,
+  SettingsRepository,
   SourceRepository,
   writeBackgroundRuntimePolicy
 } from "@orbit/db";
 import { defaultPermissionScopeForSource } from "@orbit/core";
-import { setupSourceForDesktop, runBackgroundIngestionForDesktop } from "./data";
+import {
+  confirmSourceImportForDesktop,
+  previewSourceImportForDesktop,
+  setupSourceForDesktop,
+  runBackgroundIngestionForDesktop
+} from "./data";
 
 const tempDirs: string[] = [];
 
@@ -22,37 +28,89 @@ afterEach(() => {
 });
 
 describe("desktop background runtime ingestion", () => {
+  it("previews an explicit local import without writing sources or events", async () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-desktop-preview-test-"));
+    const codexHome = mkdtempSync(join(tmpdir(), "orbit-desktop-preview-codex-"));
+    tempDirs.push(orbitHome);
+    tempDirs.push(codexHome);
+    process.env.ORBIT_HOME = orbitHome;
+    writeCodexSession(codexHome, "Preview real local import.");
+
+    const preview = await previewSourceImportForDesktop("codex", codexHome);
+
+    expect(preview.mode).toBe("import_only");
+    expect(preview.adapterId).toBe("codex_local");
+    expect(preview.eventCount).toBeGreaterThan(0);
+    expect(preview.path).toBe(codexHome);
+    expect(preview.permission.canStoreRaw).toBe(false);
+    expect(preview.permission.canExportToAgent).toBe(true);
+
+    const database = openOrbitDatabase({ orbitHome });
+    try {
+      expect(new SourceRepository(database.db).countSources()).toBe(0);
+    } finally {
+      database.close();
+    }
+  });
+
+  it("confirms explicit local imports as import-only and skips them in background ingestion", async () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-desktop-import-test-"));
+    const codexHome = mkdtempSync(join(tmpdir(), "orbit-desktop-import-codex-"));
+    tempDirs.push(orbitHome);
+    tempDirs.push(codexHome);
+    process.env.ORBIT_HOME = orbitHome;
+    writeCodexSession(codexHome, "Import this session without enabling background sync.");
+
+    const result = await confirmSourceImportForDesktop("codex", codexHome);
+
+    expect(result.importResult.mode).toBe("import_only");
+    expect(result.importResult.inserted).toBeGreaterThan(0);
+    const config = result.snapshot.sourceAdapterConfigs.codex_local;
+    expect(config).toBeDefined();
+    expect(config?.mode).toBe("import_only");
+    expect(config?.lastImport?.inserted).toBeGreaterThan(0);
+
+    const background = await runBackgroundIngestionForDesktop();
+
+    expect(background.attempted).toBe(0);
+    expect(background.errors).toEqual([]);
+    expect(background.skippedSources).toBeGreaterThanOrEqual(1);
+
+    expect(config?.path).toBe(codexHome);
+  });
+
+  it("imports all events when the user switches an import-only source to a different path", async () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-desktop-import-switch-test-"));
+    const firstCodexHome = mkdtempSync(join(tmpdir(), "orbit-desktop-import-switch-first-"));
+    const secondCodexHome = mkdtempSync(join(tmpdir(), "orbit-desktop-import-switch-second-"));
+    tempDirs.push(orbitHome);
+    tempDirs.push(firstCodexHome);
+    tempDirs.push(secondCodexHome);
+    process.env.ORBIT_HOME = orbitHome;
+    writeCodexSession(firstCodexHome, "First explicit import.", "first-session");
+    writeCodexSession(
+      secondCodexHome,
+      "Second explicit import should not inherit the old cursor.",
+      "second-session"
+    );
+
+    const first = await confirmSourceImportForDesktop("codex", firstCodexHome);
+    const second = await confirmSourceImportForDesktop("codex", secondCodexHome);
+
+    expect(first.importResult.inserted).toBe(2);
+    expect(first.importResult.nextCursor).toBe("2");
+    expect(second.importResult.read).toBe(2);
+    expect(second.importResult.inserted).toBe(2);
+    expect(second.importResult.path).toBe(secondCodexHome);
+  });
+
   it("schedules sources independently, audits skips, and backs off only failing sources", async () => {
     const orbitHome = mkdtempSync(join(tmpdir(), "orbit-desktop-runtime-test-"));
     const codexHome = mkdtempSync(join(tmpdir(), "orbit-desktop-runtime-codex-"));
     tempDirs.push(orbitHome);
     tempDirs.push(codexHome);
     process.env.ORBIT_HOME = orbitHome;
-    writeFileSync(
-      join(codexHome, "session.jsonl"),
-      [
-        {
-          timestamp: "2026-05-22T09:00:00.000Z",
-          type: "session_meta",
-          payload: {
-            id: "runtime-test",
-            cwd: "/Users/example/Documents/project/orbit",
-            source: "Codex Desktop"
-          }
-        },
-        {
-          timestamp: "2026-05-22T09:01:00.000Z",
-          type: "response_item",
-          payload: {
-            type: "message",
-            role: "user",
-            content: [{ type: "input_text", text: "Validate background ingestion." }]
-          }
-        }
-      ]
-        .map((record) => JSON.stringify(record))
-        .join("\n")
-    );
+    writeCodexSession(codexHome, "Validate background ingestion.");
 
     await setupSourceForDesktop("codex", codexHome);
 
@@ -75,6 +133,17 @@ describe("desktop background runtime ingestion", () => {
         permissionScope: defaultPermissionScopeForSource("seatalk", "confidential"),
         createdAt: "2026-05-22T09:00:00.000Z",
         updatedAt: "2026-05-22T09:00:00.000Z"
+      });
+      new SettingsRepository(database.db).set("sources.adapterConfigs", {
+        codex_local: {
+          setupKind: "codex",
+          mode: "syncable",
+          path: codexHome
+        },
+        seatalk_missing_config: {
+          setupKind: "seatalk",
+          mode: "syncable"
+        }
       });
     } finally {
       database.close();
@@ -107,3 +176,31 @@ describe("desktop background runtime ingestion", () => {
     }
   });
 });
+
+function writeCodexSession(codexHome: string, text: string, sessionId = "runtime-test"): void {
+  writeFileSync(
+    join(codexHome, "session.jsonl"),
+    [
+      {
+        timestamp: "2026-05-22T09:00:00.000Z",
+        type: "session_meta",
+        payload: {
+          id: sessionId,
+          cwd: "/Users/example/Documents/project/orbit",
+          source: "Codex Desktop"
+        }
+      },
+      {
+        timestamp: "2026-05-22T09:01:00.000Z",
+        type: "response_item",
+        payload: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text }]
+        }
+      }
+    ]
+      .map((record) => JSON.stringify(record))
+      .join("\n")
+  );
+}

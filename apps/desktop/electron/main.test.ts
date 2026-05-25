@@ -10,6 +10,8 @@ describe("desktop main process runtime guards", () => {
     expect(main).toContain("runPackagedSmoke");
     expect(main).toContain("orbit:getActivitySessionDetail");
     expect(main).toContain("orbit:searchKnowledge");
+    expect(main).toContain("orbit:previewSourceImport");
+    expect(main).toContain("orbit:confirmSourceImport");
     expect(main).toContain("orbit:getKnowledgeArtifactDetail");
     expect(main).toContain("orbit:editKnowledge");
     expect(main).toContain("orbit:searchMemory");
@@ -44,6 +46,8 @@ describe("desktop main process runtime guards", () => {
     const data = readFileSync(new URL("./data.ts", import.meta.url), "utf8");
 
     expect(data).toContain("isGenericBackgroundSource");
+    expect(data).toContain("readBackgroundSyncableSources");
+    expect(data).toContain("config?.mode === \"import_only\"");
     expect(data).toContain("supportedBackgroundSourceKinds");
     expect(data).toContain("supportedSourceKinds: supportedBackgroundSourceKinds");
     expect(data).toContain("sourceKind === \"codex\"");

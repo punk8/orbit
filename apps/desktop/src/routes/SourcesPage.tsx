@@ -1,6 +1,11 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
-import type { DesktopSnapshot, DesktopSourceRuntimeAction, SourceSetupKind } from "../orbitApi";
+import type {
+  DesktopSnapshot,
+  DesktopSourceImportPreview,
+  DesktopSourceRuntimeAction,
+  SourceSetupKind
+} from "../orbitApi";
 import type { PerceptionSourceRuntimeAction } from "@orbit/core";
 import { MetricCard } from "../components/MetricCard";
 import { Section } from "../components/Section";
@@ -9,6 +14,8 @@ import { useI18n } from "../i18n";
 export function SourcesPage({
   snapshot,
   onSetupSource,
+  onPreviewSourceImport,
+  onConfirmSourceImport,
   onReconfigureSource,
   onDeleteSource,
   onResetSourceCursor,
@@ -19,6 +26,8 @@ export function SourcesPage({
 }: {
   snapshot: DesktopSnapshot;
   onSetupSource(kind: SourceSetupKind, path?: string): Promise<void>;
+  onPreviewSourceImport(kind: SourceSetupKind, path: string): Promise<DesktopSourceImportPreview>;
+  onConfirmSourceImport(kind: SourceSetupKind, path: string): Promise<void>;
   onReconfigureSource(sourceId: string, kind: SourceSetupKind, path?: string): Promise<void>;
   onDeleteSource(sourceId: string): Promise<void>;
   onResetSourceCursor(sourceId: string): Promise<void>;
@@ -31,12 +40,46 @@ export function SourcesPage({
   ): Promise<void>;
 }): ReactElement {
   const { t, sensitivity, sourceKind } = useI18n();
-  const [codexPath, setCodexPath] = useState("");
-  const [localAgentPath, setLocalAgentPath] = useState("");
-  const [seatalkPath, setSeatalkPath] = useState("");
+  void onSetupSource;
+  const [importKind, setImportKind] = useState<SourceSetupKind>("codex");
+  const [importPath, setImportPath] = useState("");
+  const [preview, setPreview] = useState<DesktopSourceImportPreview | undefined>();
+  const [previewError, setPreviewError] = useState<string | undefined>();
+  const [isPreviewing, setIsPreviewing] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const runtimeSourceById = new Map(
     snapshot.runtime.background.sources.map((source) => [source.sourceId, source])
   );
+  const trimmedImportPath = importPath.trim();
+
+  async function previewImport(): Promise<void> {
+    if (!trimmedImportPath) return;
+    setIsPreviewing(true);
+    setPreviewError(undefined);
+    try {
+      setPreview(await onPreviewSourceImport(importKind, trimmedImportPath));
+    } catch (error) {
+      setPreview(undefined);
+      setPreviewError(error instanceof Error ? error.message : t("source.importPreviewFailed"));
+    } finally {
+      setIsPreviewing(false);
+    }
+  }
+
+  async function confirmImport(): Promise<void> {
+    if (!trimmedImportPath) return;
+    setIsImporting(true);
+    setPreviewError(undefined);
+    try {
+      await onConfirmSourceImport(importKind, trimmedImportPath);
+      setPreview(undefined);
+      setImportPath("");
+    } catch (error) {
+      setPreviewError(error instanceof Error ? error.message : t("source.importFailed"));
+    } finally {
+      setIsImporting(false);
+    }
+  }
 
   return (
     <div className="page-grid">
@@ -45,10 +88,107 @@ export function SourcesPage({
         <MetricCard label={t("metric.events")} value={snapshot.counts.events} />
         <MetricCard label={t("metric.localDb")} value="SQLite" detail={t("detail.walEnabled")} />
       </div>
+      <Section
+        title={
+          snapshot.settings.sourceSetupCompleted
+            ? t("section.sourceSetup")
+            : t("section.firstRunSourceSetup")
+        }
+      >
+        <div className="source-import-panel">
+          <div className="source-import-copy">
+            <p>{t("source.importBoundary")}</p>
+            <div className="meta-line permission-line">
+              <span>{t("source.importOnly")}</span>
+              <span>{t("source.rawNotStored")}</span>
+              <span>{t("source.agentExportAllowed")}</span>
+            </div>
+          </div>
+          <div className="source-import-controls">
+            <div className="segmented-control" aria-label={t("source.importKind")}>
+              {(["codex", "local_agent", "seatalk"] as SourceSetupKind[]).map((kind) => (
+                <button
+                  className={importKind === kind ? "active" : ""}
+                  key={kind}
+                  onClick={() => {
+                    setImportKind(kind);
+                    setPreview(undefined);
+                    setPreviewError(undefined);
+                  }}
+                  type="button"
+                >
+                  {sourceImportKindLabel(t, kind)}
+                </button>
+              ))}
+            </div>
+            <div className="source-import-path-row">
+              <input
+                aria-label={t("source.importPath")}
+                className="text-input"
+                onChange={(event) => {
+                  setImportPath(event.currentTarget.value);
+                  setPreview(undefined);
+                  setPreviewError(undefined);
+                }}
+                placeholder={t("source.importPathPlaceholder")}
+                value={importPath}
+              />
+              <button
+                className="secondary-button"
+                disabled={!trimmedImportPath || isPreviewing}
+                onClick={() => void previewImport()}
+                type="button"
+              >
+                {isPreviewing ? t("source.importPreviewing") : t("source.importPreview")}
+              </button>
+              <button
+                className="secondary-button"
+                disabled={!preview || isImporting}
+                onClick={() => void confirmImport()}
+                type="button"
+              >
+                {isImporting ? t("source.importing") : t("source.confirmImport")}
+              </button>
+            </div>
+          </div>
+          {preview ? (
+            <div className="source-import-preview">
+              <div>
+                <span>{t("source.previewEventCount")}</span>
+                <strong>{preview.eventCount}</strong>
+              </div>
+              <div>
+                <span>{t("source.previewDateRange")}</span>
+                <strong>
+                  {preview.dateRange
+                    ? `${preview.dateRange.from} - ${preview.dateRange.to}`
+                    : t("fallback.none")}
+                </strong>
+              </div>
+              <div>
+                <span>{t("source.previewProjects")}</span>
+                <strong>
+                  {preview.projects.length > 0 ? preview.projects.join(", ") : t("fallback.none")}
+                </strong>
+              </div>
+              <div>
+                <span>{t("source.previewWarnings")}</span>
+                <strong>{preview.warningCount}</strong>
+              </div>
+            </div>
+          ) : null}
+          {preview?.warnings.length ? (
+            <p className="warning-text">{preview.warnings[0]}</p>
+          ) : null}
+          {previewError ? <p className="error-text">{previewError}</p> : null}
+        </div>
+      </Section>
       <Section title={t("section.sourceStatus")}>
         <div className="item-list">
           {snapshot.sources.map((source) => {
             const runtimeSource = runtimeSourceById.get(source.id);
+            const config = snapshot.sourceAdapterConfigs[source.id];
+            const importOnly = config?.mode === "import_only";
             return (
               <article className="list-item" key={source.id}>
                 <div>
@@ -56,7 +196,7 @@ export function SourcesPage({
                   <div className="meta-line">
                     {sourceKind(source.kind)}
                     <span>{sensitivity(source.defaultSensitivity)}</span>
-                    <span>{sourceStatusLabel(t, source)}</span>
+                    <span>{sourceStatusLabel(t, source, importOnly)}</span>
                     {source.lastSyncAt ? (
                       <span>{`${t("source.lastSync")} ${source.lastSyncAt}`}</span>
                     ) : null}
@@ -87,18 +227,21 @@ export function SourcesPage({
                   </div>
                   <div className="meta-line permission-line">
                     <span>{`${t("source.interface")} ${
-                      snapshot.sourceAdapterConfigs[source.id]?.setupKind ?? source.id
+                      config?.setupKind ?? source.id
                     }`}</span>
                     <span>
                       {snapshot.sourceCursors[source.id]
                         ? t("source.cursorPresent")
                         : t("source.cursorEmpty")}
                     </span>
-                    {snapshot.sourceAdapterConfigs[source.id]?.path ? (
-                      <span>{`${t("source.path")} ${snapshot.sourceAdapterConfigs[source.id]?.path}`}</span>
+                    {config?.path ? (
+                      <span>{`${t("source.path")} ${config.path}`}</span>
+                    ) : null}
+                    {config?.lastImport ? (
+                      <span>{`${t("source.lastImport")} ${config.lastImport.importedAt}`}</span>
                     ) : null}
                   </div>
-                  {runtimeSource ? (
+                  {runtimeSource && !importOnly ? (
                     <div className="meta-line permission-line runtime-source-line">
                       <span>{`${t("source.runtimeInterval")} ${formatDuration(runtimeSource.intervalMs)}`}</span>
                       <span>{`${t("source.runtimeNextRun")} ${
@@ -115,14 +258,10 @@ export function SourcesPage({
                   {source.lastError ? <p className="error-text">{source.lastError}</p> : null}
                 </div>
                 <div className="source-actions">
-                  {readReconfigurableSetupKind(
-                    snapshot.sourceAdapterConfigs[source.id]?.setupKind,
-                    source.kind
-                  ) ? (
+                  {!importOnly && readReconfigurableSetupKind(config?.setupKind, source.kind) ? (
                     <button
                       className="secondary-button"
                       onClick={() => {
-                        const config = snapshot.sourceAdapterConfigs[source.id];
                         const setupKind = readReconfigurableSetupKind(
                           config?.setupKind,
                           source.kind
@@ -149,7 +288,7 @@ export function SourcesPage({
                   </button>
                   <button
                     className="secondary-button"
-                    disabled={!source.enabled}
+                    disabled={!source.enabled || importOnly}
                     onClick={() =>
                       void onUpdateSourceRuntime(source.id, source.paused ? "resume" : "pause")
                     }
@@ -159,6 +298,7 @@ export function SourcesPage({
                   </button>
                   <button
                     className="secondary-button"
+                    disabled={importOnly}
                     onClick={() =>
                       void onUpdateSourceRuntime(source.id, source.enabled ? "disable" : "enable")
                     }
@@ -272,65 +412,8 @@ export function SourcesPage({
           ))}
         </div>
       </Section>
-      <Section
-        title={
-          snapshot.settings.sourceSetupCompleted
-            ? t("section.sourceSetup")
-            : t("section.firstRunSourceSetup")
-        }
-      >
+      <Section title={t("section.sourceMaintenance")}>
         <div className="source-setup-grid">
-          <article className="setup-card">
-            <h3>Codex</h3>
-            <p>{t("source.codexDescription")}</p>
-            <input
-              className="text-input"
-              onChange={(event) => setCodexPath(event.currentTarget.value)}
-              value={codexPath}
-            />
-            <button
-              className="secondary-button"
-              disabled={codexPath.trim().length === 0}
-              onClick={() => void onSetupSource("codex", codexPath)}
-              type="button"
-            >
-              {t("action.configureCodex")}
-            </button>
-          </article>
-          <article className="setup-card">
-            <h3>{t("source.localAgent")}</h3>
-            <p>{t("source.localAgentDescription")}</p>
-            <input
-              className="text-input"
-              onChange={(event) => setLocalAgentPath(event.currentTarget.value)}
-              value={localAgentPath}
-            />
-            <button
-              className="secondary-button"
-              disabled={localAgentPath.trim().length === 0}
-              onClick={() => void onSetupSource("local_agent", localAgentPath)}
-              type="button"
-            >
-              {t("action.configureAgent")}
-            </button>
-          </article>
-          <article className="setup-card">
-            <h3>{t("source.seatalkImport")}</h3>
-            <p>{t("source.seatalkDescription")}</p>
-            <input
-              className="text-input"
-              onChange={(event) => setSeatalkPath(event.currentTarget.value)}
-              value={seatalkPath}
-            />
-            <button
-              className="secondary-button"
-              disabled={seatalkPath.trim().length === 0}
-              onClick={() => void onSetupSource("seatalk", seatalkPath)}
-              type="button"
-            >
-              {t("action.configureSeaTalk")}
-            </button>
-          </article>
           <article className="list-item">
             <div>
               <h3>{t("source.perceptionSidecarCleanup")}</h3>
@@ -407,10 +490,21 @@ function readReconfigurableSetupKind(
   return undefined;
 }
 
+function sourceImportKindLabel(
+  t: ReturnType<typeof useI18n>["t"],
+  kind: SourceSetupKind
+): string {
+  if (kind === "codex") return "Codex";
+  if (kind === "local_agent") return t("source.localAgent");
+  return t("source.seatalkImport");
+}
+
 function sourceStatusLabel(
   t: ReturnType<typeof useI18n>["t"],
-  source: DesktopSnapshot["sources"][number]
+  source: DesktopSnapshot["sources"][number],
+  importOnly: boolean
 ): string {
+  if (importOnly) return t("source.importOnly");
   if (!source.enabled) return t("state.disabled");
   if (source.paused) return t("runtime.paused");
   if (source.lastError) return t("runtime.error");

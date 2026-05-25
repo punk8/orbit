@@ -212,6 +212,8 @@ function buildSourceStatus(
 ): TodaySourceStatus[] {
   const { t, sourceKind } = labels;
   return snapshot.sources.slice(0, 6).map((source) => {
+    const config = snapshot.sourceAdapterConfigs[source.id];
+    const importOnly = config?.mode === "import_only";
     const state =
       source.enabled && !source.paused && !source.lastError
         ? "ready"
@@ -223,12 +225,20 @@ function buildSourceStatus(
       label: source.displayName || sourceKind(source.kind),
       state,
       stateLabel:
-        state === "ready"
+        importOnly
+          ? t("source.importOnly")
+          : state === "ready"
           ? t("today.sourceReady")
           : state === "paused"
             ? t("today.sourcePaused")
             : t("today.sourceBlocked"),
-      description: source.lastError ?? source.lastEventAt ?? source.updatedAt,
+      description:
+        (importOnly && config?.lastImport
+          ? `${t("source.lastImport")} ${config.lastImport.importedAt}`
+          : undefined) ??
+        source.lastError ??
+        source.lastEventAt ??
+        source.updatedAt,
       rawLabel: source.permissionScope.canStoreRaw
         ? t("source.rawStored")
         : t("source.rawNotStored"),

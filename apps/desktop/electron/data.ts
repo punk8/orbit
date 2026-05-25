@@ -136,6 +136,9 @@ import type {
   DesktopRecommendationDetail,
   DesktopRuntimeStatus,
   DesktopSourceRuntimeAction,
+  DesktopSourceImportPreview,
+  DesktopSourceImportResult,
+  DesktopSourceImportSummary,
   DesktopSettingKey,
   DesktopSnapshot,
   DesktopIgnoreCurrentContextInput,
@@ -178,7 +181,9 @@ const BACKGROUND_PIPELINE_OPTIONS = {};
 
 interface StoredSourceAdapterConfig {
   setupKind: SourceSetupKind;
+  mode?: "import_only" | "syncable";
   path?: string;
+  lastImport?: DesktopSourceImportSummary;
 }
 
 type StoredSourceAdapterConfigs = Record<string, StoredSourceAdapterConfig>;
@@ -762,6 +767,108 @@ export async function setupSourceForDesktop(
         (total, result) => total + result.inserted,
         0
       )} events; ${pipeline.activitySessions.total} activity sessions available`
+    };
+  } finally {
+    database.close();
+  }
+}
+
+export async function previewSourceImportForDesktop(
+  kind: SourceSetupKind,
+  path: string
+): Promise<DesktopSourceImportPreview> {
+  const adapter = buildSingleSourceAdapter(kind, path, undefined);
+  const result = await adapter.readCursor(undefined);
+  const dates = result.events.map((event) => event.occurredAt).sort();
+  const projects = uniquePreviewValues(result.events.map((event) => event.context.project));
+  const apps = uniquePreviewValues(result.events.map((event) => event.context.app));
+  const preview: DesktopSourceImportPreview = {
+    adapterId: adapter.id,
+    displayName: adapter.displayName,
+    kind,
+    mode: "import_only",
+    path: resolveInputPath(path),
+    eventCount: result.events.length,
+    warningCount: result.warnings?.length ?? 0,
+    warnings: result.warnings ?? [],
+    projects,
+    apps,
+    permission: {
+      readableFields: adapter.permissionScope.readableFields,
+      canStoreRaw: adapter.permissionScope.canStoreRaw,
+      canStoreSummary: adapter.permissionScope.canStoreSummary,
+      canUseForAI: adapter.permissionScope.canUseForAI,
+      canExportToAgent: adapter.permissionScope.canExportToAgent,
+      retentionPolicyId: adapter.permissionScope.retentionPolicyId
+    }
+  };
+  if (dates[0] && dates.at(-1)) {
+    preview.dateRange = {
+      from: dates[0],
+      to: dates.at(-1) as string
+    };
+  }
+  return preview;
+}
+
+export async function confirmSourceImportForDesktop(
+  kind: SourceSetupKind,
+  path: string
+): Promise<DesktopSourceImportResult> {
+  const database = openOrbitDatabase();
+  try {
+    const sourceRepository = new SourceRepository(database.db);
+    const eventRepository = new EventRepository(database.db);
+    const settingsRepository = new SettingsRepository(database.db);
+    const auditRepository = new AuditRepository(database.db);
+    const adapter = buildSingleSourceAdapter(kind, path, undefined);
+    const resolvedPath = resolveInputPath(path);
+    const existingConfig = readSourceAdapterConfigs(settingsRepository)[adapter.id];
+    sourceRepository.upsertFromAdapter(adapter);
+    const cursor =
+      existingConfig?.path === resolvedPath ? sourceRepository.getCursor(adapter.id) : undefined;
+    const result = await ingestEventsFromAdapter(adapter, eventRepository, cursor);
+    sourceRepository.setCursor(adapter.id, result.nextCursor);
+    sourceRepository.recordSyncSuccess(adapter.id, { lastEventAt: result.lastEventAt });
+    const importedAt = new Date().toISOString();
+    const importSummary: DesktopSourceImportSummary = {
+      importedAt,
+      path: resolvedPath,
+      mode: "import_only",
+      read: result.read,
+      inserted: result.inserted,
+      skipped: result.skipped,
+      warnings: result.warnings
+    };
+    if (result.lastEventAt) importSummary.lastEventAt = result.lastEventAt;
+    if (result.nextCursor) importSummary.nextCursor = result.nextCursor;
+    storeSingleSourceAdapterConfig(settingsRepository, kind, path, adapter, {
+      mode: "import_only",
+      lastImport: importSummary
+    });
+    auditRepository.log("source.import_confirmed", "source", adapter.id, {
+      mode: "import_only",
+      kind,
+      path: resolvedPath,
+      read: result.read,
+      inserted: result.inserted,
+      skipped: result.skipped,
+      warnings: result.warnings,
+      nextCursor: result.nextCursor
+    });
+    const pipeline = (
+      await reindexLocalDataWithProvider(database, buildDesktopPipelineOptions(settingsRepository))
+    ).pipeline;
+    settingsRepository.set(SETTING_KEYS.sourceSetupCompleted, true);
+    const language = readEffectiveDesktopLanguage(settingsRepository);
+    return {
+      snapshot: readDesktopSnapshot(),
+      importResult: importSummary,
+      warnings: result.warnings,
+      message:
+        language === "zh-CN"
+          ? `已导入 ${result.inserted} 条 ${adapter.displayName} 事件；当前有 ${pipeline.activitySessions.total} 个活动片段`
+          : `Imported ${result.inserted} ${adapter.displayName} event(s); ${pipeline.activitySessions.total} activity sessions available`
     };
   } finally {
     database.close();
@@ -1443,7 +1550,9 @@ export async function runBackgroundIngestionForDesktop(): Promise<BackgroundInge
       };
     }
 
-    const sources = sourceRepository.listSources();
+    const allSources = sourceRepository.listSources();
+    const sources = readBackgroundSyncableSources(allSources, settings);
+    const importOnlySkipped = allSources.length - sources.length;
     const startedAt = new Date().toISOString();
     const policy = readBackgroundRuntimePolicy(database.db);
     const sourceStates = readBackgroundSourceRuntimeStates(database.db);
@@ -1545,7 +1654,7 @@ export async function runBackgroundIngestionForDesktop(): Promise<BackgroundInge
       sourceCount: sources.length,
       scheduled: cycle.runnable.length,
       attempted,
-      skippedSources: cycle.skipped.length,
+      skippedSources: cycle.skipped.length + importOnlySkipped,
       policyBlocks: cycle.skipped.filter((decision) => isPolicyBlock(decision)).length,
       read,
       inserted,
@@ -1554,14 +1663,15 @@ export async function runBackgroundIngestionForDesktop(): Promise<BackgroundInge
       policy: {
         maxSourcesPerCycle: policy.maxSourcesPerCycle,
         resourceLimits: policy.resourceLimits
-      }
+      },
+      importOnlySkipped
     });
     return {
       status,
-      sourceCount: sources.length,
+      sourceCount: allSources.length,
       scheduled: cycle.runnable.length,
       attempted,
-      skippedSources: cycle.skipped.length,
+      skippedSources: cycle.skipped.length + importOnlySkipped,
       policyBlocks: cycle.skipped.filter((decision) => isPolicyBlock(decision)).length,
       read,
       inserted,
@@ -1815,10 +1925,17 @@ function readRuntime(
   db: Parameters<typeof readBackgroundRuntimeSnapshot>[0]
 ): DesktopSnapshot["runtime"] {
   const paused = settings.get<boolean>(SETTING_KEYS.runtimeCollectionPaused) ?? false;
+  const background = readBackgroundRuntimeSnapshot(db);
+  const configs = readSourceAdapterConfigs(settings);
   const runtime: DesktopSnapshot["runtime"] = {
     status: paused ? "paused" : readRuntimeStatus(settings.get<string>(SETTING_KEYS.runtimeStatus)),
     collectionPaused: paused,
-    background: readBackgroundRuntimeSnapshot(db)
+    background: {
+      ...background,
+      sources: background.sources.filter(
+        (source) => isBackgroundSyncableSourceConfig(configs[source.sourceId])
+      )
+    }
   };
   const lastRunAt = settings.get<string>(SETTING_KEYS.runtimeLastRunAt);
   const lastCompletedAt = settings.get<string>(SETTING_KEYS.runtimeLastCompletedAt);
@@ -2158,6 +2275,26 @@ function isGenericBackgroundSource(sourceKind: SourceKind): boolean {
   return sourceKind === "codex" || sourceKind === "local_agent" || sourceKind === "seatalk";
 }
 
+function readBackgroundSyncableSources(
+  sources: ReturnType<SourceRepository["listSources"]>,
+  settings: SettingsRepository
+): ReturnType<SourceRepository["listSources"]> {
+  const configs = readSourceAdapterConfigs(settings);
+  return sources.filter((source) => {
+    return isBackgroundSyncableSourceConfig(configs[source.id]);
+  });
+}
+
+function uniquePreviewValues(values: Array<string | undefined>): string[] {
+  return [...new Set(values.filter((value): value is string => Boolean(value)))].slice(0, 8);
+}
+
+function isBackgroundSyncableSourceConfig(config: StoredSourceAdapterConfig | undefined): boolean {
+  if (config?.mode === "import_only") return false;
+  if (config?.mode === "syncable") return true;
+  return config?.path !== undefined;
+}
+
 function buildBackgroundAdapter(
   sourceId: string,
   sourceKind: SourceKind,
@@ -2184,13 +2321,21 @@ function storeSourceAdapterConfigs(
   settings: SettingsRepository,
   setupKind: SourceSetupKind,
   path: string | undefined,
-  adapters: SourceAdapter[]
+  adapters: SourceAdapter[],
+  options: {
+    mode?: StoredSourceAdapterConfig["mode"];
+    lastImport?: DesktopSourceImportSummary;
+  } = {}
 ): void {
   const configs = readSourceAdapterConfigs(settings);
   const resolvedPath = path ? resolveInputPath(path) : undefined;
   for (const adapter of adapters) {
-    const config: StoredSourceAdapterConfig = { setupKind };
+    const config: StoredSourceAdapterConfig = {
+      setupKind,
+      mode: options.mode ?? "syncable"
+    };
     if (resolvedPath) config.path = resolvedPath;
+    if (options.lastImport) config.lastImport = options.lastImport;
     configs[adapter.id] = config;
   }
   settings.set(SETTING_KEYS.sourceAdapterConfigs, configs);
@@ -2200,9 +2345,13 @@ function storeSingleSourceAdapterConfig(
   settings: SettingsRepository,
   setupKind: SourceSetupKind,
   path: string | undefined,
-  adapter: SourceAdapter
+  adapter: SourceAdapter,
+  options: {
+    mode?: StoredSourceAdapterConfig["mode"];
+    lastImport?: DesktopSourceImportSummary;
+  } = {}
 ): void {
-  storeSourceAdapterConfigs(settings, setupKind, path, [adapter]);
+  storeSourceAdapterConfigs(settings, setupKind, path, [adapter], options);
 }
 
 function removeSourceAdapterConfig(settings: SettingsRepository, sourceId: string): void {
@@ -2343,20 +2492,22 @@ function buildSourceSetupAdapters(kind: SourceSetupKind, path?: string) {
   }
 }
 
-function buildSingleSourceAdapter(
-  kind: SourceSetupKind,
-  path: string | undefined,
-  id: string
-) {
+function buildSingleSourceAdapter(kind: SourceSetupKind, path: string | undefined, id?: string) {
   const resolvedPath = path ? resolveInputPath(path) : undefined;
   if (!resolvedPath) throw new Error(`${kind} source reconfiguration requires a path`);
   if (kind === "codex") {
-    return new CodexAdapter({ path: resolvedPath, id });
+    return new CodexAdapter(id ? { path: resolvedPath, id } : { path: resolvedPath });
   }
   if (kind === "local_agent") {
-    return new LocalAgentAdapter({ path: resolvedPath, id, defaultApp: "Local Agent" });
+    return new LocalAgentAdapter(
+      id
+        ? { path: resolvedPath, id, defaultApp: "Local Agent" }
+        : { path: resolvedPath, defaultApp: "Local Agent" }
+    );
   }
-  return new SeaTalkAdapter({ approvedImportDirectory: resolvedPath, id });
+  return new SeaTalkAdapter(
+    id ? { approvedImportDirectory: resolvedPath, id } : { approvedImportDirectory: resolvedPath }
+  );
 }
 
 function resolveInputPath(input: string): string {

@@ -2171,13 +2171,87 @@ button {
   .protected-rule-controls {
     grid-template-columns: 1fr;
   }
+
+  .source-import-path-row,
+  .source-import-preview,
+  .source-setup-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .source-setup-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   padding: 12px;
+}
+
+.source-import-panel {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+}
+
+.source-import-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.source-import-copy p {
+  max-width: 780px;
+  margin: 0;
+  color: #3e474a;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.source-import-controls {
+  display: grid;
+  gap: 10px;
+}
+
+.source-import-path-row {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.source-import-preview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.source-import-preview div {
+  min-width: 0;
+  border: 1px solid #e8e4dd;
+  border-radius: 8px;
+  background: #fbfaf7;
+  padding: 10px 12px;
+}
+
+.source-import-preview span {
+  display: block;
+  color: #73736b;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.source-import-preview strong {
+  display: block;
+  overflow: hidden;
+  margin-top: 4px;
+  color: #20292d;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.warning-text {
+  margin: 0;
+  color: #8b5c15;
+  font-size: 12px;
 }
 
 .setup-card {

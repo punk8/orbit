@@ -5,6 +5,8 @@ describe("desktop preload API", () => {
   it("exposes source governance actions", () => {
     const source = readFileSync(new URL("./preload.ts", import.meta.url), "utf8");
 
+    expect(source).toContain("previewSourceImport");
+    expect(source).toContain("confirmSourceImport");
     expect(source).toContain("reconfigureSource");
     expect(source).toContain("getActivitySessionDetail");
     expect(source).toContain("searchKnowledge");

@@ -22,6 +22,7 @@ import {
   deleteMemoryForDesktop,
   readDesktopSnapshot,
   readDesktopSettings,
+  previewSourceImportForDesktop,
   reconfigureSourceForDesktop,
   reindexForDesktop,
   regenerateKnowledgeForDesktop,
@@ -38,6 +39,7 @@ import {
   setCollectionPausedForDesktop,
   searchKnowledgeForDesktop,
   searchMemoryForDesktop,
+  confirmSourceImportForDesktop,
   setupSourceForDesktop,
   syncDogfoodRuntimePermissionForDesktop,
   testAIProviderForDesktop,
@@ -203,6 +205,15 @@ ipcMain.handle("orbit:ignoreCurrentContext", (_event, input: DesktopIgnoreCurren
   const snapshot = ignoreCurrentContextForDesktop(input);
   applyRuntimeSettings();
   return snapshot;
+});
+ipcMain.handle("orbit:previewSourceImport", (_event, kind: string, path: string) =>
+  previewSourceImportForDesktop(requireSourceSetupKind(kind), String(path ?? ""))
+);
+ipcMain.handle("orbit:confirmSourceImport", async (_event, kind: string, path: string) => {
+  const result = await confirmSourceImportForDesktop(requireSourceSetupKind(kind), String(path ?? ""));
+  applyRuntimeSettings();
+  notifySnapshotChanged();
+  return result;
 });
 ipcMain.handle("orbit:setupSource", (_event, kind: string, path?: string) =>
   setupSourceForDesktop(requireSourceSetupKind(kind), path)

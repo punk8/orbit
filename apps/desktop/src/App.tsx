@@ -20,6 +20,7 @@ import type {
   DesktopIgnoreCurrentContextInput,
   DesktopProtectedRuleInput,
   DesktopSettingKey,
+  DesktopSourceImportPreview,
   DesktopSourceRuntimeAction,
   SourceSetupKind
 } from "./orbitApi";
@@ -199,6 +200,26 @@ export function App(): ReactElement {
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : t("error.source"));
     }
+  }
+
+  async function previewSourceImport(
+    kind: SourceSetupKind,
+    path: string
+  ): Promise<DesktopSourceImportPreview> {
+    setError(undefined);
+    try {
+      return await window.orbit.previewSourceImport(kind, path);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : t("error.source"));
+      throw reason;
+    }
+  }
+
+  async function confirmSourceImport(kind: SourceSetupKind, path: string): Promise<void> {
+    await runDesktopAction(
+      () => window.orbit.confirmSourceImport(kind, path),
+      t("error.sourceRuntime")
+    );
   }
 
   async function reconfigureSource(
@@ -477,6 +498,8 @@ export function App(): ReactElement {
                 upsertProtectedRule,
                 ignoreCurrentContext,
                 setupSource,
+                previewSourceImport,
+                confirmSourceImport,
                 reconfigureSource,
                 deleteSource,
                 resetSourceCursor,
@@ -550,6 +573,8 @@ interface PageActions {
   upsertProtectedRule(input: DesktopProtectedRuleInput): Promise<void>;
   ignoreCurrentContext(input: DesktopIgnoreCurrentContextInput): Promise<void>;
   setupSource(kind: SourceSetupKind, path?: string): Promise<void>;
+  previewSourceImport(kind: SourceSetupKind, path: string): Promise<DesktopSourceImportPreview>;
+  confirmSourceImport(kind: SourceSetupKind, path: string): Promise<void>;
   reconfigureSource(sourceId: string, kind: SourceSetupKind, path?: string): Promise<void>;
   deleteSource(sourceId: string): Promise<void>;
   resetSourceCursor(sourceId: string): Promise<void>;
@@ -631,6 +656,8 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
         <SourcesPage
           snapshot={snapshot}
           onSetupSource={actions.setupSource}
+          onPreviewSourceImport={actions.previewSourceImport}
+          onConfirmSourceImport={actions.confirmSourceImport}
           onReconfigureSource={actions.reconfigureSource}
           onDeleteSource={actions.deleteSource}
           onResetSourceCursor={actions.resetSourceCursor}
