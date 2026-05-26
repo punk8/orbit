@@ -36,6 +36,20 @@ describe("SourcesPage source governance controls", () => {
     expect(source).toContain("runtimeSourceById");
   });
 
+  it("offers only explicit import setup for expanded real sources", () => {
+    const source = readFileSync(new URL("./SourcesPage.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain('"project_directory"');
+    expect(source).toContain('"browser_import"');
+    expect(source).toContain('"terminal_import"');
+    expect(source).toContain('"file_activity_import"');
+    expect(source).toContain("source.realSourceImportBoundary");
+    expect(source).toContain("source.projectDirectoryImport");
+    expect(source).toContain("source.browserImport");
+    expect(source).toContain("source.terminalImport");
+    expect(source).toContain("source.fileActivityImport");
+  });
+
   it("does not expose bundled fixtures as a first-run product setup path", () => {
     const source = readFileSync(new URL("./SourcesPage.tsx", import.meta.url), "utf8");
 

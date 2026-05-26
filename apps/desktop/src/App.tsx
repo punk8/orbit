@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import type { DesktopSnapshot } from "./orbitApi";
 import type {
+  DesktopActionFocus,
   DesktopAIProviderTestConfig,
   DesktopAIProviderTestResult,
   DesktopHandoffResult,
@@ -77,6 +78,8 @@ const pages = [
 export function App(): ReactElement {
   const [activePage, setActivePage] = useState<PageId>("today");
   const [snapshot, setSnapshot] = useState<DesktopSnapshot | undefined>();
+  const [activityFocusId, setActivityFocusId] = useState<string | undefined>();
+  const [knowledgeFocusId, setKnowledgeFocusId] = useState<string | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [notice, setNotice] = useState<string | undefined>();
   const [isLoading, setIsLoading] = useState(true);
@@ -320,16 +323,34 @@ export function App(): ReactElement {
   }
 
   async function runDesktopAction(
-    work: () => Promise<{ snapshot: DesktopSnapshot; message: string; exportPath?: string }>,
+    work: () => Promise<{
+      snapshot: DesktopSnapshot;
+      message: string;
+      exportPath?: string;
+      focus?: DesktopActionFocus;
+    }>,
     failureMessage: string
   ): Promise<void> {
     setError(undefined);
     try {
       const result = await work();
       setSnapshot(result.snapshot);
+      applyDesktopActionFocus(result.focus);
       setNotice(result.exportPath ? `${result.message}` : result.message);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : failureMessage);
+    }
+  }
+
+  function applyDesktopActionFocus(focus: DesktopActionFocus | undefined): void {
+    if (focus?.page === "activity" && focus.activitySessionId) {
+      setActivityFocusId(focus.activitySessionId);
+      setActivePage("activity");
+      return;
+    }
+    if (focus?.page === "knowledge" && focus.knowledgeArtifactId) {
+      setKnowledgeFocusId(focus.knowledgeArtifactId);
+      setActivePage("knowledge");
     }
   }
 
@@ -515,6 +536,14 @@ export function App(): ReactElement {
                 exportContext,
                 generateHandoff,
                 testAIProvider,
+                activityFocusId,
+                knowledgeFocusId,
+                clearActivityFocus: () => setActivityFocusId(undefined),
+                clearKnowledgeFocus: () => setKnowledgeFocusId(undefined),
+                focusKnowledge: (id) => {
+                  setKnowledgeFocusId(id);
+                  setActivePage("knowledge");
+                },
                 navigate: setActivePage
               })
             : null}
@@ -598,6 +627,11 @@ interface PageActions {
     input: { kind: "today"; date?: string } | { kind: "project"; project: string }
   ): Promise<DesktopHandoffResult>;
   testAIProvider(config: DesktopAIProviderTestConfig): Promise<DesktopAIProviderTestResult>;
+  activityFocusId?: string | undefined;
+  knowledgeFocusId?: string | undefined;
+  clearActivityFocus(): void;
+  clearKnowledgeFocus(): void;
+  focusKnowledge(id: string): void;
   navigate(page: PageId): void;
 }
 
@@ -615,6 +649,8 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
       return (
         <ActivityPage
           sessions={snapshot.activitySessions}
+          focusSessionId={actions.activityFocusId}
+          onFocusConsumed={actions.clearActivityFocus}
           onCaptureScreenOcr={actions.captureScreenOcr}
           onDeleteActivitySession={actions.deleteActivitySession}
         />
@@ -623,6 +659,8 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
       return (
         <KnowledgePage
           artifacts={snapshot.knowledgeArtifacts}
+          focusArtifactId={actions.knowledgeFocusId}
+          onFocusConsumed={actions.clearKnowledgeFocus}
           onEditKnowledge={actions.editKnowledge}
           onDeleteKnowledge={actions.deleteKnowledge}
           onRegenerateKnowledge={actions.regenerateKnowledge}
@@ -653,6 +691,7 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
       return (
         <ReviewQueuePage
           snapshot={snapshot}
+          onOpenKnowledge={actions.focusKnowledge}
           onReviewKnowledge={actions.reviewKnowledge}
           onReviewMemory={actions.reviewMemory}
         />

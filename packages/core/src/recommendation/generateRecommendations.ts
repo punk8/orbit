@@ -120,6 +120,20 @@ export function generateRecommendations(input: GenerateRecommendationInput): Rec
   });
 }
 
+export function recommendationDedupeKey(recommendation: Recommendation): string {
+  const evidenceScope = recommendation.evidence
+    .map((ref) => ref.eventId ?? `${ref.sourceKind}:${ref.sourcePointer}`)
+    .sort((a, b) => a.localeCompare(b))
+    .slice(0, 8)
+    .join("|");
+  return [
+    recommendation.type,
+    normalizeRecommendationText(recommendation.title),
+    normalizeRecommendationText(recommendation.suggestedAction),
+    evidenceScope || normalizeRecommendationText(recommendation.explanation)
+  ].join("::");
+}
+
 function recommendationFromEvent(input: {
   event: Event;
   type: Recommendation["type"];
@@ -224,6 +238,10 @@ function dedupeRecommendations(recommendations: Recommendation[]): Recommendatio
     result.push(recommendation);
   }
   return result;
+}
+
+function normalizeRecommendationText(value: string): string {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
 function clamp(value: number): number {

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type Database from "better-sqlite3";
 import { afterEach, describe, expect, it } from "vitest";
 import type { AIProvider } from "@orbit/ai";
-import type { Event } from "@orbit/core";
+import type { Event, Recommendation } from "@orbit/core";
 import {
   createStableId,
   defaultPermissionScopeForSource,
@@ -16,6 +16,7 @@ import { ActivityRepository } from "./repositories/activityRepository";
 import { EventRepository } from "./repositories/eventRepository";
 import { AuditRepository } from "./repositories/auditRepository";
 import { KnowledgeRepository } from "./repositories/knowledgeRepository";
+import { RecommendationRepository } from "./repositories/recommendationRepository";
 import { SourceRepository } from "./repositories/sourceRepository";
 import { runSemanticPipeline, runSemanticPipelineWithProvider } from "./semanticPipeline";
 
@@ -288,6 +289,78 @@ describe("semantic pipeline AI provider integration", () => {
 
       expect(knowledgeRepository.getKnowledgeArtifact(artifact.id)?.title).toBe("Reviewed title");
       expect(knowledgeRepository.getKnowledgeArtifact(artifact.id)?.status).toBe("confirmed");
+    } finally {
+      database.close();
+    }
+  });
+
+  it("merges duplicate open recommendations into the existing lifecycle record", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-recommendation-dedupe-test-"));
+    tempDirs.push(orbitHome);
+    const database = openOrbitDatabase({ orbitHome });
+    try {
+      upsertFixtureSource(database.db);
+      const event = makeEvent("7", "todo");
+      new EventRepository(database.db).upsertEvent(event);
+      const recommendationRepository = new RecommendationRepository(database.db);
+      recommendationRepository.upsertRecommendation(
+        makeDuplicateFollowUpRecommendation(event, {
+          id: "recommendation_manual_duplicate",
+          confidence: 0.2,
+          impact: "low"
+        })
+      );
+
+      runSemanticPipeline(database);
+
+      const recommendations = recommendationRepository.listRecommendations();
+      const candidateId = createStableId("recommendation", {
+        type: "follow_up",
+        eventId: event.id
+      });
+      const followUps = recommendations.filter((recommendation) => recommendation.type === "follow_up");
+      expect(followUps).toHaveLength(1);
+      expect(followUps[0]?.id).toBe("recommendation_manual_duplicate");
+      expect(followUps[0]?.confidence).toBe(0.75);
+      expect(followUps[0]?.impact).toBe("medium");
+      expect(recommendationRepository.getRecommendation(candidateId)).toBeUndefined();
+      const operations = new AuditRepository(database.db).listAuditLogs().map((log) => log.operation);
+      expect(operations).toContain("recommendation.dedupe_merge");
+    } finally {
+      database.close();
+    }
+  });
+
+  it("does not reopen dismissed or resolved recommendations with the same dedupe key", () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-recommendation-closed-dedupe-test-"));
+    tempDirs.push(orbitHome);
+    const database = openOrbitDatabase({ orbitHome });
+    try {
+      upsertFixtureSource(database.db);
+      const event = makeEvent("8", "todo");
+      new EventRepository(database.db).upsertEvent(event);
+      const recommendationRepository = new RecommendationRepository(database.db);
+      recommendationRepository.upsertRecommendation(
+        makeDuplicateFollowUpRecommendation(event, {
+          id: "recommendation_user_dismissed_duplicate",
+          status: "dismissed"
+        })
+      );
+
+      runSemanticPipeline(database);
+
+      const recommendations = recommendationRepository.listRecommendations();
+      const candidateId = createStableId("recommendation", {
+        type: "follow_up",
+        eventId: event.id
+      });
+      const followUps = recommendations.filter((recommendation) => recommendation.type === "follow_up");
+      expect(followUps).toHaveLength(1);
+      expect(followUps[0]?.id).toBe("recommendation_user_dismissed_duplicate");
+      expect(followUps[0]?.status).toBe("dismissed");
+      expect(recommendationRepository.getRecommendation(candidateId)).toBeUndefined();
+      const operations = new AuditRepository(database.db).listAuditLogs().map((log) => log.operation);
+      expect(operations).toContain("recommendation.dedupe_suppress_closed");
     } finally {
       database.close();
     }
@@ -601,6 +674,33 @@ function makeEvent(id: string, type: Event["type"]): Event {
       redactionState: "none"
     },
     hash: hashObject(input)
+  };
+}
+
+function makeDuplicateFollowUpRecommendation(
+  event: Event,
+  overrides: Partial<Recommendation> = {}
+): Recommendation {
+  return {
+    id: overrides.id ?? "recommendation_existing_duplicate",
+    schemaVersion: overrides.schemaVersion ?? 1,
+    type: "follow_up",
+    title: event.content.title ?? "Follow up detected",
+    explanation: "A source event was normalized as a follow-up item.",
+    suggestedAction: "Review the source context and decide whether to create a task draft.",
+    confidence: overrides.confidence ?? 0.3,
+    impact: overrides.impact ?? "low",
+    status: overrides.status ?? "new",
+    evidence: [
+      {
+        eventId: event.id,
+        sourceKind: event.source.kind,
+        sourcePointer: event.source.pointer,
+        timestamp: event.occurredAt
+      }
+    ],
+    createdAt: overrides.createdAt ?? event.observedAt,
+    ...(overrides.dueAt ? { dueAt: overrides.dueAt } : {})
   };
 }
 

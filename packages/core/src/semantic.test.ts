@@ -5,6 +5,7 @@ import {
   draftKnowledgeArtifact,
   extractMemoryCandidates,
   generateRecommendations,
+  recommendationDedupeKey,
   buildPerceptionEvidencePacket
 } from "./index";
 
@@ -169,6 +170,28 @@ describe("semantic pipeline", () => {
     expect(recommendations.some((item) => item.type === "context_needed")).toBe(true);
     expect(artifacts.flatMap((artifact) => artifact.content.followUps ?? [])).not.toHaveLength(0);
     expect(artifacts[0]?.content.markdown).toContain("## Evidence");
+  });
+
+  it("builds stable dedupe keys from recommendation action and evidence scope", () => {
+    const event = makeEvent("dedupe", "todo");
+    const [first] = generateRecommendations({
+      events: [event],
+      sessions: buildActivitySessions([event]),
+      artifacts: [],
+      memories: []
+    });
+    const second = first
+      ? {
+          ...first,
+          id: `${first.id}_copy`,
+          confidence: 0.9,
+          createdAt: "2026-05-22T09:00:00.000Z"
+        }
+      : undefined;
+
+    expect(first).toBeDefined();
+    expect(second).toBeDefined();
+    expect(recommendationDedupeKey(first!)).toBe(recommendationDedupeKey(second!));
   });
 
   it("drafts Chinese Activity-level Knowledge from safe perception packets without raw payloads", () => {

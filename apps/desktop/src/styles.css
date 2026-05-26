@@ -1647,6 +1647,30 @@ button {
   white-space: pre-wrap;
 }
 
+.knowledge-edit-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.85fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.knowledge-edit-fields,
+.knowledge-edit-preview {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.knowledge-edit-preview h4 {
+  margin: 0;
+  color: #4f5759;
+  font-size: 12px;
+}
+
+.review-metrics {
+  flex-wrap: wrap;
+}
+
 .edit-panel label {
   display: grid;
   gap: 6px;

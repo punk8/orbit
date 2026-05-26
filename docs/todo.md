@@ -63,6 +63,12 @@
 - 2026-05-26 packaged app + Computer Use 走查：使用 `/tmp` 安全同日 Codex JSONL 可在 Sources 预览 4 条事件并确认导入；Today 显示 Codex Local Sessions、同日活动和知识草稿；Activity 可打开 Codex 片段并看到事件流、证据索引、来源策略和“未保存 raw”；Knowledge 可确认草稿；Handoff 生成后包含确认知识、证据索引和按策略排除列表。
 - 2026-05-27 已收敛：Today 和 Sources 增加真实单次 Screen/OCR 入口，用户明确点击后才捕获当前屏幕；默认 screen policy 改为 `perception_summary_only`、`canStoreRaw=false`，conservative sampling 不再写 raw sidecar；CLI mock burst、desktop one-shot capture 和 Activity playback 都按 raw not stored 路径验收。
 - 2026-05-27 packaged app + Computer Use 走查：重新打包并启动 `apps/desktop/release/mac-arm64/Orbit.app` 后，Today 可见“捕获当前工作现场”入口和来源状态；Sources 可见“单次屏幕 / OCR 捕获”、策略快照 `conservative / Raw disabled`、Screen/OCR `perception_summary_only / 不保存 raw / 禁止导出给 Agent`；点击捕获后写入真实 Screen/OCR 事件并刷新 Activity/Knowledge，DB 元数据确认最新 session `rawAvailable=0` 且没有新增 raw sidecar 文件。
+- 2026-05-27 已收敛：新增四份产品可用改造 spec，覆盖 Activity 最新捕获定位、Knowledge / Review Queue 工作台、Recommendation 去重与动作闭环、显式真实来源扩展，并按 spec 落地实现。
+- 2026-05-27 已收敛：Screen/OCR 捕获结果会返回只含 ID 的 focus hint，桌面端捕获后自动跳到刚生成或更新的 Activity session；Activity 会清理临时筛选、切到时间线并显示“已定位到刚捕获的工作现场”，避免用户在历史列表里找。
+- 2026-05-27 已收敛：Knowledge 支持 focused artifact 导航，编辑态形成“字段编辑 + Markdown 预览 + 证据”同屏工作台；Review Queue 卡片增加置信度、证据数、来源 session、敏感级别、证据展开和“在知识中打开”，确认/拒绝/归档路径更顺。
+- 2026-05-27 已收敛：Recommendation 生成增加稳定 dedupe key，语义 pipeline 会把同一开放建议合并证据/置信度/影响等级并写入 `recommendation.dedupe_merge` 审计；Recommendations 页面默认只看 active，并支持 active / snoozed / closed / all 队列筛选，动作区明确“仅记录选择，不自动执行外部操作”。
+- 2026-05-27 已收敛：Sources 显式导入扩展到 local agent、项目目录 metadata、浏览器 metadata JSON、终端命令 JSON、文件活动 JSON；新来源默认 import-only、需要用户预览后确认，后台 ingestion 会跳过 import-only，项目目录只生成文件路径/mtime/hash metadata，不读取文件正文。
+- 2026-05-27 checkpoint 验收：`pnpm typecheck`、`pnpm test`（47 files / 242 tests）、`pnpm lint`、`pnpm --filter @orbit/desktop build`、`pnpm --filter @orbit/desktop package:dir` 均已通过；package smoke 未发现 `.db` / `.sqlite` / `.jsonl` / autoresearch / `research-results.tsv` / `fixtures` / `.tmp` / `perception-sidecars` 混入 `apps/desktop/release/mac-arm64/Orbit.app`。
 - 仍需正式解决 packaged app 多 worktree 串台：当前 `dev.orbit.local` bundle id 和 `~/Library/Application Support/Orbit` user-data-dir 会让 Computer Use / macOS 复用旧 Orbit 实例，手动验收必须先核对进程环境中的 `ORBIT_HOME`，并清理旧进程；后续正式 app identity / dev identity 隔离应作为安装启动阶段处理。
 - 仍需收敛手动验收数据目录：本次 release app 因既有 Settings 存储路径连接到 `/tmp/orbit-manual-open/orbit.db`，而不是默认 `~/Library/Application Support/Orbit/orbit.db`；后续 Diagnostics/About 页面应直接展示当前 `orbitHome`、`dbPath`、日志路径、权限状态和最近错误，避免普通用户或验收人员误判数据来源。
 

@@ -12,11 +12,14 @@ import {
   normalizeObservationInput,
   recordBackgroundSourceFailure,
   recordBackgroundSourceSuccess,
+  hashObject,
   type AllowedFolderRule,
   type BackgroundRuntimeDecision,
   type EvidenceRef,
+  type Event,
   type KnowledgeArtifact,
   type Memory,
+  type ObservationInput,
   type ObservationPermissionStatus,
   type ObservationRuntimeStatus,
   type ObservationStatus,
@@ -32,13 +35,16 @@ import {
 } from "@orbit/core";
 import {
   CapturedTextOcrEngine,
+  BrowserMetadataAdapter,
   CodexAdapter,
   DesktopObservationAdapter,
+  FileActivityAdapter,
   LocalAgentAdapter,
   MacScreenOcrCaptureHelper,
   OCR_OBSERVATION_ADAPTER_ID,
   OcrObservationAdapter,
   SeaTalkAdapter,
+  TerminalObservationAdapter,
   runScreenBurstScheduler,
   SCREEN_OBSERVATION_ADAPTER_ID,
   ScreenObservationAdapter,
@@ -118,7 +124,8 @@ import type {
   MemoryReviewAction,
   RecommendationReviewAction
 } from "@orbit/db";
-import { isAbsolute, join, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import {
   ingestVisionSummariesForDesktop,
   selectVisionIngestionEvents
@@ -1100,9 +1107,12 @@ export async function captureScreenOcrForDesktop(): Promise<DesktopActionResult>
     }
 
     const results = [];
+    const insertedEventIds: string[] = [];
     for (const adapter of adapters) {
       sourceRepository.upsertFromAdapter(adapter);
+      const beforeIds = new Set(eventRepository.listEvents().map((event) => event.id));
       const result = await ingestEventsFromAdapter(adapter, eventRepository);
+      insertedEventIds.push(...newEventsSince(eventRepository, beforeIds).map((event) => event.id));
       sourceRepository.setCursor(adapter.id, result.nextCursor);
       sourceRepository.recordSyncSuccess(adapter.id, { lastEventAt: result.lastEventAt });
       auditRepository.log("perception.capture_screen_ocr", "source", adapter.id, {
@@ -1148,6 +1158,9 @@ export async function captureScreenOcrForDesktop(): Promise<DesktopActionResult>
       { adapterId: SCREEN_OBSERVATION_ADAPTER_ID, protectedApps: perception.protectedApps }
     );
     const insertedBoundary = eventRepository.upsertEvent(boundaryEvent);
+    if (insertedBoundary) {
+      insertedEventIds.push(boundaryEvent.id);
+    }
     auditRepository.log(
       "perception.capture_screen_ocr_boundary",
       "source",
@@ -1163,11 +1176,19 @@ export async function captureScreenOcrForDesktop(): Promise<DesktopActionResult>
       await reindexLocalDataWithProvider(database, buildDesktopPipelineOptions(settingsRepository))
     ).pipeline;
     const inserted = results.reduce((total, result) => total + result.inserted, 0);
-    return {
-      snapshot: readDesktopSnapshot(),
+    const snapshot = readDesktopSnapshot();
+    const result: DesktopActionResult = {
+      snapshot,
       warnings: results.flatMap((result) => result.warnings).concat(warnings),
       message: `Captured current screen/OCR into ${inserted} event(s); ${pipeline.activitySessions.total} activity sessions available`
     };
+    const focus = buildActivityFocus(
+      snapshot,
+      insertedEventIds,
+      adapters.map((adapter) => adapter.id)
+    );
+    if (focus) result.focus = focus;
+    return result;
   } finally {
     database.close();
   }
@@ -1230,6 +1251,7 @@ export async function captureScreenOcrBurstForDesktop(
     }
 
     const frames = burst?.frames.map((candidate) => candidate.frame) ?? [];
+    const insertedEventIds: string[] = [];
     if (frames.length > 0) {
       const screenPolicy = perception.sources.find(
         (source) => source.sourceKind === "screen"
@@ -1269,7 +1291,9 @@ export async function captureScreenOcrBurstForDesktop(
       ]) {
         sourceRepository.upsertFromAdapter(adapter);
         const cursor = sourceRepository.getCursor(adapter.id);
+        const beforeIds = new Set(eventRepository.listEvents().map((event) => event.id));
         const result = await ingestEventsFromAdapter(adapter, eventRepository, cursor);
+        insertedEventIds.push(...newEventsSince(eventRepository, beforeIds).map((event) => event.id));
         sourceRepository.setCursor(adapter.id, result.nextCursor);
         sourceRepository.recordSyncSuccess(adapter.id, { lastEventAt: result.lastEventAt });
         auditRepository.log("perception.capture_screen_ocr_burst_ingest", "source", adapter.id, {
@@ -1302,32 +1326,40 @@ export async function captureScreenOcrBurstForDesktop(
         language: readEffectiveDesktopLanguage(settingsRepository)
       });
       const lastFrame = frames[frames.length - 1]!;
-      eventRepository.upsertEvent(
-        normalizeObservationInput(
-          {
-            type: "observation_state",
-            tier: "tier3",
-            sourceKind: "screen",
-            occurredAt: new Date(new Date(lastFrame.capturedAt).getTime() + 1).toISOString(),
-            observedAt: new Date(new Date(lastFrame.capturedAt).getTime() + 1).toISOString(),
-            runtimeSessionId,
-            sequence: lastFrame.sequence + 10_000
-          },
-          { adapterId: SCREEN_OBSERVATION_ADAPTER_ID, protectedApps: perception.protectedApps }
-        )
+      const boundaryEvent = normalizeObservationInput(
+        {
+          type: "observation_state",
+          tier: "tier3",
+          sourceKind: "screen",
+          occurredAt: new Date(new Date(lastFrame.capturedAt).getTime() + 1).toISOString(),
+          observedAt: new Date(new Date(lastFrame.capturedAt).getTime() + 1).toISOString(),
+          runtimeSessionId,
+          sequence: lastFrame.sequence + 10_000
+        },
+        { adapterId: SCREEN_OBSERVATION_ADAPTER_ID, protectedApps: perception.protectedApps }
       );
+      if (eventRepository.upsertEvent(boundaryEvent)) {
+        insertedEventIds.push(boundaryEvent.id);
+      }
       settingsRepository.set(SETTING_KEYS.sourceSetupCompleted, true);
       await reindexLocalDataWithProvider(database, buildDesktopPipelineOptions(settingsRepository));
     }
 
-    return {
-      snapshot: readDesktopSnapshot(),
+    const snapshot = readDesktopSnapshot();
+    const result: DesktopActionResult = {
+      snapshot,
       warnings: schedulerResult.skipReason ? [schedulerResult.skipReason] : [],
       message:
         schedulerResult.status === "skipped"
           ? `Screen/OCR burst skipped: ${schedulerResult.skipReason}`
           : `Captured Screen/OCR burst with ${frames.length} frame(s)`
     };
+    const focus = buildActivityFocus(snapshot, insertedEventIds, [
+      SCREEN_OBSERVATION_ADAPTER_ID,
+      OCR_OBSERVATION_ADAPTER_ID
+    ]);
+    if (focus) result.focus = focus;
+    return result;
   } finally {
     database.close();
   }
@@ -2369,6 +2401,29 @@ function readSourceCursorPresence(sources: SourceRepository): Record<string, boo
   );
 }
 
+function newEventsSince(eventRepository: EventRepository, beforeIds: Set<string>): Event[] {
+  return eventRepository.listEvents().filter((event) => !beforeIds.has(event.id));
+}
+
+function buildActivityFocus(
+  snapshot: DesktopSnapshot,
+  eventIds: string[],
+  sourceAdapterIds: string[]
+): DesktopActionResult["focus"] {
+  const eventIdSet = new Set(eventIds);
+  const focusedSession = [...snapshot.activitySessions]
+    .reverse()
+    .find((session) => session.eventIds.some((id) => eventIdSet.has(id)));
+  if (!focusedSession) return undefined;
+  return {
+    page: "activity",
+    activitySessionId: focusedSession.id,
+    eventIds,
+    sourceAdapterIds,
+    reason: "manual_capture"
+  };
+}
+
 function readDesktopTokenLimitParameter(value: unknown): OpenAICompatibleTokenLimitParameter {
   return readOpenAICompatibleTokenLimitParameter(typeof value === "string" ? value : undefined);
 }
@@ -2488,6 +2543,18 @@ function buildSourceSetupAdapters(kind: SourceSetupKind, path?: string) {
     case "seatalk":
       if (!resolvedPath) throw new Error("SeaTalk approved import setup requires a path");
       return [new SeaTalkAdapter({ approvedImportDirectory: resolvedPath })];
+    case "project_directory":
+      if (!resolvedPath) throw new Error("Project directory import requires a path");
+      return [buildProjectDirectoryAdapter(resolvedPath)];
+    case "browser_import":
+      if (!resolvedPath) throw new Error("Browser metadata import requires a path");
+      return [buildBrowserImportAdapter(resolvedPath)];
+    case "terminal_import":
+      if (!resolvedPath) throw new Error("Terminal import requires a path");
+      return [buildTerminalImportAdapter(resolvedPath)];
+    case "file_activity_import":
+      if (!resolvedPath) throw new Error("File activity import requires a path");
+      return [buildFileActivityImportAdapter(resolvedPath)];
   }
 }
 
@@ -2504,11 +2571,272 @@ function buildSingleSourceAdapter(kind: SourceSetupKind, path: string | undefine
         : { path: resolvedPath, defaultApp: "Local Agent" }
     );
   }
-  return new SeaTalkAdapter(
-    id ? { approvedImportDirectory: resolvedPath, id } : { approvedImportDirectory: resolvedPath }
-  );
+  if (kind === "seatalk") {
+    return new SeaTalkAdapter(
+      id ? { approvedImportDirectory: resolvedPath, id } : { approvedImportDirectory: resolvedPath }
+    );
+  }
+  if (kind === "project_directory") return buildProjectDirectoryAdapter(resolvedPath, id);
+  if (kind === "browser_import") return buildBrowserImportAdapter(resolvedPath, id);
+  if (kind === "terminal_import") return buildTerminalImportAdapter(resolvedPath, id);
+  return buildFileActivityImportAdapter(resolvedPath, id);
 }
 
 function resolveInputPath(input: string): string {
   return isAbsolute(input) ? input : resolve(process.env.INIT_CWD ?? process.cwd(), input);
+}
+
+function buildBrowserImportAdapter(path: string, id?: string): SourceAdapter {
+  return new BrowserMetadataAdapter({
+    id: id ?? "browser_metadata_import",
+    approvedPath: "explicit_import",
+    inputs: readBrowserImportInputs(path)
+  });
+}
+
+function buildTerminalImportAdapter(path: string, id?: string): SourceAdapter {
+  return new TerminalObservationAdapter({
+    id: id ?? "terminal_explicit_import",
+    approvedPath: "explicit_log_import",
+    inputs: readTerminalImportInputs(path)
+  });
+}
+
+function buildFileActivityImportAdapter(path: string, id?: string): SourceAdapter {
+  const payload = readJsonFile(path);
+  const record = asRecord(payload);
+  const allowedFolders = readAllowedFolders(record.allowedFolders, dirnameOrSelf(path));
+  return new FileActivityAdapter({
+    id: id ?? "file_activity_explicit_import",
+    allowedFolders,
+    inputs: readFileActivityInputs(record.events, allowedFolders)
+  });
+}
+
+function buildProjectDirectoryAdapter(path: string, id?: string): SourceAdapter {
+  const root = path;
+  const rootId = safeId(`project_${basename(root) || "directory"}`);
+  return new FileActivityAdapter({
+    id: id ?? `project_directory_${rootId}`,
+    allowedFolders: [
+      {
+        id: rootId,
+        rootPath: root,
+        displayName: basename(root) || root,
+        project: basename(root) || "Project",
+        enabled: true,
+        includeGlobs: ["**/*"],
+        excludeGlobs: ["node_modules/**", "dist/**", ".git/**", "release/**"],
+        defaultSensitivity: "internal"
+      }
+    ],
+    inputs: readProjectDirectoryInputs(root, rootId)
+  });
+}
+
+function readBrowserImportInputs(path: string): ObservationInput[] {
+  return asArray(readJsonFile(path)).map((entry, index) => {
+    const record = asRecord(entry);
+    const occurredAt = readString(record.occurredAt) ?? new Date().toISOString();
+    const browser: NonNullable<ObservationInput["browser"]> = {};
+    const url = readString(record.url);
+    const title = readString(record.title);
+    const profileId = readString(record.profileId);
+    if (url) browser.url = url;
+    if (title) browser.title = title;
+    if (profileId) browser.profileId = profileId;
+    return {
+      type: "browser_navigation",
+      tier: "tier2",
+      sourceKind: "browser",
+      occurredAt,
+      runtimeSessionId: `browser-import-${hashObject({ path })}`,
+      sequence: index + 1,
+      app: { name: readString(record.app) ?? "Browser" },
+      browser
+    };
+  });
+}
+
+function readTerminalImportInputs(path: string): ObservationInput[] {
+  return asArray(readJsonFile(path)).map((entry, index) => {
+    const record = asRecord(entry);
+    const occurredAt = readString(record.occurredAt) ?? new Date().toISOString();
+    const terminal: NonNullable<ObservationInput["terminal"]> = {
+      sessionId: readString(record.sessionId) ?? `terminal-import-${index + 1}`,
+      commandIndex: readNumber(record.commandIndex) ?? index + 1
+    };
+    const command = readString(record.command);
+    const cwd = readString(record.cwd);
+    const exitCode = readNumber(record.exitCode);
+    if (command) terminal.command = command;
+    if (cwd) terminal.cwd = cwd;
+    if (exitCode !== undefined) terminal.exitCode = exitCode;
+    return {
+      type: "terminal_command",
+      tier: "tier2",
+      sourceKind: "terminal",
+      occurredAt,
+      runtimeSessionId: `terminal-import-${hashObject({ path })}`,
+      sequence: index + 1,
+      app: { name: "Terminal" },
+      terminal
+    };
+  });
+}
+
+function readFileActivityInputs(
+  value: unknown,
+  allowedFolders: AllowedFolderRule[]
+): ObservationInput[] {
+  const allowedIds = new Set(allowedFolders.map((folder) => folder.id));
+  return asArray(value).map((entry, index) => {
+    const record = asRecord(entry);
+    const rootId = readString(record.rootId) ?? allowedFolders[0]?.id ?? "import";
+    const occurredAt = readString(record.occurredAt) ?? new Date().toISOString();
+    const file: NonNullable<ObservationInput["file"]> = {
+      rootId,
+      relativePath: readString(record.relativePath) ?? "unknown",
+      operation: readFileOperation(record.operation)
+    };
+    const contentHash = readString(record.contentHash);
+    if (contentHash) file.contentHash = contentHash;
+    return {
+      type: "file_activity",
+      tier: "tier2",
+      sourceKind: "filesystem",
+      occurredAt,
+      runtimeSessionId: `file-activity-import-${rootId}`,
+      sequence: index + 1,
+      file,
+      redactionState: allowedIds.has(rootId) ? "none" : "redacted"
+    };
+  });
+}
+
+function readProjectDirectoryInputs(root: string, rootId: string): ObservationInput[] {
+  if (!existsSync(root)) throw new Error(`Project directory does not exist: ${root}`);
+  const entries = collectProjectFiles(root).slice(0, 200);
+  return entries.map((filePath, index) => {
+    const stat = statSync(filePath);
+    return {
+      type: "file_activity",
+      tier: "tier2",
+      sourceKind: "filesystem",
+      occurredAt: stat.mtime.toISOString(),
+      runtimeSessionId: `project-directory-${rootId}`,
+      sequence: index + 1,
+      file: {
+        rootId,
+        relativePath: relative(root, filePath),
+        operation: "modified",
+        contentHash: hashObject({
+          path: relative(root, filePath),
+          mtimeMs: stat.mtimeMs,
+          size: stat.size
+        })
+      }
+    };
+  });
+}
+
+function collectProjectFiles(root: string): string[] {
+  const ignored = new Set([".git", "node_modules", "dist", "release", ".next", "coverage"]);
+  const result: string[] = [];
+  const visit = (directory: string): void => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      if (ignored.has(entry.name)) continue;
+      const entryPath = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        if (result.length < 200) visit(entryPath);
+      } else if (entry.isFile()) {
+        result.push(entryPath);
+      }
+      if (result.length >= 200) return;
+    }
+  };
+  visit(root);
+  return result;
+}
+
+function readAllowedFolders(value: unknown, fallbackRoot: string): AllowedFolderRule[] {
+  const folders = asArray(value)
+    .map((entry) => asRecord(entry))
+    .map((record, index) => {
+      const id = readString(record.id) ?? `folder_${index + 1}`;
+      return {
+        id,
+        rootPath: readString(record.rootPath) ?? fallbackRoot,
+        displayName: readString(record.displayName) ?? id,
+        project: readString(record.project) ?? id,
+        enabled: record.enabled !== false,
+        includeGlobs: readStringArray(record.includeGlobs, ["**/*"]),
+        excludeGlobs: readStringArray(record.excludeGlobs, [".git/**", "node_modules/**"]),
+        defaultSensitivity: readSensitivity(record.defaultSensitivity)
+      };
+    });
+  if (folders.length > 0) return folders;
+  return [
+    {
+      id: safeId(basename(fallbackRoot) || "import"),
+      rootPath: fallbackRoot,
+      displayName: basename(fallbackRoot) || fallbackRoot,
+      enabled: true,
+      includeGlobs: ["**/*"],
+      excludeGlobs: [".git/**", "node_modules/**"],
+      defaultSensitivity: "internal"
+    }
+  ];
+}
+
+function readJsonFile(path: string): unknown {
+  return JSON.parse(readFileSync(path, "utf8"));
+}
+
+function dirnameOrSelf(path: string): string {
+  const stats = existsSync(path) ? statSync(path) : undefined;
+  return stats?.isDirectory() ? path : dirname(path);
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function readNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function readStringArray(value: unknown, fallback: string[]): string[] {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+    : fallback;
+}
+
+function readSensitivity(value: unknown): AllowedFolderRule["defaultSensitivity"] {
+  return value === "public" ||
+    value === "internal" ||
+    value === "confidential" ||
+    value === "secret"
+    ? value
+    : "internal";
+}
+
+function readFileOperation(value: unknown): NonNullable<ObservationInput["file"]>["operation"] {
+  return value === "created" || value === "modified" || value === "deleted" || value === "renamed"
+    ? value
+    : "modified";
+}
+
+function safeId(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "") || "source";
 }

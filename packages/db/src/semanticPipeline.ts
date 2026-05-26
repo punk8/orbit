@@ -6,6 +6,7 @@ import {
   draftKnowledgeArtifact,
   extractMemoryCandidates,
   generateRecommendations,
+  recommendationDedupeKey,
   isPerceptionSource
 } from "@orbit/core";
 import type {
@@ -21,7 +22,8 @@ import type {
   EvidenceRef,
   FollowUp,
   KnowledgeArtifact,
-  PermissionScope
+  PermissionScope,
+  Recommendation
 } from "@orbit/core";
 import type { OrbitDatabase } from "./connection";
 import { ActivityRepository } from "./repositories/activityRepository";
@@ -224,6 +226,7 @@ function runSemanticPipelineCore(
         knowledgeRepository,
         memoryRepository,
         recommendationRepository,
+        auditRepository,
         persistedSessions
       });
     })();
@@ -280,6 +283,7 @@ function runSemanticPipelineCore(
     knowledgeRepository,
     memoryRepository,
     recommendationRepository,
+    auditRepository,
     persistedSessions
   });
 }
@@ -344,6 +348,7 @@ function finishSemanticPipeline({
   knowledgeRepository,
   memoryRepository,
   recommendationRepository,
+  auditRepository,
   persistedSessions
 }: {
   events: ReturnType<EventRepository["listEvents"]>;
@@ -353,6 +358,7 @@ function finishSemanticPipeline({
   knowledgeRepository: KnowledgeRepository;
   memoryRepository: MemoryRepository;
   recommendationRepository: RecommendationRepository;
+  auditRepository: AuditRepository;
   persistedSessions: ReturnType<ActivityRepository["listActivitySessions"]>;
 }): SemanticPipelineResult {
   const persistedArtifacts = knowledgeRepository.listKnowledgeArtifacts();
@@ -371,10 +377,42 @@ function finishSemanticPipeline({
     artifacts: persistedArtifacts,
     memories: persistedMemories
   });
+  const existingRecommendations = recommendationRepository.listRecommendations();
+  const openRecommendationsByDedupeKey = new Map(
+    existingRecommendations
+      .filter(isOpenRecommendation)
+      .map((recommendation) => [recommendationDedupeKey(recommendation), recommendation])
+  );
+  const closedRecommendationsByDedupeKey = new Map(
+    existingRecommendations
+      .filter((recommendation) => !isOpenRecommendation(recommendation))
+      .map((recommendation) => [recommendationDedupeKey(recommendation), recommendation])
+  );
   for (const recommendation of recommendationCandidates) {
     const existing = recommendationRepository.getRecommendation(recommendation.id);
     if (!existing) {
+      const dedupeKey = recommendationDedupeKey(recommendation);
+      const duplicate = openRecommendationsByDedupeKey.get(dedupeKey);
+      if (duplicate) {
+        const merged = mergeRecommendation(duplicate, recommendation);
+        recommendationRepository.upsertRecommendation(merged);
+        openRecommendationsByDedupeKey.set(recommendationDedupeKey(merged), merged);
+        auditRepository.log("recommendation.dedupe_merge", "recommendation", duplicate.id, {
+          duplicateCandidateId: recommendation.id,
+          mergedEvidence: recommendation.evidence.length
+        });
+        continue;
+      }
+      const closedDuplicate = closedRecommendationsByDedupeKey.get(dedupeKey);
+      if (closedDuplicate) {
+        auditRepository.log("recommendation.dedupe_suppress_closed", "recommendation", closedDuplicate.id, {
+          duplicateCandidateId: recommendation.id,
+          status: closedDuplicate.status
+        });
+        continue;
+      }
       recommendationRepository.upsertRecommendation(recommendation);
+      openRecommendationsByDedupeKey.set(dedupeKey, recommendation);
     }
   }
 
@@ -397,6 +435,51 @@ function finishSemanticPipeline({
       total: recommendationRepository.countRecommendations()
     }
   };
+}
+
+function isOpenRecommendation(recommendation: Recommendation): boolean {
+  return (
+    recommendation.status === "new" ||
+    recommendation.status === "accepted" ||
+    recommendation.status === "snoozed"
+  );
+}
+
+function mergeRecommendation(existing: Recommendation, candidate: Recommendation): Recommendation {
+  const merged: Recommendation = {
+    ...existing,
+    confidence: Math.max(existing.confidence, candidate.confidence),
+    impact: maxRecommendationImpact(existing.impact, candidate.impact),
+    evidence: mergeEvidenceRefs(existing.evidence, candidate.evidence).slice(0, 12)
+  };
+  if (existing.status !== "snoozed" && candidate.dueAt) {
+    merged.dueAt = candidate.dueAt;
+  }
+  return merged;
+}
+
+function mergeEvidenceRefs(left: EvidenceRef[], right: EvidenceRef[]): EvidenceRef[] {
+  const seen = new Set<string>();
+  const merged: EvidenceRef[] = [];
+  for (const ref of [...left, ...right]) {
+    const key = ref.eventId ?? `${ref.sourceKind}:${ref.sourcePointer}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(ref);
+  }
+  return merged;
+}
+
+function maxRecommendationImpact(
+  left: Recommendation["impact"],
+  right: Recommendation["impact"]
+): Recommendation["impact"] {
+  const rank: Record<Recommendation["impact"], number> = {
+    low: 0,
+    medium: 1,
+    high: 2
+  };
+  return rank[right] > rank[left] ? right : left;
 }
 
 function readSourcePermissions(

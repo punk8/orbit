@@ -160,7 +160,14 @@ export type DesktopOpenAITokenLimitParameter = "max_tokens" | "max_completion_to
 export type DesktopRuntimeStatus = "idle" | "collecting" | "paused" | "error";
 export type DesktopSourceRuntimeAction = "pause" | "resume" | "enable" | "disable";
 
-export type SourceSetupKind = "codex" | "local_agent" | "seatalk";
+export type SourceSetupKind =
+  | "codex"
+  | "local_agent"
+  | "seatalk"
+  | "project_directory"
+  | "browser_import"
+  | "terminal_import"
+  | "file_activity_import";
 export type DesktopSourceAdapterMode = "import_only" | "syncable";
 
 export interface DesktopProtectedRuleInput {
@@ -238,11 +245,22 @@ export interface DesktopAIProviderTestResult {
   model?: string;
 }
 
+export interface DesktopActionFocus {
+  page: "activity" | "knowledge" | "review" | "recommendations" | "handoff";
+  activitySessionId?: string;
+  knowledgeArtifactId?: string;
+  recommendationId?: string;
+  eventIds?: string[];
+  sourceAdapterIds?: string[];
+  reason: "manual_capture" | "source_import" | "review_action" | "recommendation_action";
+}
+
 export interface DesktopActionResult {
   snapshot: DesktopSnapshot;
   message: string;
   exportPath?: string;
   warnings?: string[];
+  focus?: DesktopActionFocus;
 }
 
 export interface DesktopSourceImportResult extends DesktopActionResult {

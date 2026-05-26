@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
@@ -77,6 +77,92 @@ describe("desktop background runtime ingestion", () => {
     expect(background.skippedSources).toBeGreaterThanOrEqual(1);
 
     expect(config?.path).toBe(codexHome);
+  });
+
+  it("previews expanded real source imports without writing local records", async () => {
+    const orbitHome = mkdtempSync(join(tmpdir(), "orbit-desktop-real-source-preview-"));
+    const browserPath = join(orbitHome, "browser.json");
+    const terminalPath = join(orbitHome, "terminal.json");
+    const fileActivityPath = join(orbitHome, "file-activity.json");
+    const projectRoot = join(orbitHome, "project");
+    tempDirs.push(orbitHome);
+    process.env.ORBIT_HOME = orbitHome;
+    mkdirSync(projectRoot, { recursive: true });
+    writeFileSync(join(projectRoot, "README.md"), "Orbit project metadata only.");
+    writeFileSync(
+      browserPath,
+      JSON.stringify([
+        {
+          occurredAt: "2026-05-27T09:20:00.000Z",
+          app: "Chrome",
+          url: "https://example.com/orbit",
+          title: "Orbit planning",
+          profileId: "work"
+        }
+      ])
+    );
+    writeFileSync(
+      terminalPath,
+      JSON.stringify([
+        {
+          occurredAt: "2026-05-27T09:30:00.000Z",
+          sessionId: "term-1",
+          cwd: projectRoot,
+          command: "pnpm test",
+          exitCode: 0
+        }
+      ])
+    );
+    writeFileSync(
+      fileActivityPath,
+      JSON.stringify({
+        allowedFolders: [
+          {
+            id: "orbit",
+            rootPath: projectRoot,
+            displayName: "Orbit",
+            enabled: true,
+            includeGlobs: ["**/*"],
+            excludeGlobs: [".git/**", "node_modules/**"],
+            defaultSensitivity: "internal"
+          }
+        ],
+        events: [
+          {
+            occurredAt: "2026-05-27T09:35:00.000Z",
+            rootId: "orbit",
+            relativePath: "README.md",
+            operation: "modified"
+          }
+        ]
+      })
+    );
+
+    const preview = await previewSourceImportForDesktop("browser_import", browserPath);
+    const terminalPreview = await previewSourceImportForDesktop("terminal_import", terminalPath);
+    const filePreview = await previewSourceImportForDesktop("file_activity_import", fileActivityPath);
+    const projectPreview = await previewSourceImportForDesktop("project_directory", projectRoot);
+
+    expect(preview.kind).toBe("browser_import");
+    expect(preview.mode).toBe("import_only");
+    expect(preview.eventCount).toBe(1);
+    expect(preview.permission.canStoreRaw).toBe(false);
+    expect(terminalPreview.kind).toBe("terminal_import");
+    expect(terminalPreview.eventCount).toBe(1);
+    expect(terminalPreview.permission.canStoreRaw).toBe(false);
+    expect(filePreview.kind).toBe("file_activity_import");
+    expect(filePreview.eventCount).toBe(1);
+    expect(filePreview.permission.canStoreRaw).toBe(false);
+    expect(projectPreview.kind).toBe("project_directory");
+    expect(projectPreview.eventCount).toBeGreaterThan(0);
+    expect(projectPreview.permission.readableFields).toContain("summary");
+
+    const database = openOrbitDatabase({ orbitHome });
+    try {
+      expect(new SourceRepository(database.db).countSources()).toBe(0);
+    } finally {
+      database.close();
+    }
   });
 
   it("imports all events when the user switches an import-only source to a different path", async () => {

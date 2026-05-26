@@ -76,4 +76,13 @@ describe("ActivityPage evidence workbench", () => {
     expect(source).toContain("activity.captureScreenOcrDescription");
     expect(source).toContain("activity.captureScreenOcrNoSampleData");
   });
+
+  it("can consume a latest-capture focus target and jump to the generated session", () => {
+    const source = readFileSync(new URL("./ActivityPage.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("focusSessionId");
+    expect(source).toContain("onFocusConsumed");
+    expect(source).toContain("setFilters(defaultFilters)");
+    expect(source).toContain("activity.latestCaptureFocused");
+  });
 });

@@ -40,6 +40,10 @@ describe("desktop main process runtime guards", () => {
     expect(main).toContain("runtimeLocale.tray.cleanupPrivacy");
     expect(main).toContain("captureScreenOcrBurstForDesktop");
     expect(main).toContain('window.webContents.send("orbit:navigate", page)');
+    expect(main).toContain("project_directory");
+    expect(main).toContain("browser_import");
+    expect(main).toContain("terminal_import");
+    expect(main).toContain("file_activity_import");
   });
 
   it("keeps manual perception sources out of generic background source ingestion", () => {
@@ -92,6 +96,7 @@ describe("desktop main process runtime guards", () => {
     expect(singleCaptureFunction).toContain("desktop_manual_live_screen_ocr");
     expect(singleCaptureFunction).not.toContain("sourceRepository.getCursor(adapter.id)");
     expect(singleCaptureFunction).toContain("ingestEventsFromAdapter(adapter, eventRepository)");
+    expect(singleCaptureFunction).toContain("buildActivityFocus");
   });
 
   it("wires background ticks to automatic timer-triggered screen/OCR bursts", () => {

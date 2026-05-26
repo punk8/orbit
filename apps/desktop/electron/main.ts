@@ -648,8 +648,25 @@ function requireSettingKey(
   throw new Error(`Unsupported setting key: ${key}`);
 }
 
-function requireSourceSetupKind(kind: string): "codex" | "local_agent" | "seatalk" {
-  if (kind === "codex" || kind === "local_agent" || kind === "seatalk") {
+function requireSourceSetupKind(
+  kind: string
+):
+  | "codex"
+  | "local_agent"
+  | "seatalk"
+  | "project_directory"
+  | "browser_import"
+  | "terminal_import"
+  | "file_activity_import" {
+  if (
+    kind === "codex" ||
+    kind === "local_agent" ||
+    kind === "seatalk" ||
+    kind === "project_directory" ||
+    kind === "browser_import" ||
+    kind === "terminal_import" ||
+    kind === "file_activity_import"
+  ) {
     return kind;
   }
   throw new Error(`Unsupported source setup kind: ${kind}`);

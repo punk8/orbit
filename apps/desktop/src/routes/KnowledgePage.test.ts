@@ -19,4 +19,14 @@ describe("KnowledgePage review workbench", () => {
     expect(source).toContain("confirm.rejectKnowledge");
     expect(source).toContain("changedFields");
   });
+
+  it("keeps edit fields, Markdown preview, evidence, and focus navigation in one workbench", () => {
+    const source = readFileSync(new URL("./KnowledgePage.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("focusArtifactId");
+    expect(source).toContain("onFocusConsumed");
+    expect(source).toContain("knowledge-edit-workbench");
+    expect(source).toContain("knowledge.editingMarkdownPreview");
+    expect(source).toContain("EvidenceList evidence={artifact.evidence}");
+  });
 });

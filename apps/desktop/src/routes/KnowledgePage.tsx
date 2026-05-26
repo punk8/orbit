@@ -9,6 +9,8 @@ import { useI18n } from "../i18n";
 
 interface KnowledgePageProps {
   artifacts: KnowledgeArtifact[];
+  focusArtifactId?: string | undefined;
+  onFocusConsumed(): void;
   onDeleteKnowledge(id: string): Promise<void>;
   onEditKnowledge(id: string, patch: KnowledgeEditInput): Promise<void>;
   onRegenerateKnowledge(id: string): Promise<void>;
@@ -43,6 +45,8 @@ const defaultFilters: KnowledgeFilters = {
 
 export function KnowledgePage({
   artifacts,
+  focusArtifactId,
+  onFocusConsumed,
   onDeleteKnowledge,
   onEditKnowledge,
   onRegenerateKnowledge,
@@ -100,6 +104,15 @@ export function KnowledgePage({
     if (results.some((artifact) => artifact.id === selectedId)) return;
     setSelectedId(results[0]?.id);
   }, [results, selectedId]);
+
+  useEffect(() => {
+    if (!focusArtifactId) return;
+    if (!artifacts.some((artifact) => artifact.id === focusArtifactId)) return;
+    setFilters(defaultFilters);
+    setQuery("");
+    setSelectedId(focusArtifactId);
+    onFocusConsumed();
+  }, [artifacts, focusArtifactId, onFocusConsumed]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -633,38 +646,48 @@ function KnowledgeEditPanel({
   return (
     <section className="detail-block edit-panel">
       <h3>{t("knowledge.editTitle")}</h3>
-      <label>
-        <span>{t("knowledge.title")}</span>
-        <input
-          className="text-input"
-          value={form.title}
-          onChange={(event) => onChange({ ...form, title: event.target.value })}
-        />
-      </label>
-      <label>
-        <span>{t("knowledge.description")}</span>
-        <textarea
-          className="text-area"
-          value={form.description}
-          onChange={(event) => onChange({ ...form, description: event.target.value })}
-        />
-      </label>
-      <label>
-        <span>{t("knowledge.keyInsights")}</span>
-        <textarea
-          className="text-area"
-          value={form.keyInsights}
-          onChange={(event) => onChange({ ...form, keyInsights: event.target.value })}
-        />
-      </label>
-      <label>
-        <span>{t("knowledge.markdown")}</span>
-        <textarea
-          className="text-area tall"
-          value={form.markdown}
-          onChange={(event) => onChange({ ...form, markdown: event.target.value })}
-        />
-      </label>
+      <div className="knowledge-edit-workbench">
+        <div className="knowledge-edit-fields">
+          <label>
+            <span>{t("knowledge.title")}</span>
+            <input
+              className="text-input"
+              value={form.title}
+              onChange={(event) => onChange({ ...form, title: event.target.value })}
+            />
+          </label>
+          <label>
+            <span>{t("knowledge.description")}</span>
+            <textarea
+              className="text-area"
+              value={form.description}
+              onChange={(event) => onChange({ ...form, description: event.target.value })}
+            />
+          </label>
+          <label>
+            <span>{t("knowledge.keyInsights")}</span>
+            <textarea
+              className="text-area"
+              value={form.keyInsights}
+              onChange={(event) => onChange({ ...form, keyInsights: event.target.value })}
+            />
+          </label>
+          <label>
+            <span>{t("knowledge.markdown")}</span>
+            <textarea
+              className="text-area tall"
+              value={form.markdown}
+              onChange={(event) => onChange({ ...form, markdown: event.target.value })}
+            />
+          </label>
+        </div>
+        <div className="knowledge-edit-preview">
+          <h4>{t("knowledge.editingMarkdownPreview")}</h4>
+          <pre className="markdown-preview">{form.markdown}</pre>
+          <h4>{t("knowledge.evidence")}</h4>
+          <EvidenceList evidence={artifact.evidence} limit={8} />
+        </div>
+      </div>
       <div className="meta-line">
         <span>
           {changedFields.length

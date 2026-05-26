@@ -22,6 +22,7 @@ interface RecommendationFilters {
   impact: string;
   sideEffectLevel: string;
   query: string;
+  queue: "active" | "snoozed" | "closed" | "all";
 }
 
 const defaultFilters: RecommendationFilters = {
@@ -29,7 +30,8 @@ const defaultFilters: RecommendationFilters = {
   type: "",
   impact: "",
   sideEffectLevel: "",
-  query: ""
+  query: "",
+  queue: "active"
 };
 
 export function RecommendationsPage({
@@ -117,6 +119,20 @@ export function RecommendationsPage({
     <div className="page-grid">
       <Section title={t("section.recommendations")}>
         <div className="filter-bar recommendation-filter-bar">
+          <div className="segmented-control" aria-label={t("recommendation.queue")}>
+            {(["active", "snoozed", "closed", "all"] as RecommendationFilters["queue"][]).map(
+              (queue) => (
+                <button
+                  className={filters.queue === queue ? "active" : ""}
+                  key={queue}
+                  onClick={() => setFilters((current) => ({ ...current, queue }))}
+                  type="button"
+                >
+                  {recommendationQueueLabel(queue, t)}
+                </button>
+              )
+            )}
+          </div>
           <label className="filter-search">
             <span>{t("filter.search")}</span>
             <input
@@ -476,6 +492,7 @@ function RecommendationDetail({
 
       <DetailBlock title={t("recommendation.noExternalSideEffects")}>
         <p>{t("recommendation.acceptPolicy")}</p>
+        <p>{t("recommendation.acceptRecordsOnly")}</p>
       </DetailBlock>
     </div>
   );
@@ -518,6 +535,7 @@ function buildFilterOptions(recommendations: Recommendation[]): {
 }
 
 function matchesFilters(recommendation: Recommendation, filters: RecommendationFilters): boolean {
+  if (!isRecommendationVisibleInQueue(recommendation, filters.queue)) return false;
   if (filters.status && recommendation.status !== filters.status) return false;
   if (filters.type && recommendation.type !== filters.type) return false;
   if (filters.impact && recommendation.impact !== filters.impact) return false;
@@ -540,6 +558,31 @@ function matchesFilters(recommendation: Recommendation, filters: RecommendationF
     .join(" ")
     .toLowerCase()
     .includes(query);
+}
+
+function isRecommendationVisibleInQueue(
+  recommendation: Recommendation,
+  queue: RecommendationFilters["queue"]
+): boolean {
+  if (queue === "all") return true;
+  if (queue === "snoozed") return recommendation.status === "snoozed";
+  if (queue === "closed") {
+    return recommendation.status === "dismissed" || recommendation.status === "resolved";
+  }
+  if (recommendation.status === "dismissed" || recommendation.status === "resolved") return false;
+  if (recommendation.status !== "snoozed") return true;
+  if (!recommendation.dueAt) return true;
+  return recommendation.dueAt <= new Date().toISOString();
+}
+
+function recommendationQueueLabel(
+  queue: RecommendationFilters["queue"],
+  t: ReturnType<typeof useI18n>["t"]
+): string {
+  if (queue === "active") return t("recommendation.queue.active");
+  if (queue === "snoozed") return t("recommendation.queue.snoozed");
+  if (queue === "closed") return t("recommendation.queue.closed");
+  return t("recommendation.queue.all");
 }
 
 function getSideEffectPolicy(recommendation: Recommendation): {

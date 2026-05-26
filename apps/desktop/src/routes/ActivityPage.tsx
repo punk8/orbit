@@ -68,10 +68,14 @@ const defaultFilters: ActivityFilters = {
 
 export function ActivityPage({
   sessions,
+  focusSessionId,
+  onFocusConsumed,
   onCaptureScreenOcr,
   onDeleteActivitySession
 }: {
   sessions: ActivitySession[];
+  focusSessionId?: string | undefined;
+  onFocusConsumed(): void;
   onCaptureScreenOcr(): Promise<void>;
   onDeleteActivitySession(id: string): Promise<void>;
 }): ReactElement {
@@ -82,6 +86,7 @@ export function ActivityPage({
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | undefined>();
   const [isCapturingScreenOcr, setIsCapturingScreenOcr] = useState(false);
+  const [latestCaptureFocusedId, setLatestCaptureFocusedId] = useState<string | undefined>();
   const [workbenchView, setWorkbenchView] = useState<ActivityWorkbenchView>("timeline");
   const [overviewRange, setOverviewRange] = useState<ActivityOverviewRange>("day");
 
@@ -109,6 +114,17 @@ export function ActivityPage({
     if (filteredSessions.some((session) => session.id === selectedId)) return;
     setSelectedId(filteredSessions[0]?.id);
   }, [filteredSessions, selectedId]);
+
+  useEffect(() => {
+    if (!focusSessionId) return;
+    const focused = sessions.find((session) => session.id === focusSessionId);
+    if (!focused) return;
+    setFilters(defaultFilters);
+    setWorkbenchView("timeline");
+    setSelectedId(focused.id);
+    setLatestCaptureFocusedId(focused.id);
+    onFocusConsumed();
+  }, [focusSessionId, onFocusConsumed, sessions]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -171,6 +187,9 @@ export function ActivityPage({
           <strong>{t("activity.captureScreenOcrNoSampleData")}</strong>
           <span>{t("activity.captureScreenOcrDescription")}</span>
         </div>
+        {latestCaptureFocusedId ? (
+          <div className="notice-banner inline">{t("activity.latestCaptureFocused")}</div>
+        ) : null}
         <div className="activity-playback-workbench">
           <aside className="activity-timeline-rail" aria-label={t("activity.sessionList")}>
             <div className="activity-rail-tabs" aria-label={t("activity.timelineViews")}>

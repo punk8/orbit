@@ -103,6 +103,7 @@ export function SourcesPage({
         <div className="source-import-panel">
           <div className="source-import-copy">
             <p>{t("source.importBoundary")}</p>
+            <p>{t("source.realSourceImportBoundary")}</p>
             <div className="meta-line permission-line">
               <span>{t("source.importOnly")}</span>
               <span>{t("source.rawNotStored")}</span>
@@ -111,7 +112,17 @@ export function SourcesPage({
           </div>
           <div className="source-import-controls">
             <div className="segmented-control" aria-label={t("source.importKind")}>
-              {(["codex", "local_agent", "seatalk"] as SourceSetupKind[]).map((kind) => (
+              {(
+                [
+                  "codex",
+                  "local_agent",
+                  "seatalk",
+                  "project_directory",
+                  "browser_import",
+                  "terminal_import",
+                  "file_activity_import"
+                ] as SourceSetupKind[]
+              ).map((kind) => (
                 <button
                   className={importKind === kind ? "active" : ""}
                   key={kind}
@@ -538,7 +549,11 @@ function sourceImportKindLabel(
 ): string {
   if (kind === "codex") return "Codex";
   if (kind === "local_agent") return t("source.localAgent");
-  return t("source.seatalkImport");
+  if (kind === "seatalk") return t("source.seatalkImport");
+  if (kind === "project_directory") return t("source.projectDirectoryImport");
+  if (kind === "browser_import") return t("source.browserImport");
+  if (kind === "terminal_import") return t("source.terminalImport");
+  return t("source.fileActivityImport");
 }
 
 function sourceStatusLabel(
