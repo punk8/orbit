@@ -21,6 +21,7 @@ export function SourcesPage({
   onResetSourceCursor,
   onCleanupLegacyEventPrivacy,
   onCleanupPerceptionSidecars,
+  onCaptureScreenOcr,
   onUpdateSourceRuntime,
   onUpdatePerceptionSourceRuntime
 }: {
@@ -33,6 +34,7 @@ export function SourcesPage({
   onResetSourceCursor(sourceId: string): Promise<void>;
   onCleanupLegacyEventPrivacy(): Promise<void>;
   onCleanupPerceptionSidecars(): Promise<void>;
+  onCaptureScreenOcr(): Promise<void>;
   onUpdateSourceRuntime(sourceId: string, action: DesktopSourceRuntimeAction): Promise<void>;
   onUpdatePerceptionSourceRuntime(
     sourceKind: DesktopSnapshot["perception"]["sources"][number]["sourceKind"],
@@ -47,10 +49,13 @@ export function SourcesPage({
   const [previewError, setPreviewError] = useState<string | undefined>();
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [isCapturingScreenOcr, setIsCapturingScreenOcr] = useState(false);
   const runtimeSourceById = new Map(
     snapshot.runtime.background.sources.map((source) => [source.sourceId, source])
   );
   const trimmedImportPath = importPath.trim();
+  const screenPolicy = snapshot.perception.sources.find((source) => source.sourceKind === "screen")
+    ?.policy;
 
   async function previewImport(): Promise<void> {
     if (!trimmedImportPath) return;
@@ -327,6 +332,43 @@ export function SourcesPage({
       </Section>
       <Section title={t("section.perceptionSources")}>
         <div className="item-list perception-source-list">
+          <article className="list-item perception-manual-capture">
+            <div>
+              <h3>{t("source.manualScreenOcrTitle")}</h3>
+              <p>{t("source.manualScreenOcrBoundary")}</p>
+              <div className="meta-line permission-line">
+                <span>
+                  {`${t("source.manualScreenOcrRuntime")} ${tPerceptionStatus(
+                    t,
+                    snapshot.perception.status
+                  )}`}
+                </span>
+                <span>
+                  {screenPolicy?.canStoreRaw ? t("source.rawStored") : t("source.rawNotStored")}
+                </span>
+                <span>{t("source.agentExportBlocked")}</span>
+              </div>
+            </div>
+            <div className="source-actions">
+              <button
+                className="secondary-button"
+                disabled={isCapturingScreenOcr}
+                onClick={async () => {
+                  setIsCapturingScreenOcr(true);
+                  try {
+                    await onCaptureScreenOcr();
+                  } finally {
+                    setIsCapturingScreenOcr(false);
+                  }
+                }}
+                type="button"
+              >
+                {isCapturingScreenOcr
+                  ? t("activity.capturingScreenOcr")
+                  : t("action.captureScreenOcr")}
+              </button>
+            </div>
+          </article>
           <article className="list-item perception-control-summary">
             <div>
               <h3>{t("perception.policySnapshot")}</h3>

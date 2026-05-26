@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { ReactElement } from "react";
 import type { SourceKind } from "@orbit/core";
 import type { DesktopPageId, DesktopSnapshot } from "../orbitApi";
@@ -9,18 +10,23 @@ import type { TranslationKey } from "../i18n";
 
 export function TodayPage({
   snapshot,
-  onNavigate
+  onNavigate,
+  onCaptureScreenOcr
 }: {
   snapshot: DesktopSnapshot;
   onNavigate?(page: DesktopPageId): void;
+  onCaptureScreenOcr?(): Promise<void>;
 }): ReactElement {
   const i18n = useI18n();
   const { t, sensitivity, sourceKind, status, impact, recommendationType, formatTimeRange } = i18n;
+  const [isCapturingScreenOcr, setIsCapturingScreenOcr] = useState(false);
   const sourceStatus = buildSourceStatus(snapshot, {
     t,
     sourceKind
   });
   const nextActions = buildNextActions(snapshot, t);
+  const screenPolicy = snapshot.perception.sources.find((source) => source.sourceKind === "screen")
+    ?.policy;
 
   return (
     <div className="page-grid">
@@ -94,6 +100,40 @@ export function TodayPage({
             ))}
           </div>
         </div>
+      </section>
+
+      <section className="today-screen-ocr-strip" aria-label={t("today.screenOcrCaptureTitle")}>
+        <div>
+          <p className="eyebrow">real context</p>
+          <h2>{t("today.screenOcrCaptureTitle")}</h2>
+          <p>{t("today.screenOcrCaptureBoundary")}</p>
+          <div className="meta-line">
+            <span>
+              {`${t("today.captureScreenOcrStatus")} ${tDogfoodRuntimeState(
+                t,
+                snapshot.perception.dogfoodRuntime.state
+              )}`}
+            </span>
+            <span>{screenPolicy?.canStoreRaw ? t("source.rawStored") : t("source.rawNotStored")}</span>
+            <span>{t("source.agentExportBlocked")}</span>
+          </div>
+        </div>
+        <button
+          className="secondary-button"
+          disabled={!onCaptureScreenOcr || isCapturingScreenOcr}
+          onClick={async () => {
+            if (!onCaptureScreenOcr) return;
+            setIsCapturingScreenOcr(true);
+            try {
+              await onCaptureScreenOcr();
+            } finally {
+              setIsCapturingScreenOcr(false);
+            }
+          }}
+          type="button"
+        >
+          {isCapturingScreenOcr ? t("activity.capturingScreenOcr") : t("action.captureScreenOcr")}
+        </button>
       </section>
 
       <section className="today-handoff-strip" aria-label={t("today.handoffStrip")}>
@@ -291,4 +331,11 @@ function buildNextActions(
       description: t("today.nextActionHandoff")
     }
   ];
+}
+
+function tDogfoodRuntimeState(
+  t: (key: TranslationKey) => string,
+  state: DesktopSnapshot["perception"]["dogfoodRuntime"]["state"]
+): string {
+  return t(`dogfoodRuntime.${state}` as TranslationKey);
 }

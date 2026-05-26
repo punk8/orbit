@@ -604,7 +604,13 @@ interface PageActions {
 function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageActions): ReactElement {
   switch (page) {
     case "today":
-      return <TodayPage snapshot={snapshot} onNavigate={actions.navigate} />;
+      return (
+        <TodayPage
+          snapshot={snapshot}
+          onNavigate={actions.navigate}
+          onCaptureScreenOcr={actions.captureScreenOcr}
+        />
+      );
     case "activity":
       return (
         <ActivityPage
@@ -663,6 +669,7 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
           onResetSourceCursor={actions.resetSourceCursor}
           onCleanupLegacyEventPrivacy={actions.cleanupLegacyEventPrivacy}
           onCleanupPerceptionSidecars={actions.cleanupPerceptionSidecars}
+          onCaptureScreenOcr={actions.captureScreenOcr}
           onUpdateSourceRuntime={actions.updateSourceRuntime}
           onUpdatePerceptionSourceRuntime={actions.updatePerceptionSourceRuntime}
         />

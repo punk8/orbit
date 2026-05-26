@@ -318,8 +318,8 @@ export const perceptionSamplingPresets: readonly PerceptionSamplingPreset[] = [
     framesPerBurst: 3,
     frameSpacingMs: 1000,
     maxOcrFramesPerMinute: 3,
-    rawSidecars: "short_ttl",
-    intendedUse: "Default local verification evidence with conservative battery use."
+    rawSidecars: "off",
+    intendedUse: "Default summary-first local verification with conservative battery use."
   },
   {
     name: "balanced",
@@ -443,12 +443,12 @@ export function defaultPerceptionSourcePolicy(
   if (sourceKind === "screen") {
     return {
       sensitivity: "confidential",
-      canStoreRaw: true,
+      canStoreRaw: false,
       canStoreSummary: true,
       canUseForAI: false,
       canExportToAgent: false,
-      retentionPolicyId: perceptionRawRetentionPolicyId(DEFAULT_RAW_FRAME_TTL_MINUTES),
-      rawRetentionTtlMinutes: DEFAULT_RAW_FRAME_TTL_MINUTES,
+      retentionPolicyId: "perception_summary_only",
+      rawRetentionTtlMinutes: null,
       protectedAppsEnabled: true,
       deleteRawOnDisable: true
     };

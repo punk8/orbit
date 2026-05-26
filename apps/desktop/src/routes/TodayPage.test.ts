@@ -24,4 +24,15 @@ describe("TodayPage context completion", () => {
     expect(source).toContain("section.sourceStatus");
     expect(source).toContain("nav.handoff");
   });
+
+  it("exposes a one-shot real screen/OCR capture entry with privacy boundaries", () => {
+    const source = readFileSync(new URL("./TodayPage.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("onCaptureScreenOcr");
+    expect(source).toContain("today.screenOcrCaptureTitle");
+    expect(source).toContain("today.screenOcrCaptureBoundary");
+    expect(source).toContain("action.captureScreenOcr");
+    expect(source).toContain("today-screen-ocr-strip");
+    expect(source).toContain("today.captureScreenOcrStatus");
+  });
 });

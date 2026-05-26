@@ -122,6 +122,10 @@ const translations = {
     "today.handoffBoundary":
       "Agent handoff stays local-first and excludes draft Knowledge, unconfirmed Memory, raw private payloads, and sources blocked from export.",
     "today.openHandoff": "Open Handoff",
+    "today.screenOcrCaptureTitle": "Capture current work context",
+    "today.screenOcrCaptureBoundary":
+      "Run one explicit local Screen/OCR capture, then rebuild Activity and reviewable Knowledge. This does not start continuous recording, microphone capture, or raw Agent export.",
+    "today.captureScreenOcrStatus": "Screen/OCR status",
     "today.sourceReady": "ready",
     "today.sourcePaused": "paused",
     "today.sourceBlocked": "attention",
@@ -536,6 +540,10 @@ const translations = {
     "source.previewDateRange": "Date range",
     "source.previewProjects": "Projects",
     "source.previewWarnings": "Warnings",
+    "source.manualScreenOcrTitle": "One-shot Screen/OCR capture",
+    "source.manualScreenOcrBoundary":
+      "Capture the current screen once after explicit user action. Orbit stores source-backed summary events and evidence pointers; continuous recording, microphone capture, raw screenshots, and raw Agent export stay off by default.",
+    "source.manualScreenOcrRuntime": "runtime",
     "source.lastImport": "last import",
     "source.lastSync": "last sync",
     "source.lastEvent": "last event",
@@ -1046,6 +1054,10 @@ const translations = {
     "today.handoffBoundary":
       "Agent 交接保持本地优先，默认排除草稿知识、未确认记忆、raw 私密载荷和禁止导出的来源。",
     "today.openHandoff": "打开交接",
+    "today.screenOcrCaptureTitle": "捕获当前工作现场",
+    "today.screenOcrCaptureBoundary":
+      "显式执行一次本地屏幕 / OCR 捕获，然后重建 Activity 和待审阅 Knowledge。不会开启持续录屏、麦克风采集或 raw Agent 导出。",
+    "today.captureScreenOcrStatus": "屏幕 / OCR 状态",
     "today.sourceReady": "正常",
     "today.sourcePaused": "已暂停",
     "today.sourceBlocked": "需处理",
@@ -1444,6 +1456,10 @@ const translations = {
     "source.previewDateRange": "时间范围",
     "source.previewProjects": "项目",
     "source.previewWarnings": "警告",
+    "source.manualScreenOcrTitle": "单次屏幕 / OCR 捕获",
+    "source.manualScreenOcrBoundary":
+      "用户明确点击后只捕获当前屏幕一次。Orbit 保存可追溯的摘要事件和证据指针；持续录屏、麦克风采集、raw 截图和 raw Agent 导出默认关闭。",
+    "source.manualScreenOcrRuntime": "运行状态",
     "source.lastImport": "最近导入",
     "source.lastSync": "最近同步",
     "source.lastEvent": "最近事件",

@@ -1102,8 +1102,7 @@ export async function captureScreenOcrForDesktop(): Promise<DesktopActionResult>
     const results = [];
     for (const adapter of adapters) {
       sourceRepository.upsertFromAdapter(adapter);
-      const cursor = sourceRepository.getCursor(adapter.id);
-      const result = await ingestEventsFromAdapter(adapter, eventRepository, cursor);
+      const result = await ingestEventsFromAdapter(adapter, eventRepository);
       sourceRepository.setCursor(adapter.id, result.nextCursor);
       sourceRepository.recordSyncSuccess(adapter.id, { lastEventAt: result.lastEventAt });
       auditRepository.log("perception.capture_screen_ocr", "source", adapter.id, {

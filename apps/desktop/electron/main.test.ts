@@ -82,6 +82,18 @@ describe("desktop main process runtime guards", () => {
     expect(burstFunction).toContain("runDesktopVisionSummaryIngestion");
   });
 
+  it("does not reuse source cursors for one-shot screen/OCR capture frames", () => {
+    const data = readFileSync(new URL("./data.ts", import.meta.url), "utf8");
+    const singleCaptureFunction = data.slice(
+      data.indexOf("export async function captureScreenOcrForDesktop"),
+      data.indexOf("export async function captureScreenOcrBurstForDesktop")
+    );
+
+    expect(singleCaptureFunction).toContain("desktop_manual_live_screen_ocr");
+    expect(singleCaptureFunction).not.toContain("sourceRepository.getCursor(adapter.id)");
+    expect(singleCaptureFunction).toContain("ingestEventsFromAdapter(adapter, eventRepository)");
+  });
+
   it("wires background ticks to automatic timer-triggered screen/OCR bursts", () => {
     const main = readFileSync(new URL("./main.ts", import.meta.url), "utf8");
 

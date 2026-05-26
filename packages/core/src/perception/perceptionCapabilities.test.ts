@@ -31,7 +31,7 @@ describe("perception capability descriptors", () => {
     }
   });
 
-  it("builds a Yansu-like local frame retention control-plane status with provider routes", () => {
+  it("builds a summary-first perception control-plane status with provider routes", () => {
     const status = createDefaultPerceptionStatus();
     const screen = status.sources.find((source) => source.sourceKind === "screen");
     const ocr = status.sources.find((source) => source.sourceKind === "ocr");
@@ -41,9 +41,9 @@ describe("perception capability descriptors", () => {
     expect(status.sources).toHaveLength(6);
     expect(status.sources.every((source) => source.status === "disabled")).toBe(true);
     expect(screen?.policy).toMatchObject({
-      canStoreRaw: true,
-      rawRetentionTtlMinutes: 72 * 60,
-      retentionPolicyId: "perception_raw_ttl_72h"
+      canStoreRaw: false,
+      rawRetentionTtlMinutes: null,
+      retentionPolicyId: "perception_summary_only"
     });
     expect(ocr?.policy).toMatchObject({
       canStoreRaw: false,
@@ -62,7 +62,7 @@ describe("perception capability descriptors", () => {
     expect(status.samplingPolicy.framesPerBurst).toBe(3);
     expect(status.samplingPolicy.frameSpacingMs).toBe(1000);
     expect(status.samplingPolicy.maxOcrFramesPerMinute).toBe(3);
-    expect(status.samplingPolicy.rawFrameRetention).toBe("short_ttl");
+    expect(status.samplingPolicy.rawFrameRetention).toBe("disabled");
     expect(status.samplingPolicy.rawFrameTtlIfEnabledMinutes).toBe(72 * 60);
     expect(status.resourcePolicy.cpu.minScreenCaptureIntervalMs).toBe(120_000);
     expect(status.resourcePolicy.cpu.maxOcrFramesPerMinute).toBe(3);
@@ -91,9 +91,9 @@ describe("perception capability descriptors", () => {
       "transcript"
     ]);
     expect(snapshot.sourcePolicies.find((source) => source.sourceKind === "screen")).toMatchObject({
-      canStoreRaw: true,
-      rawRetentionTtlMinutes: 72 * 60,
-      retentionPolicyId: "perception_raw_ttl_72h"
+      canStoreRaw: false,
+      rawRetentionTtlMinutes: null,
+      retentionPolicyId: "perception_summary_only"
     });
     expect(
       snapshot.sourcePolicies

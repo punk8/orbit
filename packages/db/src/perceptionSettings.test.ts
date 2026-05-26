@@ -46,6 +46,13 @@ describe("perception control-plane settings", () => {
         "disabled",
         "disabled"
       ]);
+      expect(status.sources.find((source) => source.sourceKind === "screen")?.policy).toMatchObject(
+        {
+          canStoreRaw: false,
+          rawRetentionTtlMinutes: null,
+          retentionPolicyId: "perception_summary_only"
+        }
+      );
     } finally {
       close();
     }
@@ -296,7 +303,8 @@ describe("perception control-plane settings", () => {
       const source = sources.getSource("perception_screen");
       expect(source?.permissionScope.canExportToAgent).toBe(true);
       expect(source?.permissionScope.canUseForAI).toBe(true);
-      expect(source?.permissionScope.retentionPolicyId).toBe("perception_raw_ttl_72h");
+      expect(source?.permissionScope.canStoreRaw).toBe(false);
+      expect(source?.permissionScope.retentionPolicyId).toBe("perception_summary_only");
     } finally {
       close();
     }

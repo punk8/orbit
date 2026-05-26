@@ -450,12 +450,19 @@ export async function captureScreenOcrBurstNow(
     }
     const scope = smokeScope("display");
     const runtimeSessionId = `manual-mock-screen-burst-${Date.now()}`;
+    const screenPolicy = perception.sources.find((source) => source.sourceKind === "screen")?.policy;
+    const allowMockRawFrameStorage =
+      perception.samplingPolicy.rawFrameRetention === "short_ttl" && screenPolicy?.canStoreRaw === true;
+    const mockFrames = makeMockBurstFrames(
+      scope,
+      runtimeSessionId,
+      perception.samplingPolicy.framesPerBurst
+    );
     const helper = new MockScreenCaptureNativeHelper({
       permission: screenPermission("granted"),
-      frames: materializeMockRawFrameSidecars(
-        makeMockBurstFrames(scope, runtimeSessionId, perception.samplingPolicy.framesPerBurst),
-        database.orbitHome
-      )
+      frames: allowMockRawFrameStorage
+        ? materializeMockRawFrameSidecars(mockFrames, database.orbitHome)
+        : mockFrames
     });
     const schedulerResult = await runScreenBurstScheduler({
       helper,
@@ -488,9 +495,6 @@ export async function captureScreenOcrBurstNow(
     const frames = burst?.frames.map((candidate) => candidate.frame) ?? [];
     const results: CaptureScreenOcrCommandResult["sources"] = [];
     if (frames.length > 0) {
-      const screenPolicy = perception.sources.find(
-        (source) => source.sourceKind === "screen"
-      )?.policy;
       const ocrPolicy = perception.sources.find((source) => source.sourceKind === "ocr")?.policy;
       const screenAdapter = new ScreenObservationAdapter({
         id: SCREEN_OBSERVATION_ADAPTER_ID,

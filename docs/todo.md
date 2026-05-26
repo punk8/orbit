@@ -61,7 +61,10 @@
 - 2026-05-25 已收敛：Activity playback 不再在画面预览里裸露 raw sidecar 本地路径；raw 可用、已过期、已清理、受保护应用阻止、来源禁用等状态会用用户可理解文案表达，并保留 evidence pointer。
 - 2026-05-26 已收敛：Sources 增加显式本地导入入口，Codex/local agent/SeaTalk 路径先预览事件数、时间范围、项目和警告，用户确认后才写入 Event/Activity/Knowledge；导入来源标记为“显式导入 / import-only”，后台调度不会把它误报成缺少 adapter path 的同步错误。
 - 2026-05-26 packaged app + Computer Use 走查：使用 `/tmp` 安全同日 Codex JSONL 可在 Sources 预览 4 条事件并确认导入；Today 显示 Codex Local Sessions、同日活动和知识草稿；Activity 可打开 Codex 片段并看到事件流、证据索引、来源策略和“未保存 raw”；Knowledge 可确认草稿；Handoff 生成后包含确认知识、证据索引和按策略排除列表。
+- 2026-05-27 已收敛：Today 和 Sources 增加真实单次 Screen/OCR 入口，用户明确点击后才捕获当前屏幕；默认 screen policy 改为 `perception_summary_only`、`canStoreRaw=false`，conservative sampling 不再写 raw sidecar；CLI mock burst、desktop one-shot capture 和 Activity playback 都按 raw not stored 路径验收。
+- 2026-05-27 packaged app + Computer Use 走查：重新打包并启动 `apps/desktop/release/mac-arm64/Orbit.app` 后，Today 可见“捕获当前工作现场”入口和来源状态；Sources 可见“单次屏幕 / OCR 捕获”、策略快照 `conservative / Raw disabled`、Screen/OCR `perception_summary_only / 不保存 raw / 禁止导出给 Agent`；点击捕获后写入真实 Screen/OCR 事件并刷新 Activity/Knowledge，DB 元数据确认最新 session `rawAvailable=0` 且没有新增 raw sidecar 文件。
 - 仍需正式解决 packaged app 多 worktree 串台：当前 `dev.orbit.local` bundle id 和 `~/Library/Application Support/Orbit` user-data-dir 会让 Computer Use / macOS 复用旧 Orbit 实例，手动验收必须先核对进程环境中的 `ORBIT_HOME`，并清理旧进程；后续正式 app identity / dev identity 隔离应作为安装启动阶段处理。
+- 仍需收敛手动验收数据目录：本次 release app 因既有 Settings 存储路径连接到 `/tmp/orbit-manual-open/orbit.db`，而不是默认 `~/Library/Application Support/Orbit/orbit.db`；后续 Diagnostics/About 页面应直接展示当前 `orbitHome`、`dbPath`、日志路径、权限状态和最近错误，避免普通用户或验收人员误判数据来源。
 
 ## 发布前待办
 

@@ -26,6 +26,10 @@ describe("SourcesPage source governance controls", () => {
     expect(source).toContain("perception.protectedApps");
     expect(source).toContain("perception.samplingPreset");
     expect(source).toContain("perception.rawRetention");
+    expect(source).toContain("onCaptureScreenOcr");
+    expect(source).toContain("source.manualScreenOcrTitle");
+    expect(source).toContain("source.manualScreenOcrBoundary");
+    expect(source).toContain("action.captureScreenOcr");
     expect(source).toContain("source.runtimeNextRun");
     expect(source).toContain("source.runtimeBackoff");
     expect(source).toContain("source.runtimeInterval");
