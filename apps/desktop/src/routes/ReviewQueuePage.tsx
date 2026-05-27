@@ -15,11 +15,13 @@ interface ReviewQueueLastAction {
 export function ReviewQueuePage({
   snapshot,
   onOpenKnowledge,
+  onOpenActivitySession,
   onReviewKnowledge,
   onReviewMemory
 }: {
   snapshot: DesktopSnapshot;
   onOpenKnowledge(id: string): void;
+  onOpenActivitySession(id: string): void;
   onReviewKnowledge(id: string, action: KnowledgeReviewAction): Promise<void>;
   onReviewMemory(id: string, action: MemoryReviewAction): Promise<void>;
 }): ReactElement {
@@ -70,7 +72,9 @@ export function ReviewQueuePage({
       ) : null}
       <Section title={t("section.knowledgeDrafts")}>
         <div className="item-list compact">
-          {knowledgeDrafts.map((artifact) => (
+          {knowledgeDrafts.map((artifact) => {
+            const sourceSessionId = artifact.metadata.sourceSessionIds[0];
+            return (
             <article className="list-item vertical" key={artifact.id}>
               <div className="item-heading">
                 <h3>{artifact.title}</h3>
@@ -128,9 +132,20 @@ export function ReviewQueuePage({
                 >
                   {t("review.openKnowledge")}
                 </button>
+                {sourceSessionId ? (
+                  <button
+                    className="secondary-button"
+                    data-review-action="open-source-activity"
+                    onClick={() => onOpenActivitySession(sourceSessionId)}
+                    type="button"
+                  >
+                    {t("review.openSourceActivity")}
+                  </button>
+                ) : null}
               </div>
             </article>
-          ))}
+            );
+          })}
           {knowledgeDrafts.length === 0 ? (
             <div className="empty-state">{t("empty.noKnowledgeDrafts")}</div>
           ) : null}
