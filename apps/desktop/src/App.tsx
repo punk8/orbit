@@ -76,10 +76,15 @@ const pages = [
   { id: "settings", labelKey: "nav.settings", icon: Settings }
 ] satisfies Array<{ id: PageId; labelKey: TranslationKey; icon: typeof Sparkles }>;
 
+interface ActivityFocusTarget {
+  sessionId: string;
+  reason: DesktopActionFocus["reason"];
+}
+
 export function App(): ReactElement {
   const [activePage, setActivePage] = useState<PageId>("today");
   const [snapshot, setSnapshot] = useState<DesktopSnapshot | undefined>();
-  const [activityFocusId, setActivityFocusId] = useState<string | undefined>();
+  const [activityFocusTarget, setActivityFocusTarget] = useState<ActivityFocusTarget | undefined>();
   const [knowledgeFocusId, setKnowledgeFocusId] = useState<string | undefined>();
   const [pendingHandoffResult, setPendingHandoffResult] = useState<DesktopHandoffResult | undefined>();
   const [error, setError] = useState<string | undefined>();
@@ -375,7 +380,10 @@ export function App(): ReactElement {
 
   function applyDesktopActionFocus(focus: DesktopActionFocus | undefined): void {
     if (focus?.page === "activity" && focus.activitySessionId) {
-      setActivityFocusId(focus.activitySessionId);
+      setActivityFocusTarget({
+        sessionId: focus.activitySessionId,
+        reason: focus.reason
+      });
       setActivePage("activity");
       return;
     }
@@ -570,9 +578,9 @@ export function App(): ReactElement {
                 generateTodayHandoffFromToday,
                 pendingHandoffResult,
                 testAIProvider,
-                activityFocusId,
+                activityFocusTarget,
                 knowledgeFocusId,
-                clearActivityFocus: () => setActivityFocusId(undefined),
+                clearActivityFocus: () => setActivityFocusTarget(undefined),
                 clearKnowledgeFocus: () => setKnowledgeFocusId(undefined),
                 focusKnowledge: (id) => {
                   setKnowledgeFocusId(id);
@@ -664,7 +672,7 @@ interface PageActions {
   generateTodayHandoffFromToday(): Promise<DesktopHandoffResult>;
   pendingHandoffResult?: DesktopHandoffResult | undefined;
   testAIProvider(config: DesktopAIProviderTestConfig): Promise<DesktopAIProviderTestResult>;
-  activityFocusId?: string | undefined;
+  activityFocusTarget?: ActivityFocusTarget | undefined;
   knowledgeFocusId?: string | undefined;
   clearActivityFocus(): void;
   clearKnowledgeFocus(): void;
@@ -687,7 +695,7 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
       return (
         <ActivityPage
           sessions={snapshot.activitySessions}
-          focusSessionId={actions.activityFocusId}
+          focusTarget={actions.activityFocusTarget}
           onFocusConsumed={actions.clearActivityFocus}
           onCaptureScreenOcr={actions.captureScreenOcr}
           onDeleteActivitySession={actions.deleteActivitySession}

@@ -80,9 +80,12 @@ describe("ActivityPage evidence workbench", () => {
   it("can consume a latest-capture focus target and jump to the generated session", () => {
     const source = readFileSync(new URL("./ActivityPage.tsx", import.meta.url), "utf8");
 
-    expect(source).toContain("focusSessionId");
+    expect(source).toContain("focusTarget");
+    expect(source).toContain("ActivityFocusTarget");
+    expect(source).toContain("focusTarget.reason");
     expect(source).toContain("onFocusConsumed");
     expect(source).toContain("setFilters(defaultFilters)");
     expect(source).toContain("activity.latestCaptureFocused");
+    expect(source).toContain("activity.latestImportFocused");
   });
 });

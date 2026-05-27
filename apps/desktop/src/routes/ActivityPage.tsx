@@ -12,6 +12,7 @@ import {
   ShieldCheck
 } from "lucide-react";
 import type { DesktopActivitySessionDetail } from "../orbitApi";
+import type { DesktopActionFocus } from "../orbitApi";
 import { EvidenceList } from "../components/EvidenceList";
 import { Section } from "../components/Section";
 import { useI18n } from "../i18n";
@@ -56,6 +57,11 @@ interface PlaybackFrame {
   rawRef?: string;
 }
 
+interface ActivityFocusTarget {
+  sessionId: string;
+  reason: DesktopActionFocus["reason"];
+}
+
 const defaultFilters: ActivityFilters = {
   date: "all",
   customDate: "",
@@ -68,13 +74,13 @@ const defaultFilters: ActivityFilters = {
 
 export function ActivityPage({
   sessions,
-  focusSessionId,
+  focusTarget,
   onFocusConsumed,
   onCaptureScreenOcr,
   onDeleteActivitySession
 }: {
   sessions: ActivitySession[];
-  focusSessionId?: string | undefined;
+  focusTarget?: ActivityFocusTarget | undefined;
   onFocusConsumed(): void;
   onCaptureScreenOcr(): Promise<void>;
   onDeleteActivitySession(id: string): Promise<void>;
@@ -86,7 +92,9 @@ export function ActivityPage({
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | undefined>();
   const [isCapturingScreenOcr, setIsCapturingScreenOcr] = useState(false);
-  const [latestCaptureFocusedId, setLatestCaptureFocusedId] = useState<string | undefined>();
+  const [latestFocusReason, setLatestFocusReason] = useState<
+    ActivityFocusTarget["reason"] | undefined
+  >();
   const [workbenchView, setWorkbenchView] = useState<ActivityWorkbenchView>("timeline");
   const [overviewRange, setOverviewRange] = useState<ActivityOverviewRange>("day");
 
@@ -116,15 +124,15 @@ export function ActivityPage({
   }, [filteredSessions, selectedId]);
 
   useEffect(() => {
-    if (!focusSessionId) return;
-    const focused = sessions.find((session) => session.id === focusSessionId);
+    if (!focusTarget) return;
+    const focused = sessions.find((session) => session.id === focusTarget.sessionId);
     if (!focused) return;
     setFilters(defaultFilters);
     setWorkbenchView("timeline");
     setSelectedId(focused.id);
-    setLatestCaptureFocusedId(focused.id);
+    setLatestFocusReason(focusTarget.reason);
     onFocusConsumed();
-  }, [focusSessionId, onFocusConsumed, sessions]);
+  }, [focusTarget, onFocusConsumed, sessions]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -187,8 +195,14 @@ export function ActivityPage({
           <strong>{t("activity.captureScreenOcrNoSampleData")}</strong>
           <span>{t("activity.captureScreenOcrDescription")}</span>
         </div>
-        {latestCaptureFocusedId ? (
-          <div className="notice-banner inline">{t("activity.latestCaptureFocused")}</div>
+        {latestFocusReason ? (
+          <div className="notice-banner inline">
+            {t(
+              latestFocusReason === "source_import"
+                ? "activity.latestImportFocused"
+                : "activity.latestCaptureFocused"
+            )}
+          </div>
         ) : null}
         <div className="activity-playback-workbench">
           <aside className="activity-timeline-rail" aria-label={t("activity.sessionList")}>

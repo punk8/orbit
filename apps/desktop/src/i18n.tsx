@@ -200,6 +200,7 @@ const translations = {
     "activity.captureScreenOcrDescription":
       "Capture the current screen once, run local Apple Vision OCR, write source-backed Events, and re-index Activity / Knowledge / Memory candidates.",
     "activity.latestCaptureFocused": "Focused the Activity session created by the latest capture.",
+    "activity.latestImportFocused": "Focused the Activity session created by the latest import.",
     "activity.summary": "Summary",
     "activity.evidence": "Evidence",
     "activity.sourcePolicy": "Source Policy",
@@ -1158,6 +1159,7 @@ const translations = {
     "activity.captureScreenOcrDescription":
       "捕获一次当前屏幕，使用本地 Apple Vision OCR，写入可追溯事件，并重建 Activity / Knowledge / Memory 候选。",
     "activity.latestCaptureFocused": "已定位到刚捕获生成的活动片段。",
+    "activity.latestImportFocused": "已定位到刚导入生成的活动片段。",
     "activity.summary": "摘要",
     "activity.evidence": "证据",
     "activity.sourcePolicy": "来源策略",
