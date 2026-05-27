@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import type { DesktopHandoffResult, DesktopSnapshot } from "../orbitApi";
 import type { HandoffExclusionReason, HandoffPack } from "@orbit/core";
@@ -18,7 +18,9 @@ export function HandoffPage({
   ): Promise<DesktopHandoffResult>;
 }): ReactElement {
   const { t, language } = useI18n();
-  const [project, setProject] = useState("orbit");
+  const projectOptions = useMemo(() => buildProjectOptions(snapshot), [snapshot]);
+  const [project, setProject] = useState(() => projectOptions[0] ?? "");
+  const [projectEdited, setProjectEdited] = useState(false);
   const [result, setResult] = useState<DesktopHandoffResult | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [copied, setCopied] = useState(false);
@@ -33,6 +35,13 @@ export function HandoffPage({
     setError(undefined);
     setCopied(false);
   }, [initialResult]);
+
+  useEffect(() => {
+    if (projectEdited) return;
+    const defaultProject = projectOptions[0] ?? "";
+    if (project === defaultProject) return;
+    setProject(defaultProject);
+  }, [project, projectEdited, projectOptions]);
 
   async function generate(
     input: { kind: "today"; date?: string } | { kind: "project"; project: string }
@@ -99,9 +108,18 @@ export function HandoffPage({
             <input
               className="text-input compact-input"
               id="handoff-project"
-              onChange={(event) => setProject(event.currentTarget.value)}
+              list="handoff-project-options"
+              onChange={(event) => {
+                setProjectEdited(true);
+                setProject(event.currentTarget.value);
+              }}
               value={project}
             />
+            <datalist id="handoff-project-options">
+              {projectOptions.map((option) => (
+                <option key={option} value={option} />
+              ))}
+            </datalist>
             <button
               className="secondary-button"
               data-handoff-action="generate-project"
@@ -111,6 +129,9 @@ export function HandoffPage({
             >
               {t("handoff.project")}
             </button>
+            {projectOptions.length === 0 ? (
+              <p className="muted">{t("handoff.noProjectOptions")}</p>
+            ) : null}
           </div>
         </div>
       </Section>
@@ -263,6 +284,20 @@ export function HandoffPage({
       ) : null}
     </div>
   );
+}
+
+function buildProjectOptions(snapshot: DesktopSnapshot): string[] {
+  return Array.from(
+    new Set(
+      [
+        ...snapshot.activitySessions.map((session) => session.project),
+        ...snapshot.knowledgeArtifacts.flatMap((artifact) => artifact.metadata.projects),
+        ...snapshot.memories.map((memory) => memory.scope.project)
+      ]
+        .map((project) => project?.trim())
+        .filter((project): project is string => Boolean(project))
+    )
+  ).sort((left, right) => left.localeCompare(right));
 }
 
 function HandoffBulletList({ items }: { items: string[] }): ReactElement {

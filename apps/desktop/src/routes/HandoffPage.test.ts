@@ -7,6 +7,9 @@ describe("HandoffPage", () => {
 
     expect(source).toContain("handoff.generate");
     expect(source).toContain("handoff.projectName");
+    expect(source).toContain("buildProjectOptions");
+    expect(source).toContain("handoff-project-options");
+    expect(source).toContain("handoff.noProjectOptions");
     expect(source).toContain("handoff.preview");
     expect(source).toContain("handoff.copyMarkdown");
     expect(source).toContain("handoff.safetyBoundaries");
