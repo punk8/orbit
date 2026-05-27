@@ -226,6 +226,11 @@ export interface DesktopSourceImportPreview {
   };
 }
 
+export interface DesktopSourceImportPathChoice {
+  path?: string;
+  canceled: boolean;
+}
+
 export interface DesktopAIProviderTestConfig {
   providerKind?: DesktopAIProviderKind;
   baseUrl?: string;
@@ -335,6 +340,7 @@ export interface OrbitDesktopApi {
     kind: SourceSetupKind,
     path: string
   ): Promise<DesktopSourceImportPreview>;
+  chooseSourceImportPath(kind: SourceSetupKind): Promise<DesktopSourceImportPathChoice>;
   confirmSourceImport(kind: SourceSetupKind, path: string): Promise<DesktopSourceImportResult>;
   setupSource(kind: SourceSetupKind, path?: string): Promise<DesktopActionResult>;
   reconfigureSource(

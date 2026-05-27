@@ -6,6 +6,7 @@ describe("desktop preload API", () => {
     const source = readFileSync(new URL("./preload.ts", import.meta.url), "utf8");
 
     expect(source).toContain("previewSourceImport");
+    expect(source).toContain("chooseSourceImportPath");
     expect(source).toContain("confirmSourceImport");
     expect(source).toContain("reconfigureSource");
     expect(source).toContain("getActivitySessionDetail");
@@ -32,5 +33,6 @@ describe("desktop preload API", () => {
     expect(source).toContain("updatePerceptionProviderRoute");
     expect(source).toContain("updatePerceptionSamplingPreset");
     expect(source).toContain("onNavigate");
+    expect(source).toContain("orbit:chooseSourceImportPath");
   });
 });

@@ -11,6 +11,8 @@ describe("desktop main process runtime guards", () => {
     expect(main).toContain("orbit:getActivitySessionDetail");
     expect(main).toContain("orbit:searchKnowledge");
     expect(main).toContain("orbit:previewSourceImport");
+    expect(main).toContain("orbit:chooseSourceImportPath");
+    expect(main).toContain("showOpenDialog");
     expect(main).toContain("orbit:confirmSourceImport");
     expect(main).toContain("orbit:getKnowledgeArtifactDetail");
     expect(main).toContain("orbit:editKnowledge");

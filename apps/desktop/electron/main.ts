@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage } from "electron";
+import { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage } from "electron";
 import { join } from "node:path";
 import {
   captureScreenOcrBurstForDesktop,
@@ -209,6 +209,20 @@ ipcMain.handle("orbit:ignoreCurrentContext", (_event, input: DesktopIgnoreCurren
 ipcMain.handle("orbit:previewSourceImport", (_event, kind: string, path: string) =>
   previewSourceImportForDesktop(requireSourceSetupKind(kind), String(path ?? ""))
 );
+ipcMain.handle("orbit:chooseSourceImportPath", async (_event, kind: string) => {
+  const setupKind = requireSourceSetupKind(kind);
+  const options = {
+    title: "Choose explicit Orbit import path",
+    properties: sourceImportPathDialogProperties(setupKind)
+  };
+  const result = mainWindow
+    ? await dialog.showOpenDialog(mainWindow, options)
+    : await dialog.showOpenDialog(options);
+  if (result.canceled || !result.filePaths[0]) {
+    return { canceled: true };
+  }
+  return { canceled: false, path: result.filePaths[0] };
+});
 ipcMain.handle("orbit:confirmSourceImport", async (_event, kind: string, path: string) => {
   const result = await confirmSourceImportForDesktop(requireSourceSetupKind(kind), String(path ?? ""));
   applyRuntimeSettings();
@@ -670,6 +684,15 @@ function requireSourceSetupKind(
     return kind;
   }
   throw new Error(`Unsupported source setup kind: ${kind}`);
+}
+
+function sourceImportPathDialogProperties(
+  kind: ReturnType<typeof requireSourceSetupKind>
+): Array<"openFile" | "openDirectory"> {
+  if (kind === "browser_import" || kind === "terminal_import" || kind === "file_activity_import") {
+    return ["openFile"];
+  }
+  return ["openDirectory"];
 }
 
 function requireSourceRuntimeAction(action: string): "pause" | "resume" | "enable" | "disable" {

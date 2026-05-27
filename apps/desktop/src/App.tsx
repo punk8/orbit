@@ -21,6 +21,7 @@ import type {
   DesktopIgnoreCurrentContextInput,
   DesktopProtectedRuleInput,
   DesktopSettingKey,
+  DesktopSourceImportPathChoice,
   DesktopSourceImportPreview,
   DesktopSourceRuntimeAction,
   SourceSetupKind
@@ -213,6 +214,18 @@ export function App(): ReactElement {
     setError(undefined);
     try {
       return await window.orbit.previewSourceImport(kind, path);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : t("error.source"));
+      throw reason;
+    }
+  }
+
+  async function chooseSourceImportPath(
+    kind: SourceSetupKind
+  ): Promise<DesktopSourceImportPathChoice> {
+    setError(undefined);
+    try {
+      return await window.orbit.chooseSourceImportPath(kind);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : t("error.source"));
       throw reason;
@@ -538,6 +551,7 @@ export function App(): ReactElement {
                 ignoreCurrentContext,
                 setupSource,
                 previewSourceImport,
+                chooseSourceImportPath,
                 confirmSourceImport,
                 reconfigureSource,
                 deleteSource,
@@ -623,6 +637,7 @@ interface PageActions {
   ignoreCurrentContext(input: DesktopIgnoreCurrentContextInput): Promise<void>;
   setupSource(kind: SourceSetupKind, path?: string): Promise<void>;
   previewSourceImport(kind: SourceSetupKind, path: string): Promise<DesktopSourceImportPreview>;
+  chooseSourceImportPath(kind: SourceSetupKind): Promise<DesktopSourceImportPathChoice>;
   confirmSourceImport(kind: SourceSetupKind, path: string): Promise<void>;
   reconfigureSource(sourceId: string, kind: SourceSetupKind, path?: string): Promise<void>;
   deleteSource(sourceId: string): Promise<void>;
@@ -731,6 +746,7 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
           snapshot={snapshot}
           onSetupSource={actions.setupSource}
           onPreviewSourceImport={actions.previewSourceImport}
+          onChooseSourceImportPath={actions.chooseSourceImportPath}
           onConfirmSourceImport={actions.confirmSourceImport}
           onReconfigureSource={actions.reconfigureSource}
           onDeleteSource={actions.deleteSource}

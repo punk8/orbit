@@ -6,8 +6,10 @@ describe("SourcesPage source governance controls", () => {
     const source = readFileSync(new URL("./SourcesPage.tsx", import.meta.url), "utf8");
 
     expect(source).toContain("onPreviewSourceImport");
+    expect(source).toContain("onChooseSourceImportPath");
     expect(source).toContain("onConfirmSourceImport");
     expect(source).toContain("source.importPreview");
+    expect(source).toContain("source.chooseImportPath");
     expect(source).toContain("source.confirmImport");
     expect(source).toContain("source.importOnly");
     expect(source).toContain("source.importBoundary");

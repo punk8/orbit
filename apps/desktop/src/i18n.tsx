@@ -552,10 +552,12 @@ const translations = {
     "source.importBoundary":
       "Import reads only the path you provide. Orbit previews the records first, then stores redacted Events and derived summaries after confirmation; it does not enable continuous scanning or raw Agent export.",
     "source.importOnly": "Explicit import",
+    "source.chooseImportPath": "Choose path",
     "source.importPreview": "Preview import",
     "source.importPreviewing": "Previewing...",
     "source.confirmImport": "Confirm import",
     "source.importing": "Importing...",
+    "source.importPathChooseFailed": "Could not choose import path",
     "source.importFocusHint":
       "After confirmation, Orbit opens the Activity session generated from this import.",
     "source.importPreviewFailed": "Import preview failed",
@@ -1497,10 +1499,12 @@ const translations = {
     "source.importBoundary":
       "导入只读取你提供的路径。Orbit 会先预览记录，确认后才保存脱敏事件和派生摘要；不会开启持续扫描，也不会把 raw 内容导出给 Agent。",
     "source.importOnly": "显式导入",
+    "source.chooseImportPath": "选择路径",
     "source.importPreview": "预览导入",
     "source.importPreviewing": "预览中...",
     "source.confirmImport": "确认导入",
     "source.importing": "导入中...",
+    "source.importPathChooseFailed": "无法选择导入路径",
     "source.importFocusHint": "确认后，Orbit 会打开这次导入生成的 Activity 片段。",
     "source.importPreviewFailed": "导入预览失败",
     "source.importFailed": "导入失败",

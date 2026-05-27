@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { ReactElement } from "react";
 import type {
   DesktopSnapshot,
+  DesktopSourceImportPathChoice,
   DesktopSourceImportPreview,
   DesktopSourceRuntimeAction,
   SourceSetupKind
@@ -15,6 +16,7 @@ export function SourcesPage({
   snapshot,
   onSetupSource,
   onPreviewSourceImport,
+  onChooseSourceImportPath,
   onConfirmSourceImport,
   onReconfigureSource,
   onDeleteSource,
@@ -28,6 +30,7 @@ export function SourcesPage({
   snapshot: DesktopSnapshot;
   onSetupSource(kind: SourceSetupKind, path?: string): Promise<void>;
   onPreviewSourceImport(kind: SourceSetupKind, path: string): Promise<DesktopSourceImportPreview>;
+  onChooseSourceImportPath(kind: SourceSetupKind): Promise<DesktopSourceImportPathChoice>;
   onConfirmSourceImport(kind: SourceSetupKind, path: string): Promise<void>;
   onReconfigureSource(sourceId: string, kind: SourceSetupKind, path?: string): Promise<void>;
   onDeleteSource(sourceId: string): Promise<void>;
@@ -83,6 +86,18 @@ export function SourcesPage({
       setPreviewError(error instanceof Error ? error.message : t("source.importFailed"));
     } finally {
       setIsImporting(false);
+    }
+  }
+
+  async function chooseImportPath(): Promise<void> {
+    setPreviewError(undefined);
+    try {
+      const choice = await onChooseSourceImportPath(importKind);
+      if (choice.canceled || !choice.path) return;
+      setImportPath(choice.path);
+      setPreview(undefined);
+    } catch (error) {
+      setPreviewError(error instanceof Error ? error.message : t("source.importPathChooseFailed"));
     }
   }
 
@@ -149,6 +164,13 @@ export function SourcesPage({
                 placeholder={t("source.importPathPlaceholder")}
                 value={importPath}
               />
+              <button
+                className="secondary-button"
+                onClick={() => void chooseImportPath()}
+                type="button"
+              >
+                {t("source.chooseImportPath")}
+              </button>
               <button
                 className="secondary-button"
                 disabled={!trimmedImportPath || isPreviewing}

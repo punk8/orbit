@@ -36,6 +36,7 @@ const orbitApi: OrbitDesktopApi = {
   upsertProtectedRule: (input) => ipcRenderer.invoke("orbit:upsertProtectedRule", input),
   ignoreCurrentContext: (input) => ipcRenderer.invoke("orbit:ignoreCurrentContext", input),
   previewSourceImport: (kind, path) => ipcRenderer.invoke("orbit:previewSourceImport", kind, path),
+  chooseSourceImportPath: (kind) => ipcRenderer.invoke("orbit:chooseSourceImportPath", kind),
   confirmSourceImport: (kind, path) => ipcRenderer.invoke("orbit:confirmSourceImport", kind, path),
   setupSource: (kind, path) => ipcRenderer.invoke("orbit:setupSource", kind, path),
   reconfigureSource: (sourceId, kind, path) =>
