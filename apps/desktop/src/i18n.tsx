@@ -556,6 +556,8 @@ const translations = {
     "source.importPreviewing": "Previewing...",
     "source.confirmImport": "Confirm import",
     "source.importing": "Importing...",
+    "source.importFocusHint":
+      "After confirmation, Orbit opens the Activity session generated from this import.",
     "source.importPreviewFailed": "Import preview failed",
     "source.importFailed": "Import failed",
     "source.previewEventCount": "Events",
@@ -1496,6 +1498,7 @@ const translations = {
     "source.importPreviewing": "预览中...",
     "source.confirmImport": "确认导入",
     "source.importing": "导入中...",
+    "source.importFocusHint": "确认后，Orbit 会打开这次导入生成的 Activity 片段。",
     "source.importPreviewFailed": "导入预览失败",
     "source.importFailed": "导入失败",
     "source.previewEventCount": "事件",

@@ -2335,6 +2335,12 @@ button {
   white-space: nowrap;
 }
 
+.source-import-focus-hint {
+  margin: 0;
+  color: #526165;
+  font-size: 12px;
+}
+
 .perception-manual-capture {
   border-color: #d7e3df;
   background: #f7fbf9;

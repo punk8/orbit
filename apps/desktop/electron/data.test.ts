@@ -65,6 +65,11 @@ describe("desktop background runtime ingestion", () => {
 
     expect(result.importResult.mode).toBe("import_only");
     expect(result.importResult.inserted).toBeGreaterThan(0);
+    expect(result.focus?.page).toBe("activity");
+    expect(result.focus?.reason).toBe("source_import");
+    expect(result.focus?.activitySessionId).toBeDefined();
+    expect(result.focus?.eventIds?.length).toBeGreaterThan(0);
+    expect(result.focus?.sourceAdapterIds).toContain("codex_local");
     const config = result.snapshot.sourceAdapterConfigs.codex_local;
     expect(config).toBeDefined();
     expect(config?.mode).toBe("import_only");

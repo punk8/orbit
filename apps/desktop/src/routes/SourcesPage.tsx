@@ -193,6 +193,9 @@ export function SourcesPage({
               </div>
             </div>
           ) : null}
+          {preview ? (
+            <p className="source-import-focus-hint">{t("source.importFocusHint")}</p>
+          ) : null}
           {preview?.warnings.length ? (
             <p className="warning-text">{preview.warnings[0]}</p>
           ) : null}

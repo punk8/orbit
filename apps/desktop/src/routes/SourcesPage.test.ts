@@ -11,6 +11,7 @@ describe("SourcesPage source governance controls", () => {
     expect(source).toContain("source.confirmImport");
     expect(source).toContain("source.importOnly");
     expect(source).toContain("source.importBoundary");
+    expect(source).toContain("source.importFocusHint");
     expect(source).toContain("source.previewEventCount");
     expect(source).toContain("action.reconfigure");
     expect(source).toContain("action.resetCursor");

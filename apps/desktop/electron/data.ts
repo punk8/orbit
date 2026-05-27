@@ -834,7 +834,9 @@ export async function confirmSourceImportForDesktop(
     sourceRepository.upsertFromAdapter(adapter);
     const cursor =
       existingConfig?.path === resolvedPath ? sourceRepository.getCursor(adapter.id) : undefined;
+    const beforeIds = new Set(eventRepository.listEvents().map((event) => event.id));
     const result = await ingestEventsFromAdapter(adapter, eventRepository, cursor);
+    const insertedEventIds = newEventsSince(eventRepository, beforeIds).map((event) => event.id);
     sourceRepository.setCursor(adapter.id, result.nextCursor);
     sourceRepository.recordSyncSuccess(adapter.id, { lastEventAt: result.lastEventAt });
     const importedAt = new Date().toISOString();
@@ -868,8 +870,10 @@ export async function confirmSourceImportForDesktop(
     ).pipeline;
     settingsRepository.set(SETTING_KEYS.sourceSetupCompleted, true);
     const language = readEffectiveDesktopLanguage(settingsRepository);
-    return {
-      snapshot: readDesktopSnapshot(),
+    const snapshot = readDesktopSnapshot();
+    const focus = buildActivityFocus(snapshot, insertedEventIds, [adapter.id], "source_import");
+    const importResult: DesktopSourceImportResult = {
+      snapshot,
       importResult: importSummary,
       warnings: result.warnings,
       message:
@@ -877,6 +881,8 @@ export async function confirmSourceImportForDesktop(
           ? `已导入 ${result.inserted} 条 ${adapter.displayName} 事件；当前有 ${pipeline.activitySessions.total} 个活动片段`
           : `Imported ${result.inserted} ${adapter.displayName} event(s); ${pipeline.activitySessions.total} activity sessions available`
     };
+    if (focus) importResult.focus = focus;
+    return importResult;
   } finally {
     database.close();
   }
@@ -2408,7 +2414,8 @@ function newEventsSince(eventRepository: EventRepository, beforeIds: Set<string>
 function buildActivityFocus(
   snapshot: DesktopSnapshot,
   eventIds: string[],
-  sourceAdapterIds: string[]
+  sourceAdapterIds: string[],
+  reason: NonNullable<DesktopActionResult["focus"]>["reason"] = "manual_capture"
 ): DesktopActionResult["focus"] {
   const eventIdSet = new Set(eventIds);
   const focusedSession = [...snapshot.activitySessions]
@@ -2420,7 +2427,7 @@ function buildActivityFocus(
     activitySessionId: focusedSession.id,
     eventIds,
     sourceAdapterIds,
-    reason: "manual_capture"
+    reason
   };
 }
 
