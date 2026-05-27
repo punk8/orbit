@@ -59,6 +59,7 @@ export function SourcesPage({
   const trimmedImportPath = importPath.trim();
   const screenPolicy = snapshot.perception.sources.find((source) => source.sourceKind === "screen")
     ?.policy;
+  const importGuide = sourceImportGuide(t, importKind);
 
   async function previewImport(): Promise<void> {
     if (!trimmedImportPath) return;
@@ -151,6 +152,11 @@ export function SourcesPage({
                   {sourceImportKindLabel(t, kind)}
                 </button>
               ))}
+            </div>
+            <div className="source-import-guide" aria-label={t("source.importGuide")}>
+              <strong>{sourceImportPathTypeLabel(t, importGuide.pathType)}</strong>
+              <p>{importGuide.description}</p>
+              {importGuide.sample ? <code>{importGuide.sample}</code> : null}
             </div>
             <div className="source-import-path-row">
               <input
@@ -562,6 +568,66 @@ export function SourcesPage({
       </Section>
     </div>
   );
+}
+
+function sourceImportGuide(
+  t: ReturnType<typeof useI18n>["t"],
+  kind: SourceSetupKind
+): {
+  pathType: "file" | "folder";
+  description: string;
+  sample?: string;
+} {
+  if (kind === "browser_import") {
+    return {
+      pathType: "file",
+      description: t("source.guide.browser"),
+      sample: t("source.sample.browser")
+    };
+  }
+  if (kind === "terminal_import") {
+    return {
+      pathType: "file",
+      description: t("source.guide.terminal"),
+      sample: t("source.sample.terminal")
+    };
+  }
+  if (kind === "file_activity_import") {
+    return {
+      pathType: "file",
+      description: t("source.guide.fileActivity"),
+      sample: t("source.sample.fileActivity")
+    };
+  }
+  if (kind === "project_directory") {
+    return {
+      pathType: "folder",
+      description: t("source.guide.projectDirectory")
+    };
+  }
+  if (kind === "local_agent") {
+    return {
+      pathType: "folder",
+      description: t("source.guide.localAgent")
+    };
+  }
+  if (kind === "seatalk") {
+    return {
+      pathType: "folder",
+      description: t("source.guide.seatalk")
+    };
+  }
+  return {
+    pathType: "folder",
+    description: t("source.guide.codex")
+  };
+}
+
+function sourceImportPathTypeLabel(
+  t: ReturnType<typeof useI18n>["t"],
+  pathType: "file" | "folder"
+): string {
+  return pathType === "file" ? t("source.pathType.file") : t("source.pathType.folder");
 }
 
 function formatDuration(ms: number): string {

@@ -638,6 +638,18 @@ button {
   font-size: 12px;
 }
 
+.evidence-list li.focused-evidence,
+.event-row.focused-evidence {
+  border-radius: 7px;
+  background: #edf8f4;
+  box-shadow: inset 3px 0 0 #3f7f72;
+}
+
+.event-row.focused-evidence {
+  border-top-color: transparent;
+  padding: 10px 10px 10px 12px;
+}
+
 .evidence-list code {
   overflow: hidden;
   color: #364044;
@@ -2323,9 +2335,40 @@ button {
 
 .source-import-path-row {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) auto auto;
+  grid-template-columns: minmax(260px, 1fr) auto auto auto;
   gap: 8px;
   align-items: center;
+}
+
+.source-import-guide {
+  display: grid;
+  gap: 6px;
+  border: 1px solid #e5e1d9;
+  border-radius: 8px;
+  background: #fffdf8;
+  padding: 11px 12px;
+}
+
+.source-import-guide strong {
+  color: #244d47;
+  font-size: 12px;
+}
+
+.source-import-guide p {
+  margin: 0;
+  color: #455154;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.source-import-guide code {
+  overflow-wrap: anywhere;
+  border-radius: 6px;
+  background: #f3f0e9;
+  color: #293235;
+  font-size: 11px;
+  line-height: 1.45;
+  padding: 8px;
 }
 
 .source-import-preview {

@@ -205,6 +205,8 @@ const translations = {
     "activity.latestCaptureFocused": "Focused the Activity session created by the latest capture.",
     "activity.latestImportFocused": "Focused the Activity session created by the latest import.",
     "activity.latestTodayFocused": "Focused the Activity session selected from Today.",
+    "activity.focusedEvents": "Focused events",
+    "activity.focusedSources": "Focused sources",
     "activity.summary": "Summary",
     "activity.evidence": "Evidence",
     "activity.sourcePolicy": "Source Policy",
@@ -413,6 +415,8 @@ const translations = {
     "recommendation.latestTodayFocused": "Focused the Recommendation selected from Today.",
     "recommendation.acceptRecordsOnly":
       "Accepting, snoozing, dismissing, or resolving only updates local review state.",
+    "recommendation.lastActionPrefix": "Local recommendation action recorded:",
+    "recommendation.mergedEvidenceHint": "Repeated signals were merged into this recommendation.",
     "action.accept": "Accept",
     "action.dismiss": "Dismiss",
     "action.snooze": "Snooze",
@@ -569,6 +573,29 @@ const translations = {
     "source.importPathChooseFailed": "Could not choose import path",
     "source.importFocusHint":
       "After confirmation, Orbit opens the Activity session generated from this import.",
+    "source.importGuide": "Import format guide",
+    "source.pathType.file": "Choose a sanitized JSON file",
+    "source.pathType.folder": "Choose an explicit local folder",
+    "source.guide.codex":
+      "Choose the Codex session directory you want Orbit to read. Preview runs before any Events are stored.",
+    "source.guide.localAgent":
+      "Choose a local agent session folder such as Claude Code exports. Orbit imports summaries and metadata only after preview.",
+    "source.guide.seatalk":
+      "Choose a folder containing user-approved SeaTalk exports. Orbit does not read private chats without an explicit import path.",
+    "source.guide.projectDirectory":
+      "Choose one project root. Orbit reads changed file paths, mtimes, git metadata, and hashes; it does not index file contents by default.",
+    "source.guide.browser":
+      "Provide sanitized browser metadata JSON with URL/title/profile fields only; no cookies, DOM, page bodies, or silent scraping.",
+    "source.guide.terminal":
+      "Provide sanitized terminal command JSON with command, cwd, session, and exit code; raw command output is not imported by default.",
+    "source.guide.fileActivity":
+      "Provide file activity JSON bounded by allowedFolders; Orbit will ignore events outside the approved folders.",
+    "source.sample.browser":
+      "[{ \"occurredAt\": \"2026-05-28T09:20:00.000Z\", \"app\": \"Chrome\", \"url\": \"https://docs.example.com/prd\", \"title\": \"PRD\" }]",
+    "source.sample.terminal":
+      "[{ \"occurredAt\": \"2026-05-28T09:30:00.000Z\", \"sessionId\": \"term-1\", \"cwd\": \"/project\", \"command\": \"pnpm test\", \"exitCode\": 0 }]",
+    "source.sample.fileActivity":
+      "{ \"allowedFolders\": [{ \"id\": \"orbit\", \"rootPath\": \"/project/orbit\", \"enabled\": true }], \"events\": [{ \"rootId\": \"orbit\", \"relativePath\": \"src/App.tsx\", \"operation\": \"modified\" }] }",
     "source.importPreviewFailed": "Import preview failed",
     "source.importFailed": "Import failed",
     "source.previewAdapter": "Source",
@@ -581,6 +608,12 @@ const translations = {
     "review.showEvidence": "Show evidence",
     "review.hideEvidence": "Hide evidence",
     "review.openKnowledge": "Open in Knowledge",
+    "review.pendingKnowledgeCount": "Pending Knowledge",
+    "review.pendingMemoryCount": "Pending Memory",
+    "review.lastActionPrefix": "Local review action recorded:",
+    "review.action.confirm": "confirmed",
+    "review.action.reject": "rejected",
+    "review.action.archive": "archived",
     "source.manualScreenOcrTitle": "One-shot Screen/OCR capture",
     "source.manualScreenOcrBoundary":
       "Capture the current screen once after explicit user action. Orbit stores source-backed summary events and evidence pointers; continuous recording, microphone capture, raw screenshots, and raw Agent export stay off by default.",
@@ -1172,6 +1205,8 @@ const translations = {
     "activity.latestCaptureFocused": "已定位到刚捕获生成的活动片段。",
     "activity.latestImportFocused": "已定位到刚导入生成的活动片段。",
     "activity.latestTodayFocused": "已定位到从 Today 选择的活动片段。",
+    "activity.focusedEvents": "本次定位事件",
+    "activity.focusedSources": "本次来源",
     "activity.summary": "摘要",
     "activity.evidence": "证据",
     "activity.sourcePolicy": "来源策略",
@@ -1376,6 +1411,8 @@ const translations = {
     "recommendation.queue.all": "全部",
     "recommendation.latestTodayFocused": "已定位到从 Today 选择的建议。",
     "recommendation.acceptRecordsOnly": "接受、稍后提醒、忽略或标记解决只会更新本地审阅状态。",
+    "recommendation.lastActionPrefix": "已记录本地建议动作：",
+    "recommendation.mergedEvidenceHint": "重复信号已合并到这条建议中。",
     "action.accept": "接受",
     "action.dismiss": "忽略",
     "action.snooze": "稍后提醒",
@@ -1524,6 +1561,28 @@ const translations = {
     "source.importing": "导入中...",
     "source.importPathChooseFailed": "无法选择导入路径",
     "source.importFocusHint": "确认后，Orbit 会打开这次导入生成的 Activity 片段。",
+    "source.importGuide": "导入格式说明",
+    "source.pathType.file": "选择已脱敏 JSON 文件",
+    "source.pathType.folder": "选择明确授权的本地文件夹",
+    "source.guide.codex": "选择要让 Orbit 读取的 Codex 会话目录。预览通过前不会写入事件。",
+    "source.guide.localAgent":
+      "选择本地 Agent 会话目录，例如 Claude Code 导出。Orbit 只在预览后导入摘要和元数据。",
+    "source.guide.seatalk":
+      "选择包含用户批准 SeaTalk 导出的文件夹。没有明确导入路径时，Orbit 不读取私人聊天。",
+    "source.guide.projectDirectory":
+      "选择一个项目根目录。Orbit 读取变更文件路径、mtime、git 元数据和 hash；默认不索引文件正文。",
+    "source.guide.browser":
+      "提供已脱敏浏览器元数据 JSON，只包含 URL / 标题 / profile 字段；不包含 cookie、DOM、页面正文或静默抓取。",
+    "source.guide.terminal":
+      "提供已脱敏终端命令 JSON，只包含 command、cwd、session 和 exit code；默认不导入 raw 输出。",
+    "source.guide.fileActivity":
+      "提供受 allowedFolders 约束的文件活动 JSON；Orbit 会忽略授权目录外的事件。",
+    "source.sample.browser":
+      "[{ \"occurredAt\": \"2026-05-28T09:20:00.000Z\", \"app\": \"Chrome\", \"url\": \"https://docs.example.com/prd\", \"title\": \"PRD\" }]",
+    "source.sample.terminal":
+      "[{ \"occurredAt\": \"2026-05-28T09:30:00.000Z\", \"sessionId\": \"term-1\", \"cwd\": \"/project\", \"command\": \"pnpm test\", \"exitCode\": 0 }]",
+    "source.sample.fileActivity":
+      "{ \"allowedFolders\": [{ \"id\": \"orbit\", \"rootPath\": \"/project/orbit\", \"enabled\": true }], \"events\": [{ \"rootId\": \"orbit\", \"relativePath\": \"src/App.tsx\", \"operation\": \"modified\" }] }",
     "source.importPreviewFailed": "导入预览失败",
     "source.importFailed": "导入失败",
     "source.previewAdapter": "来源",
@@ -1536,6 +1595,12 @@ const translations = {
     "review.showEvidence": "查看证据",
     "review.hideEvidence": "收起证据",
     "review.openKnowledge": "在知识中打开",
+    "review.pendingKnowledgeCount": "待审阅知识",
+    "review.pendingMemoryCount": "待审阅记忆",
+    "review.lastActionPrefix": "已记录本地审阅动作：",
+    "review.action.confirm": "已确认",
+    "review.action.reject": "已拒绝",
+    "review.action.archive": "已归档",
     "source.manualScreenOcrTitle": "单次屏幕 / OCR 捕获",
     "source.manualScreenOcrBoundary":
       "用户明确点击后只捕获当前屏幕一次。Orbit 保存可追溯的摘要事件和证据指针；持续录屏、麦克风采集、raw 截图和 raw Agent 导出默认关闭。",

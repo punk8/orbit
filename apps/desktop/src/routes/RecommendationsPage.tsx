@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import type { Recommendation, RecommendationType } from "@orbit/core";
 import type { RecommendationReviewAction } from "@orbit/db";
 import type { DesktopRecommendationDetail } from "../orbitApi";
@@ -27,6 +27,11 @@ interface RecommendationFilters {
   queue: "active" | "snoozed" | "closed" | "all";
 }
 
+interface LastRecommendationAction {
+  id: string;
+  action: RecommendationReviewAction;
+}
+
 const defaultFilters: RecommendationFilters = {
   status: "",
   type: "",
@@ -51,6 +56,7 @@ export function RecommendationsPage({
   const [snoozeDate, setSnoozeDate] = useState("");
   const [refreshToken, setRefreshToken] = useState(0);
   const [latestTodayFocus, setLatestTodayFocus] = useState(false);
+  const [lastAction, setLastAction] = useState<LastRecommendationAction | undefined>();
 
   const filterOptions = useMemo(() => buildFilterOptions(recommendations), [recommendations]);
   const filteredRecommendations = useMemo(
@@ -130,6 +136,7 @@ export function RecommendationsPage({
         ? { snoozeUntil: `${snoozeDate}T09:00:00.000Z` }
         : undefined;
     await onReviewRecommendation(recommendation.id, action, options);
+    setLastAction({ id: recommendation.id, action });
     setRefreshToken((current) => current + 1);
   }
 
@@ -236,6 +243,16 @@ export function RecommendationsPage({
         {latestTodayFocus ? (
           <div className="notice-banner inline">{t("recommendation.latestTodayFocused")}</div>
         ) : null}
+        {lastAction ? (
+          <div
+            className="notice-banner inline recommendation-action-feedback"
+            data-recommendation-feedback="last-action"
+          >
+            {t("recommendation.lastActionPrefix")} {recommendationActionLabel(lastAction.action, t)}
+            {" · "}
+            {t("recommendation.acceptRecordsOnly")}
+          </div>
+        ) : null}
 
         <div className="recommendation-workbench">
           <div className="recommendation-list" aria-label={t("recommendation.recommendationList")}>
@@ -267,6 +284,9 @@ export function RecommendationsPage({
                     {recommendation.evidence.length} {t("recommendation.evidenceCountLabel")}
                   </span>
                   <span>{recommendation.dueAt ?? t("fallback.none")}</span>
+                  {mergedEvidenceHint(recommendation, t) ? (
+                    <span>{mergedEvidenceHint(recommendation, t)}</span>
+                  ) : null}
                 </div>
               </button>
             ))}
@@ -409,6 +429,9 @@ function RecommendationDetail({
       </DetailBlock>
 
       <DetailBlock title={t("recommendation.evidence")}>
+        {mergedEvidenceHint(recommendation, t) ? (
+          <p className="muted">{mergedEvidenceHint(recommendation, t)}</p>
+        ) : null}
         <EvidenceList evidence={recommendation.evidence} limit={12} />
       </DetailBlock>
 
@@ -519,12 +542,29 @@ function RecommendationDetail({
   );
 }
 
+function recommendationActionLabel(
+  action: RecommendationReviewAction,
+  t: ReturnType<typeof useI18n>["t"]
+): string {
+  if (action === "accept") return t("action.accept");
+  if (action === "dismiss") return t("action.dismiss");
+  if (action === "snooze") return t("action.snooze");
+  return t("action.resolve");
+}
+
+function mergedEvidenceHint(
+  recommendation: Recommendation,
+  t: ReturnType<typeof useI18n>["t"]
+): string | undefined {
+  return recommendation.evidence.length > 1 ? t("recommendation.mergedEvidenceHint") : undefined;
+}
+
 function DetailBlock({
   title,
   children
 }: {
   title: string;
-  children: ReactElement | ReactElement[];
+  children: ReactNode;
 }): ReactElement {
   return (
     <section className="detail-block">

@@ -27,6 +27,18 @@ describe("RecommendationsPage explanation workbench", () => {
     expect(source).toContain("recommendation.acceptRecordsOnly");
   });
 
+  it("shows local lifecycle feedback and merged evidence hints after user actions", () => {
+    const source = readFileSync(new URL("./RecommendationsPage.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("lastAction");
+    expect(source).toContain("LastRecommendationAction");
+    expect(source).toContain("recommendation.lastActionPrefix");
+    expect(source).toContain("recommendationActionLabel");
+    expect(source).toContain("data-recommendation-feedback=\"last-action\"");
+    expect(source).toContain("recommendation.mergedEvidenceHint");
+    expect(source).toContain("mergedEvidenceHint");
+  });
+
   it("can consume a focused recommendation and clear filters for the action workbench", () => {
     const source = readFileSync(new URL("./RecommendationsPage.tsx", import.meta.url), "utf8");
 

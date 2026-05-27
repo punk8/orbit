@@ -23,7 +23,7 @@ describe("ActivityPage evidence workbench", () => {
     expect(source).toContain("event.context.app");
     expect(source).toContain("event.context.windowTitle");
     expect(source).toContain("formatTimeRange(session.startAt, session.endAt)");
-    expect(source).toContain("EvidenceList evidence={session.evidence}");
+    expect(source).toContain("evidence={session.evidence}");
   });
 
   it("renders a Yansu-like playback shell with timeline, recording viewer, scrubber, and honest raw-frame state", () => {
@@ -79,14 +79,23 @@ describe("ActivityPage evidence workbench", () => {
 
   it("can consume a latest-capture focus target and jump to the generated session", () => {
     const source = readFileSync(new URL("./ActivityPage.tsx", import.meta.url), "utf8");
+    const app = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");
 
     expect(source).toContain("focusTarget");
     expect(source).toContain("ActivityFocusTarget");
     expect(source).toContain("focusTarget.reason");
+    expect(source).toContain("focusTarget.eventIds");
+    expect(source).toContain("focusTarget.sourceAdapterIds");
     expect(source).toContain("onFocusConsumed");
     expect(source).toContain("setFilters(defaultFilters)");
+    expect(source).toContain("activity.focusedEvents");
+    expect(source).toContain("activity.focusedSources");
+    expect(source).toContain("highlightedEventIds");
+    expect(source).toContain('data-activity-focus="event"');
     expect(source).toContain("activity.latestCaptureFocused");
     expect(source).toContain("activity.latestImportFocused");
+    expect(app).toContain("eventIds: focus.eventIds ?? []");
+    expect(app).toContain("sourceAdapterIds: focus.sourceAdapterIds ?? []");
   });
 
   it("can open derived Knowledge and Recommendations from the Activity evidence detail", () => {

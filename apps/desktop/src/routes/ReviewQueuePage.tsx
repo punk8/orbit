@@ -6,6 +6,12 @@ import { EvidenceList } from "../components/EvidenceList";
 import { Section } from "../components/Section";
 import { useI18n } from "../i18n";
 
+interface ReviewQueueLastAction {
+  id: string;
+  kind: "knowledge" | "memory";
+  action: KnowledgeReviewAction | MemoryReviewAction;
+}
+
 export function ReviewQueuePage({
   snapshot,
   onOpenKnowledge,
@@ -19,6 +25,7 @@ export function ReviewQueuePage({
 }): ReactElement {
   const { t, status, sensitivity } = useI18n();
   const [expandedEvidenceIds, setExpandedEvidenceIds] = useState<Set<string>>(new Set());
+  const [lastAction, setLastAction] = useState<ReviewQueueLastAction | undefined>();
   const knowledgeDrafts = snapshot.knowledgeArtifacts.filter(
     (artifact) => artifact.status === "draft"
   );
@@ -34,9 +41,33 @@ export function ReviewQueuePage({
       return next;
     });
   };
+  const reviewKnowledge = async (id: string, action: KnowledgeReviewAction): Promise<void> => {
+    await onReviewKnowledge(id, action);
+    setLastAction({ id, kind: "knowledge", action });
+    setExpandedEvidenceIds((current) => withoutExpandedEvidence(current, id));
+  };
+  const reviewMemory = async (id: string, action: MemoryReviewAction): Promise<void> => {
+    await onReviewMemory(id, action);
+    setLastAction({ id, kind: "memory", action });
+    setExpandedEvidenceIds((current) => withoutExpandedEvidence(current, id));
+  };
 
   return (
     <div className="page-grid two-column">
+      <div className="review-queue-summary">
+        <span>
+          {t("review.pendingKnowledgeCount")}: {knowledgeDrafts.length}
+        </span>
+        <span>
+          {t("review.pendingMemoryCount")}: {memoryCandidates.length}
+        </span>
+      </div>
+      {lastAction ? (
+        <div className="notice-banner inline review-action-feedback" data-review-feedback="last-action">
+          {t("review.lastActionPrefix")} {reviewKindLabel(lastAction.kind, t)} ·{" "}
+          {reviewActionLabel(lastAction.action, t)}
+        </div>
+      ) : null}
       <Section title={t("section.knowledgeDrafts")}>
         <div className="item-list compact">
           {knowledgeDrafts.map((artifact) => (
@@ -71,21 +102,21 @@ export function ReviewQueuePage({
               <div className="action-row">
                 <button
                   className="secondary-button"
-                  onClick={() => void onReviewKnowledge(artifact.id, "confirm")}
+                  onClick={() => void reviewKnowledge(artifact.id, "confirm")}
                   type="button"
                 >
                   {t("action.confirm")}
                 </button>
                 <button
                   className="secondary-button"
-                  onClick={() => void onReviewKnowledge(artifact.id, "reject")}
+                  onClick={() => void reviewKnowledge(artifact.id, "reject")}
                   type="button"
                 >
                   {t("action.reject")}
                 </button>
                 <button
                   className="secondary-button"
-                  onClick={() => void onReviewKnowledge(artifact.id, "archive")}
+                  onClick={() => void reviewKnowledge(artifact.id, "archive")}
                   type="button"
                 >
                   {t("action.archive")}
@@ -136,21 +167,21 @@ export function ReviewQueuePage({
               <div className="action-row">
                 <button
                   className="secondary-button"
-                  onClick={() => void onReviewMemory(memory.id, "confirm")}
+                  onClick={() => void reviewMemory(memory.id, "confirm")}
                   type="button"
                 >
                   {t("action.confirm")}
                 </button>
                 <button
                   className="secondary-button"
-                  onClick={() => void onReviewMemory(memory.id, "reject")}
+                  onClick={() => void reviewMemory(memory.id, "reject")}
                   type="button"
                 >
                   {t("action.reject")}
                 </button>
                 <button
                   className="secondary-button"
-                  onClick={() => void onReviewMemory(memory.id, "archive")}
+                  onClick={() => void reviewMemory(memory.id, "archive")}
                   type="button"
                 >
                   {t("action.archive")}
@@ -165,6 +196,28 @@ export function ReviewQueuePage({
       </Section>
     </div>
   );
+}
+
+function withoutExpandedEvidence(current: Set<string>, id: string): Set<string> {
+  const next = new Set(current);
+  next.delete(id);
+  return next;
+}
+
+function reviewKindLabel(
+  kind: ReviewQueueLastAction["kind"],
+  t: ReturnType<typeof useI18n>["t"]
+): string {
+  return kind === "knowledge" ? t("handoff.object.knowledge") : t("handoff.object.memory");
+}
+
+function reviewActionLabel(
+  action: ReviewQueueLastAction["action"],
+  t: ReturnType<typeof useI18n>["t"]
+): string {
+  if (action === "confirm") return t("review.action.confirm");
+  if (action === "reject") return t("review.action.reject");
+  return t("review.action.archive");
 }
 
 function formatConfidence(confidence: number, label: string): string {

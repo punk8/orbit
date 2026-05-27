@@ -59,6 +59,23 @@ describe("SourcesPage source governance controls", () => {
     expect(source).toContain("source.fileActivityImport");
   });
 
+  it("explains expected self-serve input formats before previewing real source imports", () => {
+    const source = readFileSync(new URL("./SourcesPage.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("sourceImportGuide");
+    expect(source).toContain("sourceImportPathTypeLabel");
+    expect(source).toContain("source.importGuide");
+    expect(source).toContain("source.pathType.file");
+    expect(source).toContain("source.pathType.folder");
+    expect(source).toContain("source.guide.projectDirectory");
+    expect(source).toContain("source.guide.browser");
+    expect(source).toContain("source.guide.terminal");
+    expect(source).toContain("source.guide.fileActivity");
+    expect(source).toContain("source.sample.browser");
+    expect(source).toContain("source.sample.terminal");
+    expect(source).toContain("source.sample.fileActivity");
+  });
+
   it("does not expose bundled fixtures as a first-run product setup path", () => {
     const source = readFileSync(new URL("./SourcesPage.tsx", import.meta.url), "utf8");
 

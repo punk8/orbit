@@ -60,6 +60,8 @@ interface PlaybackFrame {
 interface ActivityFocusTarget {
   sessionId: string;
   reason: DesktopActionFocus["reason"];
+  eventIds: string[];
+  sourceAdapterIds: string[];
 }
 
 const defaultFilters: ActivityFilters = {
@@ -96,9 +98,7 @@ export function ActivityPage({
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | undefined>();
   const [isCapturingScreenOcr, setIsCapturingScreenOcr] = useState(false);
-  const [latestFocusReason, setLatestFocusReason] = useState<
-    ActivityFocusTarget["reason"] | undefined
-  >();
+  const [latestFocus, setLatestFocus] = useState<ActivityFocusTarget | undefined>();
   const [workbenchView, setWorkbenchView] = useState<ActivityWorkbenchView>("timeline");
   const [overviewRange, setOverviewRange] = useState<ActivityOverviewRange>("day");
 
@@ -134,7 +134,12 @@ export function ActivityPage({
     setFilters(defaultFilters);
     setWorkbenchView("timeline");
     setSelectedId(focused.id);
-    setLatestFocusReason(focusTarget.reason);
+    setLatestFocus({
+      sessionId: focusTarget.sessionId,
+      reason: focusTarget.reason,
+      eventIds: focusTarget.eventIds,
+      sourceAdapterIds: focusTarget.sourceAdapterIds
+    });
     onFocusConsumed();
   }, [focusTarget, onFocusConsumed, sessions]);
 
@@ -199,15 +204,21 @@ export function ActivityPage({
           <strong>{t("activity.captureScreenOcrNoSampleData")}</strong>
           <span>{t("activity.captureScreenOcrDescription")}</span>
         </div>
-        {latestFocusReason ? (
-          <div className="notice-banner inline">
+        {latestFocus ? (
+          <div className="notice-banner inline activity-focus-banner">
+            <strong>
             {t(
-              latestFocusReason === "source_import"
+              latestFocus.reason === "source_import"
                 ? "activity.latestImportFocused"
-                : latestFocusReason === "today_activity"
+                : latestFocus.reason === "today_activity"
                   ? "activity.latestTodayFocused"
                 : "activity.latestCaptureFocused"
             )}
+            </strong>
+            <span>
+              {t("activity.focusedEvents")}: {latestFocus.eventIds.length} ·{" "}
+              {t("activity.focusedSources")}: {latestFocus.sourceAdapterIds.length}
+            </span>
           </div>
         ) : null}
         <div className="activity-playback-workbench">
@@ -345,6 +356,7 @@ export function ActivityPage({
                 onDeleteActivitySession={onDeleteActivitySession}
                 onOpenKnowledgeArtifact={onOpenKnowledgeArtifact}
                 onOpenRecommendation={onOpenRecommendation}
+                focusTarget={latestFocus}
               />
             ) : (
               <div className="empty-state">{t("empty.noActivitySessions")}</div>
@@ -364,7 +376,8 @@ function ActivityDetail({
   formatTimeRange,
   onDeleteActivitySession,
   onOpenKnowledgeArtifact,
-  onOpenRecommendation
+  onOpenRecommendation,
+  focusTarget
 }: {
   detail: DesktopActivitySessionDetail | undefined;
   fallbackSession: ActivitySession;
@@ -374,10 +387,12 @@ function ActivityDetail({
   onDeleteActivitySession(id: string): Promise<void>;
   onOpenKnowledgeArtifact: ((artifactId: string) => void) | undefined;
   onOpenRecommendation: ((recommendationId: string) => void) | undefined;
+  focusTarget: ActivityFocusTarget | undefined;
 }): ReactElement {
   const { t, sourceKind, status } = useI18n();
   const session = detail?.session ?? fallbackSession;
   const events = detail?.events ?? [];
+  const focusedEventIds = new Set(focusTarget?.eventIds ?? []);
   const frames = buildPlaybackFrames(session, events);
   const currentFrame = frames[0];
   const currentFrameRawState = currentFrame
@@ -514,25 +529,22 @@ function ActivityDetail({
       <DetailBlock title={t("activity.eventStream")}>
         {events.length ? (
           <div className="event-stream">
-            {events.map((event) => (
-              <article className="event-row" key={event.id}>
-                <div className="event-row-time">{formatEventTime(event.occurredAt)}</div>
-                <div>
-                  <div className="item-heading">
-                    <h3>{formatEventTitle(event, t)}</h3>
-                    <span>{humanizeValue(event.type)}</span>
-                  </div>
-                  <p>{formatEventPreview(event, t)}</p>
-                  <div className="meta-line">
-                    <span>{sourceKind(event.source.kind)}</span>
-                    <code>{event.source.pointer}</code>
-                    <span>{event.context.app ?? t("fallback.unknownApp")}</span>
-                    {event.context.windowTitle ? <span>{event.context.windowTitle}</span> : null}
-                    <span>{t(`redaction.${event.privacy.redactionState}`)}</span>
-                  </div>
-                </div>
-              </article>
-            ))}
+            {events.map((event) => {
+              const isFocused = focusedEventIds.has(event.id);
+              return isFocused ? (
+                <article
+                  className="event-row focused-evidence"
+                  data-activity-focus="event"
+                  key={event.id}
+                >
+                  <ActivityEventRowContent event={event} />
+                </article>
+              ) : (
+                <article className="event-row" key={event.id}>
+                  <ActivityEventRowContent event={event} />
+                </article>
+              );
+            })}
           </div>
         ) : (
           <div className="empty-state compact">
@@ -543,7 +555,11 @@ function ActivityDetail({
 
       <div className="activity-evidence-grid">
         <DetailBlock title={t("activity.evidence")}>
-          <EvidenceList evidence={session.evidence} limit={12} />
+          <EvidenceList
+            evidence={session.evidence}
+            highlightedEventIds={focusTarget?.eventIds}
+            limit={12}
+          />
         </DetailBlock>
 
         <DetailBlock title={t("activity.sourcePolicy")}>
@@ -678,6 +694,29 @@ function ActivityDetail({
         )}
       </DetailBlock>
     </div>
+  );
+}
+
+function ActivityEventRowContent({ event }: { event: Event }): ReactElement {
+  const { t, sourceKind } = useI18n();
+  return (
+    <>
+      <div className="event-row-time">{formatEventTime(event.occurredAt)}</div>
+      <div>
+        <div className="item-heading">
+          <h3>{formatEventTitle(event, t)}</h3>
+          <span>{humanizeValue(event.type)}</span>
+        </div>
+        <p>{formatEventPreview(event, t)}</p>
+        <div className="meta-line">
+          <span>{sourceKind(event.source.kind)}</span>
+          <code>{event.source.pointer}</code>
+          <span>{event.context.app ?? t("fallback.unknownApp")}</span>
+          {event.context.windowTitle ? <span>{event.context.windowTitle}</span> : null}
+          <span>{t(`redaction.${event.privacy.redactionState}`)}</span>
+        </div>
+      </div>
+    </>
   );
 }
 

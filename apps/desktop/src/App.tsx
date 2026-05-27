@@ -79,6 +79,8 @@ const pages = [
 interface ActivityFocusTarget {
   sessionId: string;
   reason: DesktopActionFocus["reason"];
+  eventIds: string[];
+  sourceAdapterIds: string[];
 }
 
 export function App(): ReactElement {
@@ -383,7 +385,9 @@ export function App(): ReactElement {
     if (focus?.page === "activity" && focus.activitySessionId) {
       setActivityFocusTarget({
         sessionId: focus.activitySessionId,
-        reason: focus.reason
+        reason: focus.reason,
+        eventIds: focus.eventIds ?? [],
+        sourceAdapterIds: focus.sourceAdapterIds ?? []
       });
       setActivePage("activity");
       return;
@@ -397,7 +401,9 @@ export function App(): ReactElement {
   function focusActivitySession(id: string): void {
     setActivityFocusTarget({
       sessionId: id,
-      reason: "today_activity"
+      reason: "today_activity",
+      eventIds: [],
+      sourceAdapterIds: []
     });
     setActivePage("activity");
   }
