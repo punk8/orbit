@@ -1655,6 +1655,16 @@ button {
   line-height: 1.45;
 }
 
+.derived-object-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+}
+
+.derived-object-list .compact-button {
+  justify-self: start;
+}
+
 .linked-object-list {
   display: grid;
   gap: 8px;

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
-import type { ActivitySession, Event } from "@orbit/core";
+import type { ActivitySession, Event, KnowledgeArtifact, Memory, Recommendation } from "@orbit/core";
 import {
   AlertTriangle,
   BarChart3,
@@ -77,13 +77,17 @@ export function ActivityPage({
   focusTarget,
   onFocusConsumed,
   onCaptureScreenOcr,
-  onDeleteActivitySession
+  onDeleteActivitySession,
+  onOpenKnowledgeArtifact,
+  onOpenRecommendation
 }: {
   sessions: ActivitySession[];
   focusTarget?: ActivityFocusTarget | undefined;
   onFocusConsumed(): void;
   onCaptureScreenOcr(): Promise<void>;
   onDeleteActivitySession(id: string): Promise<void>;
+  onOpenKnowledgeArtifact: ((artifactId: string) => void) | undefined;
+  onOpenRecommendation: ((recommendationId: string) => void) | undefined;
 }): ReactElement {
   const { t, sourceKind, formatTimeRange } = useI18n();
   const [filters, setFilters] = useState<ActivityFilters>(defaultFilters);
@@ -339,6 +343,8 @@ export function ActivityPage({
                 error={detailError}
                 formatTimeRange={formatTimeRange}
                 onDeleteActivitySession={onDeleteActivitySession}
+                onOpenKnowledgeArtifact={onOpenKnowledgeArtifact}
+                onOpenRecommendation={onOpenRecommendation}
               />
             ) : (
               <div className="empty-state">{t("empty.noActivitySessions")}</div>
@@ -356,7 +362,9 @@ function ActivityDetail({
   isLoading,
   error,
   formatTimeRange,
-  onDeleteActivitySession
+  onDeleteActivitySession,
+  onOpenKnowledgeArtifact,
+  onOpenRecommendation
 }: {
   detail: DesktopActivitySessionDetail | undefined;
   fallbackSession: ActivitySession;
@@ -364,6 +372,8 @@ function ActivityDetail({
   error: string | undefined;
   formatTimeRange(startAt: string, endAt: string): string;
   onDeleteActivitySession(id: string): Promise<void>;
+  onOpenKnowledgeArtifact: ((artifactId: string) => void) | undefined;
+  onOpenRecommendation: ((recommendationId: string) => void) | undefined;
 }): ReactElement {
   const { t, sourceKind, status } = useI18n();
   const session = detail?.session ?? fallbackSession;
@@ -625,17 +635,42 @@ function ActivityDetail({
           <div className="derived-grid">
             <DerivedList
               title={t("nav.knowledge")}
-              items={detail.linkedKnowledge.map((item) => `${item.title} (${status(item.status)})`)}
+              items={detail.linkedKnowledge}
+              statusLabel={status}
+              renderAction={(item) =>
+                onOpenKnowledgeArtifact ? (
+                  <button
+                    className="secondary-button compact-button"
+                    data-activity-action="open-derived-knowledge"
+                    onClick={() => onOpenKnowledgeArtifact(item.id)}
+                    type="button"
+                  >
+                    {t("activity.openDerivedKnowledge")}
+                  </button>
+                ) : null
+              }
             />
             <DerivedList
               title={t("nav.memory")}
-              items={detail.linkedMemories.map((item) => `${item.title} (${status(item.status)})`)}
+              items={detail.linkedMemories}
+              statusLabel={status}
             />
             <DerivedList
               title={t("nav.recommendations")}
-              items={detail.linkedRecommendations.map(
-                (item) => `${item.title} (${status(item.status)})`
-              )}
+              items={detail.linkedRecommendations}
+              statusLabel={status}
+              renderAction={(item) =>
+                onOpenRecommendation ? (
+                  <button
+                    className="secondary-button compact-button"
+                    data-activity-action="open-derived-recommendation"
+                    onClick={() => onOpenRecommendation(item.id)}
+                    type="button"
+                  >
+                    {t("activity.openDerivedRecommendation")}
+                  </button>
+                ) : null
+              }
             />
           </div>
         ) : (
@@ -846,15 +881,32 @@ function DetailField({ label, value }: { label: string; value: string }): ReactE
   );
 }
 
-function DerivedList({ title, items }: { title: string; items: string[] }): ReactElement {
+type DerivedItem = KnowledgeArtifact | Memory | Recommendation;
+
+function DerivedList({
+  title,
+  items,
+  statusLabel,
+  renderAction
+}: {
+  title: string;
+  items: DerivedItem[];
+  statusLabel(status: string): string;
+  renderAction?(item: DerivedItem): ReactElement | null;
+}): ReactElement {
   const { t } = useI18n();
   return (
     <div className="derived-list">
       <h4>{title}</h4>
       {items.length ? (
-        <ul>
+        <ul className="derived-object-list">
           {items.map((item) => (
-            <li key={item}>{item}</li>
+            <li key={item.id}>
+              <span>
+                {item.title} ({statusLabel(item.status)})
+              </span>
+              {renderAction?.(item)}
+            </li>
           ))}
         </ul>
       ) : (

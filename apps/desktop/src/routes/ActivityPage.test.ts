@@ -88,4 +88,18 @@ describe("ActivityPage evidence workbench", () => {
     expect(source).toContain("activity.latestCaptureFocused");
     expect(source).toContain("activity.latestImportFocused");
   });
+
+  it("can open derived Knowledge and Recommendations from the Activity evidence detail", () => {
+    const source = readFileSync(new URL("./ActivityPage.tsx", import.meta.url), "utf8");
+    const app = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("onOpenKnowledgeArtifact");
+    expect(source).toContain("onOpenRecommendation");
+    expect(source).toContain("data-activity-action=\"open-derived-knowledge\"");
+    expect(source).toContain("data-activity-action=\"open-derived-recommendation\"");
+    expect(source).toContain("activity.openDerivedKnowledge");
+    expect(source).toContain("activity.openDerivedRecommendation");
+    expect(app).toContain("onOpenKnowledgeArtifact={actions.focusKnowledge}");
+    expect(app).toContain("onOpenRecommendation={actions.focusRecommendation}");
+  });
 });
