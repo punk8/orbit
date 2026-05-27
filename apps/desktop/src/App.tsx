@@ -745,6 +745,7 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
           onRegenerateKnowledge={actions.regenerateKnowledge}
           onReviewKnowledge={actions.reviewKnowledge}
           onTranslateKnowledge={actions.translateKnowledge}
+          onOpenActivitySession={actions.focusActivitySession}
         />
       );
     case "memory":

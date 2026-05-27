@@ -16,6 +16,7 @@ interface KnowledgePageProps {
   onRegenerateKnowledge(id: string): Promise<void>;
   onReviewKnowledge(id: string, action: KnowledgeReviewAction): Promise<void>;
   onTranslateKnowledge(id: string, language: "en" | "zh-CN"): Promise<void>;
+  onOpenActivitySession?: ((sessionId: string) => void) | undefined;
 }
 
 interface KnowledgeFilters {
@@ -51,7 +52,8 @@ export function KnowledgePage({
   onEditKnowledge,
   onRegenerateKnowledge,
   onReviewKnowledge,
-  onTranslateKnowledge
+  onTranslateKnowledge,
+  onOpenActivitySession
 }: KnowledgePageProps): ReactElement {
   const { t, status, sourceKind, formatDateTimeRange } = useI18n();
   const [query, setQuery] = useState("");
@@ -362,6 +364,7 @@ export function KnowledgePage({
                 onSaveEdit={() => void saveEdit(activeArtifact)}
                 onStartEdit={() => setIsEditing(true)}
                 onTranslate={(language) => void translateArtifact(activeArtifact, language)}
+                onOpenActivitySession={onOpenActivitySession}
               />
             ) : (
               <div className="empty-state">{t("empty.noKnowledgeArtifacts")}</div>
@@ -389,7 +392,8 @@ function KnowledgeDetail({
   onReview,
   onSaveEdit,
   onStartEdit,
-  onTranslate
+  onTranslate,
+  onOpenActivitySession
 }: {
   artifact: KnowledgeArtifact;
   copied: boolean;
@@ -407,6 +411,7 @@ function KnowledgeDetail({
   onSaveEdit(): void;
   onStartEdit(): void;
   onTranslate(language: "en" | "zh-CN"): void;
+  onOpenActivitySession: ((sessionId: string) => void) | undefined;
 }): ReactElement {
   const { t, status, sourceKind, formatDateTimeRange } = useI18n();
 
@@ -568,7 +573,19 @@ function KnowledgeDetail({
             <div className="linked-object-list">
               {detail.sourceSessions.map((session) => (
                 <article key={session.id}>
-                  <h4>{session.title}</h4>
+                  <div className="item-heading">
+                    <h4>{session.title}</h4>
+                    {onOpenActivitySession ? (
+                      <button
+                        className="secondary-button compact-button"
+                        data-knowledge-action="open-source-session"
+                        onClick={() => onOpenActivitySession(session.id)}
+                        type="button"
+                      >
+                        {t("knowledge.openSourceSession")}
+                      </button>
+                    ) : null}
+                  </div>
                   <p>{formatDateTimeRange(session.startAt, session.endAt)}</p>
                 </article>
               ))}

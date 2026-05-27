@@ -22,9 +22,14 @@ describe("KnowledgePage review workbench", () => {
 
   it("keeps edit fields, Markdown preview, evidence, and focus navigation in one workbench", () => {
     const source = readFileSync(new URL("./KnowledgePage.tsx", import.meta.url), "utf8");
+    const app = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");
 
     expect(source).toContain("focusArtifactId");
     expect(source).toContain("onFocusConsumed");
+    expect(source).toContain("onOpenActivitySession");
+    expect(source).toContain("data-knowledge-action=\"open-source-session\"");
+    expect(source).toContain("knowledge.openSourceSession");
+    expect(app).toContain("onOpenActivitySession={actions.focusActivitySession}");
     expect(source).toContain("knowledge-edit-workbench");
     expect(source).toContain("knowledge.editingMarkdownPreview");
     expect(source).toContain("EvidenceList evidence={artifact.evidence}");
