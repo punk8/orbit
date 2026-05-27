@@ -41,4 +41,23 @@ describe("HandoffPage", () => {
     expect(source).toContain("setResult(initialResult)");
     expect(source).toContain("handoff.generatedFromToday");
   });
+
+  it("can trace handoff evidence back to source Activity, Knowledge, and Recommendations", () => {
+    const source = readFileSync(new URL("./HandoffPage.tsx", import.meta.url), "utf8");
+    const app = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("onOpenActivitySession");
+    expect(source).toContain("onOpenKnowledgeArtifact");
+    expect(source).toContain("onOpenRecommendation");
+    expect(source).toContain("HandoffEvidenceCard");
+    expect(source).toContain("handoff.evidenceSourceObject");
+    expect(source).toContain("evidence.objectType");
+    expect(source).toContain("evidence.objectId");
+    expect(source).toContain('data-handoff-action="open-evidence-activity"');
+    expect(source).toContain('data-handoff-action="open-evidence-knowledge"');
+    expect(source).toContain('data-handoff-action="open-evidence-recommendation"');
+    expect(app).toContain("onOpenActivitySession={actions.focusActivitySession}");
+    expect(app).toContain("onOpenKnowledgeArtifact={actions.focusKnowledge}");
+    expect(app).toContain("onOpenRecommendation={actions.focusRecommendation}");
+  });
 });

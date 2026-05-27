@@ -9,13 +9,19 @@ import { useI18n } from "../i18n";
 export function HandoffPage({
   snapshot,
   initialResult,
-  onGenerateHandoff
+  onGenerateHandoff,
+  onOpenActivitySession,
+  onOpenKnowledgeArtifact,
+  onOpenRecommendation
 }: {
   snapshot: DesktopSnapshot;
   initialResult?: DesktopHandoffResult | undefined;
   onGenerateHandoff(
     input: { kind: "today"; date?: string } | { kind: "project"; project: string }
   ): Promise<DesktopHandoffResult>;
+  onOpenActivitySession?: ((sessionId: string) => void) | undefined;
+  onOpenKnowledgeArtifact?: ((artifactId: string) => void) | undefined;
+  onOpenRecommendation?: ((recommendationId: string) => void) | undefined;
 }): ReactElement {
   const { t, language } = useI18n();
   const projectOptions = useMemo(() => buildProjectOptions(snapshot), [snapshot]);
@@ -273,10 +279,13 @@ export function HandoffPage({
           <Section title={t("handoff.evidence")}>
             <div className="item-list compact">
               {result.handoff.evidenceIndex.map((evidence) => (
-                <article className="list-item vertical" key={evidence.id}>
-                  <h3>{evidence.sourceKind}</h3>
-                  <p>{evidence.sourcePointer}</p>
-                </article>
+                <HandoffEvidenceCard
+                  evidence={evidence}
+                  key={evidence.id}
+                  onOpenActivitySession={onOpenActivitySession}
+                  onOpenKnowledgeArtifact={onOpenKnowledgeArtifact}
+                  onOpenRecommendation={onOpenRecommendation}
+                />
               ))}
             </div>
           </Section>
@@ -284,6 +293,90 @@ export function HandoffPage({
       ) : null}
     </div>
   );
+}
+
+function HandoffEvidenceCard({
+  evidence,
+  onOpenActivitySession,
+  onOpenKnowledgeArtifact,
+  onOpenRecommendation
+}: {
+  evidence: HandoffPack["evidenceIndex"][number];
+  onOpenActivitySession: ((sessionId: string) => void) | undefined;
+  onOpenKnowledgeArtifact: ((artifactId: string) => void) | undefined;
+  onOpenRecommendation: ((recommendationId: string) => void) | undefined;
+}): ReactElement {
+  const { t, sourceKind } = useI18n();
+  return (
+    <article className="list-item vertical handoff-evidence-card">
+      <div className="item-heading">
+        <h3>{`${t(`handoff.object.${evidence.objectType}`)} · ${sourceKind(
+          evidence.sourceKind
+        )}`}</h3>
+        {renderHandoffEvidenceAction({
+          evidence,
+          onOpenActivitySession,
+          onOpenKnowledgeArtifact,
+          onOpenRecommendation,
+          t
+        })}
+      </div>
+      <p className="muted">{`${t("handoff.evidenceSourceObject")}: ${evidence.objectId}`}</p>
+      <code>{evidence.sourcePointer}</code>
+    </article>
+  );
+}
+
+function renderHandoffEvidenceAction({
+  evidence,
+  onOpenActivitySession,
+  onOpenKnowledgeArtifact,
+  onOpenRecommendation,
+  t
+}: {
+  evidence: HandoffPack["evidenceIndex"][number];
+  onOpenActivitySession: ((sessionId: string) => void) | undefined;
+  onOpenKnowledgeArtifact: ((artifactId: string) => void) | undefined;
+  onOpenRecommendation: ((recommendationId: string) => void) | undefined;
+  t: ReturnType<typeof useI18n>["t"];
+}): ReactElement | null {
+  if (evidence.objectType === "activity" && onOpenActivitySession) {
+    return (
+      <button
+        className="secondary-button"
+        data-handoff-action="open-evidence-activity"
+        onClick={() => onOpenActivitySession(evidence.objectId)}
+        type="button"
+      >
+        {t("handoff.openEvidenceActivity")}
+      </button>
+    );
+  }
+  if (evidence.objectType === "knowledge" && onOpenKnowledgeArtifact) {
+    return (
+      <button
+        className="secondary-button"
+        data-handoff-action="open-evidence-knowledge"
+        onClick={() => onOpenKnowledgeArtifact(evidence.objectId)}
+        type="button"
+      >
+        {t("handoff.openEvidenceKnowledge")}
+      </button>
+    );
+  }
+  if (evidence.objectType === "recommendation" && onOpenRecommendation) {
+    return (
+      <button
+        className="secondary-button"
+        data-handoff-action="open-evidence-recommendation"
+        onClick={() => onOpenRecommendation(evidence.objectId)}
+        type="button"
+      >
+        {t("handoff.openEvidenceRecommendation")}
+      </button>
+    );
+  }
+  return null;
 }
 
 function buildProjectOptions(snapshot: DesktopSnapshot): string[] {

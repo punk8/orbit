@@ -772,6 +772,9 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
           snapshot={snapshot}
           initialResult={actions.pendingHandoffResult}
           onGenerateHandoff={actions.generateHandoff}
+          onOpenActivitySession={actions.focusActivitySession}
+          onOpenKnowledgeArtifact={actions.focusKnowledge}
+          onOpenRecommendation={actions.focusRecommendation}
         />
       );
     case "review":
