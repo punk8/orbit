@@ -170,6 +170,10 @@ export function SourcesPage({
           {preview ? (
             <div className="source-import-preview">
               <div>
+                <span>{t("source.previewAdapter")}</span>
+                <strong>{preview.displayName}</strong>
+              </div>
+              <div>
                 <span>{t("source.previewEventCount")}</span>
                 <strong>{preview.eventCount}</strong>
               </div>
@@ -188,9 +192,31 @@ export function SourcesPage({
                 </strong>
               </div>
               <div>
+                <span>{t("source.previewApps")}</span>
+                <strong>
+                  {preview.apps.length > 0 ? preview.apps.join(", ") : t("fallback.none")}
+                </strong>
+              </div>
+              <div>
                 <span>{t("source.previewWarnings")}</span>
                 <strong>{preview.warningCount}</strong>
               </div>
+            </div>
+          ) : null}
+          {preview ? (
+            <div className="source-import-policy-preview">
+              <span>{`${t("source.previewReadableFields")} ${preview.permission.readableFields.join(", ")}`}</span>
+              <span>
+                {preview.permission.canStoreRaw ? t("source.rawStored") : t("source.rawNotStored")}
+              </span>
+              <span>
+                {preview.permission.canUseForAI ? t("source.aiAllowed") : t("source.aiBlocked")}
+              </span>
+              <span>
+                {preview.permission.canExportToAgent
+                  ? t("source.agentExportAllowed")
+                  : t("source.agentExportBlocked")}
+              </span>
             </div>
           ) : null}
           {preview ? (

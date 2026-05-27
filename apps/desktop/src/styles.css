@@ -2306,7 +2306,7 @@ button {
 
 .source-import-preview {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -2333,6 +2333,23 @@ button {
   font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.source-import-policy-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.source-import-policy-preview span {
+  min-width: 0;
+  border: 1px solid #e5e1d9;
+  border-radius: 999px;
+  background: #fffdf8;
+  color: #526165;
+  font-size: 12px;
+  font-weight: 650;
+  padding: 5px 9px;
 }
 
 .source-import-focus-hint {

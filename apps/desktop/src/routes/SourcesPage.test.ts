@@ -13,6 +13,12 @@ describe("SourcesPage source governance controls", () => {
     expect(source).toContain("source.importBoundary");
     expect(source).toContain("source.importFocusHint");
     expect(source).toContain("source.previewEventCount");
+    expect(source).toContain("source.previewAdapter");
+    expect(source).toContain("source.previewApps");
+    expect(source).toContain("source.previewReadableFields");
+    expect(source).toContain("preview.permission.canStoreRaw");
+    expect(source).toContain("preview.permission.canUseForAI");
+    expect(source).toContain("preview.permission.canExportToAgent");
     expect(source).toContain("action.reconfigure");
     expect(source).toContain("action.resetCursor");
     expect(source).toContain("action.deleteSource");
