@@ -698,6 +698,7 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
           snapshot={snapshot}
           onNavigate={actions.navigate}
           onOpenActivitySession={actions.focusActivitySession}
+          onOpenKnowledgeArtifact={actions.focusKnowledge}
           onCaptureScreenOcr={actions.captureScreenOcr}
           onGenerateTodayHandoff={actions.generateTodayHandoffFromToday}
         />

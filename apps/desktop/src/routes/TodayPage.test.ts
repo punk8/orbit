@@ -63,4 +63,17 @@ describe("TodayPage context completion", () => {
     expect(app).toContain("reason: \"today_activity\"");
     expect(activity).toContain("activity.latestTodayFocused");
   });
+
+  it("can open a Today Knowledge draft directly in the Knowledge review workbench", () => {
+    const source = readFileSync(new URL("./TodayPage.tsx", import.meta.url), "utf8");
+    const app = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");
+    const knowledge = readFileSync(new URL("./KnowledgePage.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("onOpenKnowledgeArtifact");
+    expect(source).toContain("today.reviewKnowledgeDraft");
+    expect(source).toContain("data-today-action=\"review-knowledge-draft\"");
+    expect(app).toContain("focusKnowledge");
+    expect(app).toContain("onOpenKnowledgeArtifact={actions.focusKnowledge}");
+    expect(knowledge).toContain("focusArtifactId");
+  });
 });

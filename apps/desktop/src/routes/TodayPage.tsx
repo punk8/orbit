@@ -12,12 +12,14 @@ export function TodayPage({
   snapshot,
   onNavigate,
   onOpenActivitySession,
+  onOpenKnowledgeArtifact,
   onCaptureScreenOcr,
   onGenerateTodayHandoff
 }: {
   snapshot: DesktopSnapshot;
   onNavigate?(page: DesktopPageId): void;
   onOpenActivitySession?(sessionId: string): void;
+  onOpenKnowledgeArtifact?(artifactId: string): void;
   onCaptureScreenOcr?(): Promise<void>;
   onGenerateTodayHandoff?(): Promise<DesktopHandoffResult>;
 }): ReactElement {
@@ -235,6 +237,17 @@ export function TodayPage({
                   </span>
                 </div>
                 <EvidenceList evidence={artifact.evidence} limit={4} />
+              </div>
+              <div className="list-item-actions">
+                <span className={`review-pill ${artifact.status}`}>{status(artifact.status)}</span>
+                <button
+                  className="secondary-button compact-button"
+                  data-today-action="review-knowledge-draft"
+                  onClick={() => onOpenKnowledgeArtifact?.(artifact.id)}
+                  type="button"
+                >
+                  {t("today.reviewKnowledgeDraft")}
+                </button>
               </div>
             </article>
           ))}
