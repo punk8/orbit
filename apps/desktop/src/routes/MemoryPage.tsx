@@ -12,6 +12,8 @@ type MemoryGroupBy = "kind" | "project" | "status" | "source" | "tag";
 
 interface MemoryPageProps {
   memories: Memory[];
+  focusMemoryId?: string | undefined;
+  onFocusConsumed(): void;
   onDeleteMemory(id: string): Promise<void>;
   onEditMemory(id: string, patch: MemoryEditInput): Promise<void>;
   onRollbackMemoryVersion(id: string): Promise<void>;
@@ -42,6 +44,8 @@ const defaultFilters: MemoryFilters = {
 
 export function MemoryPage({
   memories,
+  focusMemoryId,
+  onFocusConsumed,
   onDeleteMemory,
   onEditMemory,
   onRollbackMemoryVersion,
@@ -103,6 +107,15 @@ export function MemoryPage({
     if (results.some((memory) => memory.id === selectedId)) return;
     setSelectedId(results[0]?.id);
   }, [results, selectedId]);
+
+  useEffect(() => {
+    if (!focusMemoryId) return;
+    if (!memories.some((memory) => memory.id === focusMemoryId)) return;
+    setFilters(defaultFilters);
+    setQuery("");
+    setSelectedId(focusMemoryId);
+    onFocusConsumed();
+  }, [focusMemoryId, memories, onFocusConsumed]);
 
   useEffect(() => {
     if (!selectedId) {

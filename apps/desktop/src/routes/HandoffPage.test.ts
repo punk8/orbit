@@ -60,4 +60,17 @@ describe("HandoffPage", () => {
     expect(app).toContain("onOpenKnowledgeArtifact={actions.focusKnowledge}");
     expect(app).toContain("onOpenRecommendation={actions.focusRecommendation}");
   });
+
+  it("turns excluded handoff items into review actions when the object has a local workbench", () => {
+    const source = readFileSync(new URL("./HandoffPage.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("HandoffExcludedCard");
+    expect(source).toContain("renderHandoffExclusionAction");
+    expect(source).toContain('data-handoff-action="review-excluded-knowledge"');
+    expect(source).toContain('data-handoff-action="review-excluded-memory"');
+    expect(source).toContain('data-handoff-action="review-excluded-recommendation"');
+    expect(source).toContain("handoff.reviewExcludedKnowledge");
+    expect(source).toContain("handoff.reviewExcludedMemory");
+    expect(source).toContain("handoff.reviewExcludedRecommendation");
+  });
 });

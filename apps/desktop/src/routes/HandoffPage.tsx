@@ -12,6 +12,7 @@ export function HandoffPage({
   onGenerateHandoff,
   onOpenActivitySession,
   onOpenKnowledgeArtifact,
+  onOpenMemory,
   onOpenRecommendation
 }: {
   snapshot: DesktopSnapshot;
@@ -21,6 +22,7 @@ export function HandoffPage({
   ): Promise<DesktopHandoffResult>;
   onOpenActivitySession?: ((sessionId: string) => void) | undefined;
   onOpenKnowledgeArtifact?: ((artifactId: string) => void) | undefined;
+  onOpenMemory?: ((memoryId: string) => void) | undefined;
   onOpenRecommendation?: ((recommendationId: string) => void) | undefined;
 }): ReactElement {
   const { t, language } = useI18n();
@@ -201,24 +203,13 @@ export function HandoffPage({
           {result.handoff.excluded.length > 0 ? (
             <div className="item-list compact handoff-excluded-list">
               {result.handoff.excluded.map((excluded) => (
-                <article
-                  className="list-item vertical"
+                <HandoffExcludedCard
+                  excluded={excluded}
                   key={`${excluded.objectType}:${excluded.objectId}:${excluded.reason}`}
-                >
-                  <h3>{`${t(`handoff.object.${excluded.objectType}`)} · ${handoffExclusionReasonLabel(
-                    t,
-                    excluded.reason
-                  )}`}</h3>
-                  <p>{excluded.objectId}</p>
-                  <p className="muted">{`${t("handoff.exclusion.reason")}: ${handoffExclusionDescription(
-                    t,
-                    excluded.reason
-                  )}`}</p>
-                  <p className="muted">{`${t("handoff.exclusion.nextAction")}: ${handoffExclusionNextAction(
-                    t,
-                    excluded.reason
-                  )}`}</p>
-                </article>
+                  onOpenKnowledgeArtifact={onOpenKnowledgeArtifact}
+                  onOpenMemory={onOpenMemory}
+                  onOpenRecommendation={onOpenRecommendation}
+                />
               ))}
             </div>
           ) : (
@@ -293,6 +284,98 @@ export function HandoffPage({
       ) : null}
     </div>
   );
+}
+
+function HandoffExcludedCard({
+  excluded,
+  onOpenKnowledgeArtifact,
+  onOpenMemory,
+  onOpenRecommendation
+}: {
+  excluded: HandoffPack["excluded"][number];
+  onOpenKnowledgeArtifact: ((artifactId: string) => void) | undefined;
+  onOpenMemory: ((memoryId: string) => void) | undefined;
+  onOpenRecommendation: ((recommendationId: string) => void) | undefined;
+}): ReactElement {
+  const { t } = useI18n();
+  return (
+    <article className="list-item vertical">
+      <div className="item-heading">
+        <h3>{`${t(`handoff.object.${excluded.objectType}`)} · ${handoffExclusionReasonLabel(
+          t,
+          excluded.reason
+        )}`}</h3>
+        {renderHandoffExclusionAction({
+          excluded,
+          onOpenKnowledgeArtifact,
+          onOpenMemory,
+          onOpenRecommendation,
+          t
+        })}
+      </div>
+      <p>{excluded.objectId}</p>
+      <p className="muted">{`${t("handoff.exclusion.reason")}: ${handoffExclusionDescription(
+        t,
+        excluded.reason
+      )}`}</p>
+      <p className="muted">{`${t("handoff.exclusion.nextAction")}: ${handoffExclusionNextAction(
+        t,
+        excluded.reason
+      )}`}</p>
+    </article>
+  );
+}
+
+function renderHandoffExclusionAction({
+  excluded,
+  onOpenKnowledgeArtifact,
+  onOpenMemory,
+  onOpenRecommendation,
+  t
+}: {
+  excluded: HandoffPack["excluded"][number];
+  onOpenKnowledgeArtifact: ((artifactId: string) => void) | undefined;
+  onOpenMemory: ((memoryId: string) => void) | undefined;
+  onOpenRecommendation: ((recommendationId: string) => void) | undefined;
+  t: ReturnType<typeof useI18n>["t"];
+}): ReactElement | null {
+  if (excluded.objectType === "knowledge" && onOpenKnowledgeArtifact) {
+    return (
+      <button
+        className="secondary-button"
+        data-handoff-action="review-excluded-knowledge"
+        onClick={() => onOpenKnowledgeArtifact(excluded.objectId)}
+        type="button"
+      >
+        {t("handoff.reviewExcludedKnowledge")}
+      </button>
+    );
+  }
+  if (excluded.objectType === "memory" && onOpenMemory) {
+    return (
+      <button
+        className="secondary-button"
+        data-handoff-action="review-excluded-memory"
+        onClick={() => onOpenMemory(excluded.objectId)}
+        type="button"
+      >
+        {t("handoff.reviewExcludedMemory")}
+      </button>
+    );
+  }
+  if (excluded.objectType === "recommendation" && onOpenRecommendation) {
+    return (
+      <button
+        className="secondary-button"
+        data-handoff-action="review-excluded-recommendation"
+        onClick={() => onOpenRecommendation(excluded.objectId)}
+        type="button"
+      >
+        {t("handoff.reviewExcludedRecommendation")}
+      </button>
+    );
+  }
+  return null;
 }
 
 function HandoffEvidenceCard({
