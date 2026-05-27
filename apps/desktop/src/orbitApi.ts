@@ -257,7 +257,12 @@ export interface DesktopActionFocus {
   recommendationId?: string;
   eventIds?: string[];
   sourceAdapterIds?: string[];
-  reason: "manual_capture" | "source_import" | "review_action" | "recommendation_action";
+  reason:
+    | "manual_capture"
+    | "source_import"
+    | "review_action"
+    | "recommendation_action"
+    | "today_activity";
 }
 
 export interface DesktopActionResult {

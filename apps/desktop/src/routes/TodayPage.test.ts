@@ -50,4 +50,17 @@ describe("TodayPage context completion", () => {
     expect(app).toContain("generateTodayHandoffFromToday");
     expect(app).toContain("pendingHandoffResult");
   });
+
+  it("can jump from a Today activity card to the matching Activity evidence session", () => {
+    const source = readFileSync(new URL("./TodayPage.tsx", import.meta.url), "utf8");
+    const app = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");
+    const activity = readFileSync(new URL("./ActivityPage.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("onOpenActivitySession");
+    expect(source).toContain("today.openActivityEvidence");
+    expect(source).toContain("data-today-action=\"open-activity-evidence\"");
+    expect(app).toContain("focusActivitySession");
+    expect(app).toContain("reason: \"today_activity\"");
+    expect(activity).toContain("activity.latestTodayFocused");
+  });
 });

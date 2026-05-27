@@ -11,11 +11,13 @@ import type { TranslationKey } from "../i18n";
 export function TodayPage({
   snapshot,
   onNavigate,
+  onOpenActivitySession,
   onCaptureScreenOcr,
   onGenerateTodayHandoff
 }: {
   snapshot: DesktopSnapshot;
   onNavigate?(page: DesktopPageId): void;
+  onOpenActivitySession?(sessionId: string): void;
   onCaptureScreenOcr?(): Promise<void>;
   onGenerateTodayHandoff?(): Promise<DesktopHandoffResult>;
 }): ReactElement {
@@ -197,9 +199,19 @@ export function TodayPage({
                 </div>
                 <EvidenceList evidence={session.evidence} limit={3} />
               </div>
-              <span className={`sensitivity ${session.privacy.sensitivity}`}>
-                {sensitivity(session.privacy.sensitivity)}
-              </span>
+              <div className="list-item-actions">
+                <span className={`sensitivity ${session.privacy.sensitivity}`}>
+                  {sensitivity(session.privacy.sensitivity)}
+                </span>
+                <button
+                  className="secondary-button compact-button"
+                  data-today-action="open-activity-evidence"
+                  onClick={() => onOpenActivitySession?.(session.id)}
+                  type="button"
+                >
+                  {t("today.openActivityEvidence")}
+                </button>
+              </div>
             </article>
           ))}
           {snapshot.today.activitySessions.length === 0 ? (

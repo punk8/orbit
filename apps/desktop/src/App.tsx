@@ -393,6 +393,14 @@ export function App(): ReactElement {
     }
   }
 
+  function focusActivitySession(id: string): void {
+    setActivityFocusTarget({
+      sessionId: id,
+      reason: "today_activity"
+    });
+    setActivePage("activity");
+  }
+
   function reviewKnowledge(id: string, action: KnowledgeReviewAction): Promise<void> {
     return runReviewAction(
       () => window.orbit.reviewKnowledge(id, action),
@@ -582,6 +590,7 @@ export function App(): ReactElement {
                 knowledgeFocusId,
                 clearActivityFocus: () => setActivityFocusTarget(undefined),
                 clearKnowledgeFocus: () => setKnowledgeFocusId(undefined),
+                focusActivitySession,
                 focusKnowledge: (id) => {
                   setKnowledgeFocusId(id);
                   setActivePage("knowledge");
@@ -676,6 +685,7 @@ interface PageActions {
   knowledgeFocusId?: string | undefined;
   clearActivityFocus(): void;
   clearKnowledgeFocus(): void;
+  focusActivitySession(id: string): void;
   focusKnowledge(id: string): void;
   navigate(page: PageId): void;
 }
@@ -687,6 +697,7 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
         <TodayPage
           snapshot={snapshot}
           onNavigate={actions.navigate}
+          onOpenActivitySession={actions.focusActivitySession}
           onCaptureScreenOcr={actions.captureScreenOcr}
           onGenerateTodayHandoff={actions.generateTodayHandoffFromToday}
         />

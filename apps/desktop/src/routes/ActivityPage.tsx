@@ -200,6 +200,8 @@ export function ActivityPage({
             {t(
               latestFocusReason === "source_import"
                 ? "activity.latestImportFocused"
+                : latestFocusReason === "today_activity"
+                  ? "activity.latestTodayFocused"
                 : "activity.latestCaptureFocused"
             )}
           </div>

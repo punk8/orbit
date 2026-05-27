@@ -496,6 +496,20 @@ button {
   display: grid;
 }
 
+.list-item-actions {
+  display: flex;
+  min-width: 118px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.compact-button {
+  min-height: 32px;
+  padding: 7px 10px;
+  font-size: 12px;
+}
+
 .list-item h3,
 .timeline-item h3 {
   margin: 0;
