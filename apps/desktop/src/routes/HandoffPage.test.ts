@@ -29,4 +29,13 @@ describe("HandoffPage", () => {
     expect(source).toContain("handoff.error");
     expect(source).toContain("navigator.clipboard.writeText");
   });
+
+  it("can render a handoff result passed from Today without requiring a second generate click", () => {
+    const source = readFileSync(new URL("./HandoffPage.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("initialResult");
+    expect(source).toContain("useEffect");
+    expect(source).toContain("setResult(initialResult)");
+    expect(source).toContain("handoff.generatedFromToday");
+  });
 });

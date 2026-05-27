@@ -122,6 +122,11 @@ const translations = {
     "today.handoffBoundary":
       "Agent handoff stays local-first and excludes draft Knowledge, unconfirmed Memory, raw private payloads, and sources blocked from export.",
     "today.openHandoff": "Open Handoff",
+    "today.handoffReadiness": "Handoff readiness preflight",
+    "today.handoffIncluded": "will include",
+    "today.handoffExcluded": "excluded",
+    "today.reviewBeforeHandoff": "needs review",
+    "today.generateTodayHandoff": "Generate Today's Handoff",
     "today.screenOcrCaptureTitle": "Capture current work context",
     "today.screenOcrCaptureBoundary":
       "Run one explicit local Screen/OCR capture, then rebuild Activity and reviewable Knowledge. This does not start continuous recording, microphone capture, or raw Agent export.",
@@ -446,6 +451,8 @@ const translations = {
     "action.addProtectedRule": "Add Rule",
     "action.ignoreCurrentContext": "Ignore Current",
     "handoff.generate": "Generate Agent Handoff",
+    "handoff.generating": "Generating...",
+    "handoff.generatedFromToday": "Generated today's handoff from Today.",
     "handoff.today": "Today Handoff",
     "handoff.project": "Project Handoff",
     "handoff.projectName": "Project name",
@@ -1072,6 +1079,11 @@ const translations = {
     "today.handoffBoundary":
       "Agent 交接保持本地优先，默认排除草稿知识、未确认记忆、raw 私密载荷和禁止导出的来源。",
     "today.openHandoff": "打开交接",
+    "today.handoffReadiness": "交接预检",
+    "today.handoffIncluded": "将纳入",
+    "today.handoffExcluded": "会排除",
+    "today.reviewBeforeHandoff": "待审阅",
+    "today.generateTodayHandoff": "生成今天交接包",
     "today.screenOcrCaptureTitle": "捕获当前工作现场",
     "today.screenOcrCaptureBoundary":
       "显式执行一次本地屏幕 / OCR 捕获，然后重建 Activity 和待审阅 Knowledge。不会开启持续录屏、麦克风采集或 raw Agent 导出。",
@@ -1386,6 +1398,8 @@ const translations = {
     "action.addProtectedRule": "添加规则",
     "action.ignoreCurrentContext": "忽略当前",
     "handoff.generate": "生成 Agent 交接包",
+    "handoff.generating": "生成中...",
+    "handoff.generatedFromToday": "已从 Today 生成今天交接包。",
     "handoff.today": "今天交接",
     "handoff.project": "项目交接",
     "handoff.projectName": "项目名",

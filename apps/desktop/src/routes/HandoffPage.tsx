@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import type { DesktopHandoffResult, DesktopSnapshot } from "../orbitApi";
 import type { HandoffExclusionReason, HandoffPack } from "@orbit/core";
@@ -8,9 +8,11 @@ import { useI18n } from "../i18n";
 
 export function HandoffPage({
   snapshot,
+  initialResult,
   onGenerateHandoff
 }: {
   snapshot: DesktopSnapshot;
+  initialResult?: DesktopHandoffResult | undefined;
   onGenerateHandoff(
     input: { kind: "today"; date?: string } | { kind: "project"; project: string }
   ): Promise<DesktopHandoffResult>;
@@ -23,6 +25,14 @@ export function HandoffPage({
   const [isGenerating, setIsGenerating] = useState(false);
   const [previewFormat, setPreviewFormat] = useState<"Markdown" | "JSON">("Markdown");
   const metrics = buildHandoffMetrics(snapshot, result, t);
+  const showingInitialResult = Boolean(initialResult && result?.handoff.id === initialResult.handoff.id);
+
+  useEffect(() => {
+    if (!initialResult) return;
+    setResult(initialResult);
+    setError(undefined);
+    setCopied(false);
+  }, [initialResult]);
 
   async function generate(
     input: { kind: "today"; date?: string } | { kind: "project"; project: string }
@@ -72,6 +82,9 @@ export function HandoffPage({
 
       <Section title={t("handoff.generate")}>
         <div className="handoff-controls">
+          {showingInitialResult ? (
+            <div className="notice-banner inline">{t("handoff.generatedFromToday")}</div>
+          ) : null}
           <button
             className="secondary-button"
             data-handoff-action="generate-today"

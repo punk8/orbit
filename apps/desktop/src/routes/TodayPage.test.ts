@@ -35,4 +35,19 @@ describe("TodayPage context completion", () => {
     expect(source).toContain("today-screen-ocr-strip");
     expect(source).toContain("today.captureScreenOcrStatus");
   });
+
+  it("shows handoff readiness and can generate today's handoff directly", () => {
+    const source = readFileSync(new URL("./TodayPage.tsx", import.meta.url), "utf8");
+    const app = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("onGenerateTodayHandoff");
+    expect(source).toContain("today-handoff-readiness");
+    expect(source).toContain("buildTodayHandoffReadiness");
+    expect(source).toContain("today.generateTodayHandoff");
+    expect(source).toContain("today.reviewBeforeHandoff");
+    expect(source).toContain("today.handoffIncluded");
+    expect(source).toContain("today.handoffExcluded");
+    expect(app).toContain("generateTodayHandoffFromToday");
+    expect(app).toContain("pendingHandoffResult");
+  });
 });

@@ -175,16 +175,31 @@ button {
   cursor: pointer;
 }
 
+.primary-button,
 .secondary-button {
   min-height: 30px;
   border: 1px solid #d8d5ce;
   border-radius: 7px;
-  background: #ffffff;
-  color: #384144;
   cursor: pointer;
   font-size: 12px;
   font-weight: 650;
   padding: 0 10px;
+}
+
+.primary-button {
+  border-color: #2f7468;
+  background: #2f7468;
+  color: #ffffff;
+}
+
+.primary-button:hover {
+  border-color: #235c53;
+  background: #235c53;
+}
+
+.secondary-button {
+  background: #ffffff;
+  color: #384144;
 }
 
 .secondary-button:hover {
@@ -337,6 +352,33 @@ button {
   color: #5a6364;
   font-size: 12px;
   line-height: 1.45;
+}
+
+.today-handoff-readiness {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.today-handoff-readiness span {
+  border: 1px solid #e3ded4;
+  border-radius: 999px;
+  background: #fbfaf7;
+  color: #4c5758;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.today-handoff-readiness strong {
+  color: #182024;
+}
+
+.today-handoff-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 .today-next-action-grid {
@@ -2135,6 +2177,7 @@ button {
   padding: 0 10px;
 }
 
+.primary-button:disabled,
 .secondary-button:disabled,
 .danger-button:disabled {
   cursor: not-allowed;

@@ -80,6 +80,7 @@ export function App(): ReactElement {
   const [snapshot, setSnapshot] = useState<DesktopSnapshot | undefined>();
   const [activityFocusId, setActivityFocusId] = useState<string | undefined>();
   const [knowledgeFocusId, setKnowledgeFocusId] = useState<string | undefined>();
+  const [pendingHandoffResult, setPendingHandoffResult] = useState<DesktopHandoffResult | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [notice, setNotice] = useState<string | undefined>();
   const [isLoading, setIsLoading] = useState(true);
@@ -313,7 +314,24 @@ export function App(): ReactElement {
   async function generateHandoff(
     input: { kind: "today"; date?: string } | { kind: "project"; project: string }
   ): Promise<DesktopHandoffResult> {
-    return window.orbit.generateHandoff(input);
+    return await window.orbit.generateHandoff(input);
+  }
+
+  async function generateTodayHandoffFromToday(): Promise<DesktopHandoffResult> {
+    setError(undefined);
+    try {
+      const input: { kind: "today"; date?: string } = snapshot?.date
+        ? { kind: "today", date: snapshot.date }
+        : { kind: "today" };
+      const result = await generateHandoff(input);
+      setPendingHandoffResult(result);
+      setActivePage("handoff");
+      setNotice(t("handoff.generatedFromToday"));
+      return result;
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : t("handoff.error"));
+      throw reason;
+    }
   }
 
   async function testAIProvider(
@@ -535,6 +553,8 @@ export function App(): ReactElement {
                 clearLocalData,
                 exportContext,
                 generateHandoff,
+                generateTodayHandoffFromToday,
+                pendingHandoffResult,
                 testAIProvider,
                 activityFocusId,
                 knowledgeFocusId,
@@ -626,6 +646,8 @@ interface PageActions {
   generateHandoff(
     input: { kind: "today"; date?: string } | { kind: "project"; project: string }
   ): Promise<DesktopHandoffResult>;
+  generateTodayHandoffFromToday(): Promise<DesktopHandoffResult>;
+  pendingHandoffResult?: DesktopHandoffResult | undefined;
   testAIProvider(config: DesktopAIProviderTestConfig): Promise<DesktopAIProviderTestResult>;
   activityFocusId?: string | undefined;
   knowledgeFocusId?: string | undefined;
@@ -643,6 +665,7 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
           snapshot={snapshot}
           onNavigate={actions.navigate}
           onCaptureScreenOcr={actions.captureScreenOcr}
+          onGenerateTodayHandoff={actions.generateTodayHandoffFromToday}
         />
       );
     case "activity":
@@ -686,7 +709,13 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
         />
       );
     case "handoff":
-      return <HandoffPage snapshot={snapshot} onGenerateHandoff={actions.generateHandoff} />;
+      return (
+        <HandoffPage
+          snapshot={snapshot}
+          initialResult={actions.pendingHandoffResult}
+          onGenerateHandoff={actions.generateHandoff}
+        />
+      );
     case "review":
       return (
         <ReviewQueuePage

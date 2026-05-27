@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
 import type { SourceKind } from "@orbit/core";
-import type { DesktopPageId, DesktopSnapshot } from "../orbitApi";
+import type { DesktopHandoffResult, DesktopPageId, DesktopSnapshot } from "../orbitApi";
 import { EvidenceList } from "../components/EvidenceList";
 import { MetricCard } from "../components/MetricCard";
 import { Section } from "../components/Section";
@@ -11,20 +11,24 @@ import type { TranslationKey } from "../i18n";
 export function TodayPage({
   snapshot,
   onNavigate,
-  onCaptureScreenOcr
+  onCaptureScreenOcr,
+  onGenerateTodayHandoff
 }: {
   snapshot: DesktopSnapshot;
   onNavigate?(page: DesktopPageId): void;
   onCaptureScreenOcr?(): Promise<void>;
+  onGenerateTodayHandoff?(): Promise<DesktopHandoffResult>;
 }): ReactElement {
   const i18n = useI18n();
   const { t, sensitivity, sourceKind, status, impact, recommendationType, formatTimeRange } = i18n;
   const [isCapturingScreenOcr, setIsCapturingScreenOcr] = useState(false);
+  const [isGeneratingTodayHandoff, setIsGeneratingTodayHandoff] = useState(false);
   const sourceStatus = buildSourceStatus(snapshot, {
     t,
     sourceKind
   });
   const nextActions = buildNextActions(snapshot, t);
+  const handoffReadiness = buildTodayHandoffReadiness(snapshot);
   const screenPolicy = snapshot.perception.sources.find((source) => source.sourceKind === "screen")
     ?.policy;
 
@@ -141,10 +145,39 @@ export function TodayPage({
           <p className="eyebrow">handoff</p>
           <h2>{t("nav.handoff")}</h2>
           <p>{t("today.handoffBoundary")}</p>
+          <div className="today-handoff-readiness" aria-label={t("today.handoffReadiness")}>
+            <span>
+              {t("today.handoffIncluded")} <strong>{handoffReadiness.included}</strong>
+            </span>
+            <span>
+              {t("today.handoffExcluded")} <strong>{handoffReadiness.excluded}</strong>
+            </span>
+            <span>
+              {t("today.reviewBeforeHandoff")} <strong>{handoffReadiness.needsReview}</strong>
+            </span>
+          </div>
         </div>
-        <button className="secondary-button" onClick={() => onNavigate?.("handoff")} type="button">
-          {t("today.openHandoff")}
-        </button>
+        <div className="today-handoff-actions">
+          <button
+            className="primary-button"
+            disabled={!onGenerateTodayHandoff || isGeneratingTodayHandoff}
+            onClick={async () => {
+              if (!onGenerateTodayHandoff) return;
+              setIsGeneratingTodayHandoff(true);
+              try {
+                await onGenerateTodayHandoff();
+              } finally {
+                setIsGeneratingTodayHandoff(false);
+              }
+            }}
+            type="button"
+          >
+            {isGeneratingTodayHandoff ? t("handoff.generating") : t("today.generateTodayHandoff")}
+          </button>
+          <button className="secondary-button" onClick={() => onNavigate?.("handoff")} type="button">
+            {t("today.openHandoff")}
+          </button>
+        </div>
       </section>
 
       <Section title={t("section.recentActivity")}>
@@ -243,6 +276,12 @@ interface TodayNextAction {
   description: string;
 }
 
+interface TodayHandoffReadiness {
+  included: number;
+  excluded: number;
+  needsReview: number;
+}
+
 function buildSourceStatus(
   snapshot: DesktopSnapshot,
   labels: {
@@ -331,6 +370,34 @@ function buildNextActions(
       description: t("today.nextActionHandoff")
     }
   ];
+}
+
+function buildTodayHandoffReadiness(snapshot: DesktopSnapshot): TodayHandoffReadiness {
+  const confirmedKnowledge = snapshot.today.knowledgeArtifacts.filter(
+    (artifact) => artifact.status === "confirmed"
+  ).length;
+  const draftKnowledge = snapshot.today.knowledgeArtifacts.filter(
+    (artifact) => artifact.status !== "confirmed"
+  ).length;
+  const confirmedMemories = snapshot.today.memories.filter(
+    (memory) => memory.status === "confirmed"
+  ).length;
+  const unconfirmedMemories = snapshot.today.memories.filter(
+    (memory) => memory.status !== "confirmed"
+  ).length;
+  const openRecommendations = snapshot.today.recommendations.filter((recommendation) =>
+    ["new", "accepted", "snoozed"].includes(recommendation.status)
+  ).length;
+  const closedRecommendations = snapshot.today.recommendations.length - openRecommendations;
+  return {
+    included:
+      snapshot.today.activitySessions.length +
+      confirmedKnowledge +
+      confirmedMemories +
+      openRecommendations,
+    excluded: draftKnowledge + unconfirmedMemories + closedRecommendations,
+    needsReview: draftKnowledge + unconfirmedMemories
+  };
 }
 
 function tDogfoodRuntimeState(

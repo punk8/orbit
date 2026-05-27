@@ -69,6 +69,8 @@
 - 2026-05-27 已收敛：Recommendation 生成增加稳定 dedupe key，语义 pipeline 会把同一开放建议合并证据/置信度/影响等级并写入 `recommendation.dedupe_merge` 审计；Recommendations 页面默认只看 active，并支持 active / snoozed / closed / all 队列筛选，动作区明确“仅记录选择，不自动执行外部操作”。
 - 2026-05-27 已收敛：Sources 显式导入扩展到 local agent、项目目录 metadata、浏览器 metadata JSON、终端命令 JSON、文件活动 JSON；新来源默认 import-only、需要用户预览后确认，后台 ingestion 会跳过 import-only，项目目录只生成文件路径/mtime/hash metadata，不读取文件正文。
 - 2026-05-27 checkpoint 验收：`pnpm typecheck`、`pnpm test`（47 files / 242 tests）、`pnpm lint`、`pnpm --filter @orbit/desktop build`、`pnpm --filter @orbit/desktop package:dir` 均已通过；package smoke 未发现 `.db` / `.sqlite` / `.jsonl` / autoresearch / `research-results.tsv` / `fixtures` / `.tmp` / `perception-sidecars` 混入 `apps/desktop/release/mac-arm64/Orbit.app`。
+- 2026-05-28 已收敛：Today 增加 Handoff readiness 预检，首屏显示将纳入、会排除和待审阅数量；可直接点击“生成今天交接包”，生成后带着 Markdown/JSON 结果跳到 Handoff 页，不再要求用户先进入 Handoff 再二次点击。Handoff 页面支持接收 Today 生成的结果并显示来源提示。
+- 2026-05-28 checkpoint 验收：`pnpm typecheck`、`pnpm test`（47 files / 244 tests）、`pnpm lint`、`pnpm --filter @orbit/desktop build`、`pnpm --filter @orbit/desktop package:dir` 均已通过；package smoke 未发现 `.db` / `.sqlite` / `.jsonl` / autoresearch / `research-results.tsv` / `fixtures` / `.tmp` / `perception-sidecars` 混入 `apps/desktop/release/mac-arm64/Orbit.app`。
 - 仍需正式解决 packaged app 多 worktree 串台：当前 `dev.orbit.local` bundle id 和 `~/Library/Application Support/Orbit` user-data-dir 会让 Computer Use / macOS 复用旧 Orbit 实例，手动验收必须先核对进程环境中的 `ORBIT_HOME`，并清理旧进程；后续正式 app identity / dev identity 隔离应作为安装启动阶段处理。
 - 仍需收敛手动验收数据目录：本次 release app 因既有 Settings 存储路径连接到 `/tmp/orbit-manual-open/orbit.db`，而不是默认 `~/Library/Application Support/Orbit/orbit.db`；后续 Diagnostics/About 页面应直接展示当前 `orbitHome`、`dbPath`、日志路径、权限状态和最近错误，避免普通用户或验收人员误判数据来源。
 
