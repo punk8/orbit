@@ -26,4 +26,13 @@ describe("RecommendationsPage explanation workbench", () => {
     expect(source).toContain("isRecommendationVisibleInQueue");
     expect(source).toContain("recommendation.acceptRecordsOnly");
   });
+
+  it("can consume a focused recommendation and clear filters for the action workbench", () => {
+    const source = readFileSync(new URL("./RecommendationsPage.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("focusRecommendationId");
+    expect(source).toContain("onFocusConsumed");
+    expect(source).toContain("setFilters(defaultFilters)");
+    expect(source).toContain("recommendation.latestTodayFocused");
+  });
 });

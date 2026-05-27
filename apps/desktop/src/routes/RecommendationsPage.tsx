@@ -9,6 +9,8 @@ import { useI18n } from "../i18n";
 
 interface RecommendationsPageProps {
   recommendations: Recommendation[];
+  focusRecommendationId?: string | undefined;
+  onFocusConsumed(): void;
   onReviewRecommendation(
     id: string,
     action: RecommendationReviewAction,
@@ -35,7 +37,9 @@ const defaultFilters: RecommendationFilters = {
 };
 
 export function RecommendationsPage({
+  focusRecommendationId,
   recommendations,
+  onFocusConsumed,
   onReviewRecommendation
 }: RecommendationsPageProps): ReactElement {
   const { t, status, impact, recommendationType } = useI18n();
@@ -46,6 +50,7 @@ export function RecommendationsPage({
   const [error, setError] = useState<string | undefined>();
   const [snoozeDate, setSnoozeDate] = useState("");
   const [refreshToken, setRefreshToken] = useState(0);
+  const [latestTodayFocus, setLatestTodayFocus] = useState(false);
 
   const filterOptions = useMemo(() => buildFilterOptions(recommendations), [recommendations]);
   const filteredRecommendations = useMemo(
@@ -58,9 +63,22 @@ export function RecommendationsPage({
   const activeRecommendation = detail?.recommendation ?? selectedRecommendation;
 
   useEffect(() => {
+    if (!focusRecommendationId) return;
+    if (!recommendations.some((recommendation) => recommendation.id === focusRecommendationId)) {
+      onFocusConsumed();
+      return;
+    }
+    setFilters(defaultFilters);
+    setSelectedId(focusRecommendationId);
+    setLatestTodayFocus(true);
+    onFocusConsumed();
+  }, [focusRecommendationId, onFocusConsumed, recommendations]);
+
+  useEffect(() => {
+    if (focusRecommendationId) return;
     if (filteredRecommendations.some((recommendation) => recommendation.id === selectedId)) return;
     setSelectedId(filteredRecommendations[0]?.id);
-  }, [filteredRecommendations, selectedId]);
+  }, [filteredRecommendations, focusRecommendationId, selectedId]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -215,6 +233,9 @@ export function RecommendationsPage({
         </div>
 
         {error ? <div className="error-banner inline">{error}</div> : null}
+        {latestTodayFocus ? (
+          <div className="notice-banner inline">{t("recommendation.latestTodayFocused")}</div>
+        ) : null}
 
         <div className="recommendation-workbench">
           <div className="recommendation-list" aria-label={t("recommendation.recommendationList")}>

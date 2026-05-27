@@ -76,4 +76,18 @@ describe("TodayPage context completion", () => {
     expect(app).toContain("onOpenKnowledgeArtifact={actions.focusKnowledge}");
     expect(knowledge).toContain("focusArtifactId");
   });
+
+  it("can open a Today Recommendation directly in the recommendation action workbench", () => {
+    const source = readFileSync(new URL("./TodayPage.tsx", import.meta.url), "utf8");
+    const app = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");
+    const recommendations = readFileSync(new URL("./RecommendationsPage.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("onOpenRecommendation");
+    expect(source).toContain("today.handleRecommendation");
+    expect(source).toContain("data-today-action=\"handle-recommendation\"");
+    expect(app).toContain("focusRecommendation");
+    expect(app).toContain("onOpenRecommendation={actions.focusRecommendation}");
+    expect(recommendations).toContain("focusRecommendationId");
+    expect(recommendations).toContain("recommendation.latestTodayFocused");
+  });
 });

@@ -86,6 +86,7 @@ export function App(): ReactElement {
   const [snapshot, setSnapshot] = useState<DesktopSnapshot | undefined>();
   const [activityFocusTarget, setActivityFocusTarget] = useState<ActivityFocusTarget | undefined>();
   const [knowledgeFocusId, setKnowledgeFocusId] = useState<string | undefined>();
+  const [recommendationFocusId, setRecommendationFocusId] = useState<string | undefined>();
   const [pendingHandoffResult, setPendingHandoffResult] = useState<DesktopHandoffResult | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [notice, setNotice] = useState<string | undefined>();
@@ -401,6 +402,11 @@ export function App(): ReactElement {
     setActivePage("activity");
   }
 
+  function focusRecommendation(id: string): void {
+    setRecommendationFocusId(id);
+    setActivePage("recommendations");
+  }
+
   function reviewKnowledge(id: string, action: KnowledgeReviewAction): Promise<void> {
     return runReviewAction(
       () => window.orbit.reviewKnowledge(id, action),
@@ -588,9 +594,12 @@ export function App(): ReactElement {
                 testAIProvider,
                 activityFocusTarget,
                 knowledgeFocusId,
+                recommendationFocusId,
                 clearActivityFocus: () => setActivityFocusTarget(undefined),
                 clearKnowledgeFocus: () => setKnowledgeFocusId(undefined),
+                clearRecommendationFocus: () => setRecommendationFocusId(undefined),
                 focusActivitySession,
+                focusRecommendation,
                 focusKnowledge: (id) => {
                   setKnowledgeFocusId(id);
                   setActivePage("knowledge");
@@ -683,9 +692,12 @@ interface PageActions {
   testAIProvider(config: DesktopAIProviderTestConfig): Promise<DesktopAIProviderTestResult>;
   activityFocusTarget?: ActivityFocusTarget | undefined;
   knowledgeFocusId?: string | undefined;
+  recommendationFocusId?: string | undefined;
   clearActivityFocus(): void;
   clearKnowledgeFocus(): void;
+  clearRecommendationFocus(): void;
   focusActivitySession(id: string): void;
+  focusRecommendation(id: string): void;
   focusKnowledge(id: string): void;
   navigate(page: PageId): void;
 }
@@ -699,6 +711,7 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
           onNavigate={actions.navigate}
           onOpenActivitySession={actions.focusActivitySession}
           onOpenKnowledgeArtifact={actions.focusKnowledge}
+          onOpenRecommendation={actions.focusRecommendation}
           onCaptureScreenOcr={actions.captureScreenOcr}
           onGenerateTodayHandoff={actions.generateTodayHandoffFromToday}
         />
@@ -740,6 +753,8 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
       return (
         <RecommendationsPage
           recommendations={snapshot.recommendations}
+          focusRecommendationId={actions.recommendationFocusId}
+          onFocusConsumed={actions.clearRecommendationFocus}
           onReviewRecommendation={actions.reviewRecommendation}
         />
       );

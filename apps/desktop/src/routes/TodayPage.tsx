@@ -13,6 +13,7 @@ export function TodayPage({
   onNavigate,
   onOpenActivitySession,
   onOpenKnowledgeArtifact,
+  onOpenRecommendation,
   onCaptureScreenOcr,
   onGenerateTodayHandoff
 }: {
@@ -20,6 +21,7 @@ export function TodayPage({
   onNavigate?(page: DesktopPageId): void;
   onOpenActivitySession?(sessionId: string): void;
   onOpenKnowledgeArtifact?(artifactId: string): void;
+  onOpenRecommendation?(recommendationId: string): void;
   onCaptureScreenOcr?(): Promise<void>;
   onGenerateTodayHandoff?(): Promise<DesktopHandoffResult>;
 }): ReactElement {
@@ -270,6 +272,19 @@ export function TodayPage({
                   <span>{impact(recommendation.impact)}</span>
                 </div>
                 <EvidenceList evidence={recommendation.evidence} />
+              </div>
+              <div className="list-item-actions">
+                <span className={`review-pill ${recommendation.status}`}>
+                  {status(recommendation.status)}
+                </span>
+                <button
+                  className="secondary-button compact-button"
+                  data-today-action="handle-recommendation"
+                  onClick={() => onOpenRecommendation?.(recommendation.id)}
+                  type="button"
+                >
+                  {t("today.handleRecommendation")}
+                </button>
               </div>
             </article>
           ))}
