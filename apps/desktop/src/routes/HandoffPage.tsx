@@ -31,7 +31,7 @@ export function HandoffPage({
   const [projectEdited, setProjectEdited] = useState(false);
   const [result, setResult] = useState<DesktopHandoffResult | undefined>();
   const [error, setError] = useState<string | undefined>();
-  const [copied, setCopied] = useState(false);
+  const [copiedFormat, setCopiedFormat] = useState<"Markdown" | "JSON" | undefined>();
   const [isGenerating, setIsGenerating] = useState(false);
   const [previewFormat, setPreviewFormat] = useState<"Markdown" | "JSON">("Markdown");
   const metrics = buildHandoffMetrics(snapshot, result, t);
@@ -41,7 +41,7 @@ export function HandoffPage({
     if (!initialResult) return;
     setResult(initialResult);
     setError(undefined);
-    setCopied(false);
+    setCopiedFormat(undefined);
   }, [initialResult]);
 
   useEffect(() => {
@@ -56,7 +56,7 @@ export function HandoffPage({
   ) {
     setIsGenerating(true);
     setError(undefined);
-    setCopied(false);
+    setCopiedFormat(undefined);
     try {
       setResult(await onGenerateHandoff(input));
     } catch (reason) {
@@ -66,10 +66,17 @@ export function HandoffPage({
     }
   }
 
-  async function copyMarkdown(): Promise<void> {
+  async function copyPreview(): Promise<void> {
     if (!result) return;
-    await navigator.clipboard.writeText(result.markdown);
-    setCopied(true);
+    const preview =
+      previewFormat === "JSON" ? JSON.stringify(result.handoff, null, 2) : result.markdown;
+    await navigator.clipboard.writeText(preview);
+    setCopiedFormat(previewFormat);
+  }
+
+  function selectPreviewFormat(format: "Markdown" | "JSON"): void {
+    setPreviewFormat(format);
+    setCopiedFormat(undefined);
   }
 
   return (
@@ -245,30 +252,37 @@ export function HandoffPage({
               <div className="segmented-control" aria-label={t("handoff.preview")}>
                 <button
                   className={previewFormat === "Markdown" ? "active" : ""}
-                  onClick={() => setPreviewFormat("Markdown")}
+                  onClick={() => selectPreviewFormat("Markdown")}
                   type="button"
                 >
                   Markdown
                 </button>
                 <button
                   className={previewFormat === "JSON" ? "active" : ""}
-                  onClick={() => setPreviewFormat("JSON")}
+                  onClick={() => selectPreviewFormat("JSON")}
                   type="button"
                 >
                   JSON
                 </button>
               </div>
-              <button className="secondary-button" onClick={() => void copyMarkdown()} type="button">
-                {copied ? t("handoff.copied") : t("handoff.copyMarkdown")}
+              <button className="secondary-button" onClick={() => void copyPreview()} type="button">
+                {copiedFormat === "JSON"
+                  ? t("handoff.copiedJson")
+                  : copiedFormat === "Markdown"
+                    ? t("handoff.copiedMarkdown")
+                    : t("handoff.copyPreview")}
               </button>
             </div>
           ) : null
         }
       >
         {result ? (
-          <pre className="handoff-preview">
-            {previewFormat === "JSON" ? JSON.stringify(result.handoff, null, 2) : result.markdown}
-          </pre>
+          <>
+            <p className="handoff-preview-copy-boundary">{t("handoff.previewCopyBoundary")}</p>
+            <pre className="handoff-preview">
+              {previewFormat === "JSON" ? JSON.stringify(result.handoff, null, 2) : result.markdown}
+            </pre>
+          </>
         ) : (
           <div className="empty-state">{t("handoff.empty")}</div>
         )}

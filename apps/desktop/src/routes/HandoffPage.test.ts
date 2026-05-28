@@ -11,7 +11,7 @@ describe("HandoffPage", () => {
     expect(source).toContain("handoff-project-options");
     expect(source).toContain("handoff.noProjectOptions");
     expect(source).toContain("handoff.preview");
-    expect(source).toContain("handoff.copyMarkdown");
+    expect(source).toContain("handoff.copyPreview");
     expect(source).toContain("handoff.safetyBoundaries");
     expect(source).toContain("handoff.evidence");
     expect(source).toContain("handoff.excluded");
@@ -31,6 +31,20 @@ describe("HandoffPage", () => {
     expect(source).toContain("handoff.empty");
     expect(source).toContain("handoff.error");
     expect(source).toContain("navigator.clipboard.writeText");
+  });
+
+  it("copies the currently selected Markdown or JSON preview format", () => {
+    const source = readFileSync(new URL("./HandoffPage.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("copyPreview");
+    expect(source).toContain("previewFormat === \"JSON\"");
+    expect(source).toContain("JSON.stringify(result.handoff, null, 2)");
+    expect(source).toContain("selectPreviewFormat");
+    expect(source).toContain("setCopiedFormat(undefined)");
+    expect(source).toContain("handoff.copyPreview");
+    expect(source).toContain("handoff.copiedJson");
+    expect(source).toContain("handoff.copiedMarkdown");
+    expect(source).toContain("handoff.previewCopyBoundary");
   });
 
   it("can render a handoff result passed from Today without requiring a second generate click", () => {

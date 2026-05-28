@@ -2340,6 +2340,18 @@ button {
   gap: 8px;
 }
 
+.handoff-preview-copy-boundary {
+  margin: 0;
+  border: 1px solid #e2dfd8;
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  background: #ffffff;
+  color: #68706f;
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 10px 12px;
+}
+
 .handoff-preview {
   max-height: 420px;
   margin: 0;
