@@ -28,5 +28,8 @@ describe("ReviewQueuePage review workflow", () => {
     expect(source).toContain("review.pendingMemoryCount");
     expect(source).toContain("data-review-feedback=\"last-action\"");
     expect(source).toContain("withoutExpandedEvidence");
+    expect(source).toContain("review.markdownPreview");
+    expect(source).toContain("artifact.content.markdown");
+    expect(source).toContain("review-queue-markdown-preview");
   });
 });

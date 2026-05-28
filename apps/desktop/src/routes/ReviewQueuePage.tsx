@@ -81,6 +81,10 @@ export function ReviewQueuePage({
                 <span>{status(artifact.status)}</span>
               </div>
               <p>{artifact.content.description}</p>
+              <div className="review-queue-markdown-preview">
+                <h4>{t("review.markdownPreview")}</h4>
+                <pre className="markdown-preview">{artifact.content.markdown}</pre>
+              </div>
               <div className="meta-line review-metrics">
                 <span>{formatConfidence(artifact.confidence, t("knowledge.confidence"))}</span>
                 <span>

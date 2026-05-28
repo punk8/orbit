@@ -1841,6 +1841,21 @@ button {
   flex-wrap: wrap;
 }
 
+.review-queue-markdown-preview {
+  display: grid;
+  gap: 6px;
+}
+
+.review-queue-markdown-preview h4 {
+  margin: 0;
+  color: #4f5759;
+  font-size: 12px;
+}
+
+.review-queue-markdown-preview .markdown-preview {
+  max-height: 180px;
+}
+
 .edit-panel label {
   display: grid;
   gap: 6px;
