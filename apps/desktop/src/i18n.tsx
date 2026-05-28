@@ -657,6 +657,10 @@ const translations = {
     "source.previewApps": "Apps",
     "source.previewReadableFields": "Reads",
     "source.previewWarnings": "Warnings",
+    "source.previewSampleEvents": "Sample parsed events",
+    "source.previewSampleBoundary":
+      "These samples are normalized summaries and source pointers only; raw payloads are not shown during preview.",
+    "source.previewNoSampleEvents": "No sample events parsed from this path.",
     "review.showEvidence": "Show evidence",
     "review.hideEvidence": "Hide evidence",
     "review.openKnowledge": "Open in Knowledge",
@@ -1697,6 +1701,10 @@ const translations = {
     "source.previewApps": "应用",
     "source.previewReadableFields": "读取字段",
     "source.previewWarnings": "警告",
+    "source.previewSampleEvents": "解析样例事件",
+    "source.previewSampleBoundary":
+      "这里只展示标准化后的摘要和来源指针；预览阶段不会展示 raw 载荷。",
+    "source.previewNoSampleEvents": "该路径没有解析出样例事件。",
     "review.showEvidence": "查看证据",
     "review.hideEvidence": "收起证据",
     "review.openKnowledge": "在知识中打开",

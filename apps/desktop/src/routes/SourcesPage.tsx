@@ -247,6 +247,7 @@ export function SourcesPage({
               </span>
             </div>
           ) : null}
+          {preview ? <SourceImportSampleEvents preview={preview} /> : null}
           {preview ? (
             <p className="source-import-focus-hint">{t("source.importFocusHint")}</p>
           ) : null}
@@ -566,6 +567,46 @@ export function SourcesPage({
           </article>
         </div>
       </Section>
+    </div>
+  );
+}
+
+function SourceImportSampleEvents({
+  preview
+}: {
+  preview: DesktopSourceImportPreview;
+}): ReactElement {
+  const { t, sensitivity, sourceKind } = useI18n();
+  return (
+    <div className="source-import-sample-events">
+      <div className="source-import-sample-heading">
+        <h3>{t("source.previewSampleEvents")}</h3>
+        <p>{t("source.previewSampleBoundary")}</p>
+      </div>
+      {preview.sampleEvents.length > 0 ? (
+        <div className="source-import-sample-list">
+          {preview.sampleEvents.map((sample) => (
+            <article className="source-import-sample-card" key={sample.id}>
+              <div className="item-heading">
+                <h4>{sample.title}</h4>
+                <span>{sourceKind(sample.sourceKind)}</span>
+              </div>
+              <p>{sample.summary}</p>
+              <div className="meta-line permission-line">
+                <span>{sample.occurredAt}</span>
+                <span>{sample.type}</span>
+                <span>{sensitivity(sample.sensitivity)}</span>
+                <span>{sample.redactionState}</span>
+                {sample.app ? <span>{sample.app}</span> : null}
+                {sample.project ? <span>{sample.project}</span> : null}
+              </div>
+              <code>{sample.sourcePointer}</code>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="empty-state compact">{t("source.previewNoSampleEvents")}</div>
+      )}
     </div>
   );
 }

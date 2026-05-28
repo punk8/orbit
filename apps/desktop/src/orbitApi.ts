@@ -216,6 +216,19 @@ export interface DesktopSourceImportPreview {
   };
   projects: string[];
   apps: string[];
+  sampleEvents: Array<{
+    id: string;
+    occurredAt: string;
+    type: Event["type"];
+    sourceKind: Event["source"]["kind"];
+    sourcePointer: string;
+    title: string;
+    summary: string;
+    app?: string;
+    project?: string;
+    sensitivity: Event["privacy"]["sensitivity"];
+    redactionState: Event["privacy"]["redactionState"];
+  }>;
   permission: {
     readableFields: string[];
     canStoreRaw: boolean;

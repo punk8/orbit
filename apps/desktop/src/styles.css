@@ -2523,6 +2523,72 @@ button {
   padding: 5px 9px;
 }
 
+.source-import-sample-events {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #e3e5df;
+  border-radius: 8px;
+  background: #f8fbf7;
+  padding: 12px;
+}
+
+.source-import-sample-heading {
+  display: grid;
+  gap: 3px;
+}
+
+.source-import-sample-heading h3 {
+  margin: 0;
+  color: #243034;
+  font-size: 13px;
+}
+
+.source-import-sample-heading p {
+  margin: 0;
+  color: #5a676a;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.source-import-sample-list {
+  display: grid;
+  gap: 8px;
+}
+
+.source-import-sample-card {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  border: 1px solid #e3e5df;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px 12px;
+}
+
+.source-import-sample-card h4 {
+  overflow-wrap: anywhere;
+  margin: 0;
+  color: #20292d;
+  font-size: 13px;
+}
+
+.source-import-sample-card p {
+  margin: 0;
+  color: #39474b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.source-import-sample-card code {
+  overflow-wrap: anywhere;
+  border-radius: 6px;
+  background: #f3f0e9;
+  color: #293235;
+  font-size: 11px;
+  line-height: 1.45;
+  padding: 7px;
+}
+
 .source-import-focus-hint {
   margin: 0;
   color: #526165;

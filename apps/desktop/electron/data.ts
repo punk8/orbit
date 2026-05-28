@@ -800,6 +800,7 @@ export async function previewSourceImportForDesktop(
     warnings: result.warnings ?? [],
     projects,
     apps,
+    sampleEvents: buildSourceImportSampleEvents(result.events),
     permission: {
       readableFields: adapter.permissionScope.readableFields,
       canStoreRaw: adapter.permissionScope.canStoreRaw,
@@ -816,6 +817,22 @@ export async function previewSourceImportForDesktop(
     };
   }
   return preview;
+}
+
+function buildSourceImportSampleEvents(events: Event[]): DesktopSourceImportPreview["sampleEvents"] {
+  return events.slice(0, 3).map((event) => ({
+    id: event.id,
+    occurredAt: event.occurredAt,
+    type: event.type,
+    sourceKind: event.source.kind,
+    sourcePointer: event.source.pointer,
+    title: event.content.title ?? event.type,
+    summary: event.content.summary ?? event.content.text ?? "",
+    ...(event.context.app ? { app: event.context.app } : {}),
+    ...(event.context.project ? { project: event.context.project } : {}),
+    sensitivity: event.privacy.sensitivity,
+    redactionState: event.privacy.redactionState
+  }));
 }
 
 export async function confirmSourceImportForDesktop(

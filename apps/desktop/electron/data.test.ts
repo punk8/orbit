@@ -152,15 +152,28 @@ describe("desktop background runtime ingestion", () => {
     expect(preview.mode).toBe("import_only");
     expect(preview.eventCount).toBe(1);
     expect(preview.permission.canStoreRaw).toBe(false);
+    expect(preview.sampleEvents).toHaveLength(1);
+    expect(preview.sampleEvents[0]).toMatchObject({
+      title: "Orbit planning",
+      summary: "Browser navigation observed.",
+      type: "browser_navigation",
+      sourceKind: "browser",
+      sensitivity: "internal"
+    });
+    expect(preview.sampleEvents[0]?.sourcePointer).toContain("browser://navigation");
+    expect(preview.sampleEvents[0]).not.toHaveProperty("rawRef");
     expect(terminalPreview.kind).toBe("terminal_import");
     expect(terminalPreview.eventCount).toBe(1);
     expect(terminalPreview.permission.canStoreRaw).toBe(false);
+    expect(terminalPreview.sampleEvents[0]?.summary).toContain("pnpm test");
     expect(filePreview.kind).toBe("file_activity_import");
     expect(filePreview.eventCount).toBe(1);
     expect(filePreview.permission.canStoreRaw).toBe(false);
+    expect(filePreview.sampleEvents[0]?.title).toContain("README.md");
     expect(projectPreview.kind).toBe("project_directory");
     expect(projectPreview.eventCount).toBeGreaterThan(0);
     expect(projectPreview.permission.readableFields).toContain("summary");
+    expect(projectPreview.sampleEvents.length).toBeGreaterThan(0);
 
     const database = openOrbitDatabase({ orbitHome });
     try {
