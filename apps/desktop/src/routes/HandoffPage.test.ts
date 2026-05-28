@@ -100,4 +100,25 @@ describe("HandoffPage", () => {
     expect(source).toContain("handoff.openIncludedMemory");
     expect(source).toContain("handoff.openIncludedRecommendation");
   });
+
+  it("surfaces handoff decisions and risks with local source actions", () => {
+    const source = readFileSync(new URL("./HandoffPage.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("HandoffDecisionRiskSection");
+    expect(source).toContain("HandoffDecisionCard");
+    expect(source).toContain("HandoffRiskCard");
+    expect(source).toContain("pack.decisions");
+    expect(source).toContain("pack.blockersAndRisks");
+    expect(source).toContain("renderHandoffSourceAction");
+    expect(source).toContain('data-handoff-action="open-decision-knowledge"');
+    expect(source).toContain('data-handoff-action="open-decision-memory"');
+    expect(source).toContain('data-handoff-action="open-risk-knowledge"');
+    expect(source).toContain('data-handoff-action="open-risk-recommendation"');
+    expect(source).toContain("handoff.decisions");
+    expect(source).toContain("handoff.blockersAndRisks");
+    expect(source).toContain("handoff.openDecisionKnowledge");
+    expect(source).toContain("handoff.openDecisionMemory");
+    expect(source).toContain("handoff.openRiskKnowledge");
+    expect(source).toContain("handoff.openRiskRecommendation");
+  });
 });

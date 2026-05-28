@@ -165,6 +165,15 @@ export function HandoffPage({
       ) : null}
 
       {result ? (
+        <HandoffDecisionRiskSection
+          pack={result.handoff}
+          onOpenKnowledgeArtifact={onOpenKnowledgeArtifact}
+          onOpenMemory={onOpenMemory}
+          onOpenRecommendation={onOpenRecommendation}
+        />
+      ) : null}
+
+      {result ? (
         <div className="page-grid two-column compact-page-grid">
           <Section title={t("handoff.currentState")}>
             <HandoffBulletList
@@ -294,6 +303,206 @@ export function HandoffPage({
       ) : null}
     </div>
   );
+}
+
+function HandoffDecisionRiskSection({
+  pack,
+  onOpenKnowledgeArtifact,
+  onOpenMemory,
+  onOpenRecommendation
+}: {
+  pack: HandoffPack;
+  onOpenKnowledgeArtifact: ((artifactId: string) => void) | undefined;
+  onOpenMemory: ((memoryId: string) => void) | undefined;
+  onOpenRecommendation: ((recommendationId: string) => void) | undefined;
+}): ReactElement {
+  const { t } = useI18n();
+  return (
+    <div className="page-grid two-column compact-page-grid">
+      <Section title={t("handoff.decisions")}>
+        {pack.decisions.length > 0 ? (
+          <div className="item-list compact">
+            {pack.decisions.map((decision) => (
+              <HandoffDecisionCard
+                decision={decision}
+                key={decision.id}
+                onOpenKnowledgeArtifact={onOpenKnowledgeArtifact}
+                onOpenMemory={onOpenMemory}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="empty-state">{t("handoff.noDecisions")}</div>
+        )}
+      </Section>
+      <Section title={t("handoff.blockersAndRisks")}>
+        {pack.blockersAndRisks.length > 0 ? (
+          <div className="item-list compact">
+            {pack.blockersAndRisks.map((risk) => (
+              <HandoffRiskCard
+                key={risk.id}
+                onOpenKnowledgeArtifact={onOpenKnowledgeArtifact}
+                onOpenRecommendation={onOpenRecommendation}
+                risk={risk}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="empty-state">{t("handoff.noBlockersAndRisks")}</div>
+        )}
+      </Section>
+    </div>
+  );
+}
+
+function HandoffDecisionCard({
+  decision,
+  onOpenKnowledgeArtifact,
+  onOpenMemory
+}: {
+  decision: HandoffPack["decisions"][number];
+  onOpenKnowledgeArtifact: ((artifactId: string) => void) | undefined;
+  onOpenMemory: ((memoryId: string) => void) | undefined;
+}): ReactElement {
+  const { t } = useI18n();
+  return (
+    <article className="list-item vertical">
+      <div className="item-heading">
+        <h3>{decision.title}</h3>
+        {renderHandoffSourceAction({
+          dataActionPrefix: "open-decision",
+          objectId: decision.sourceObjectId,
+          objectType: decision.sourceObjectType,
+          onOpenKnowledgeArtifact,
+          onOpenMemory,
+          t
+        })}
+      </div>
+      <p className="muted">
+        {[
+          `${t("handoff.evidenceCount")}: ${decision.evidenceIds.length}`,
+          `${t("handoff.evidenceSourceObject")}: ${decision.sourceObjectId}`
+        ].join(" · ")}
+      </p>
+    </article>
+  );
+}
+
+function HandoffRiskCard({
+  risk,
+  onOpenKnowledgeArtifact,
+  onOpenRecommendation
+}: {
+  risk: HandoffPack["blockersAndRisks"][number];
+  onOpenKnowledgeArtifact: ((artifactId: string) => void) | undefined;
+  onOpenRecommendation: ((recommendationId: string) => void) | undefined;
+}): ReactElement {
+  const { t } = useI18n();
+  return (
+    <article className="list-item vertical">
+      <div className="item-heading">
+        <h3>{risk.title}</h3>
+        {renderHandoffSourceAction({
+          dataActionPrefix: "open-risk",
+          objectId: risk.sourceObjectId,
+          objectType: risk.sourceObjectType,
+          onOpenKnowledgeArtifact,
+          onOpenRecommendation,
+          t
+        })}
+      </div>
+      {risk.suggestedAction ? <p>{risk.suggestedAction}</p> : null}
+      <p className="muted">
+        {[
+          risk.impact ? `${t("filter.impact")}: ${risk.impact}` : undefined,
+          `${t("handoff.evidenceCount")}: ${risk.evidenceIds.length}`,
+          `${t("handoff.evidenceSourceObject")}: ${risk.sourceObjectId}`
+        ]
+          .filter(Boolean)
+          .join(" · ")}
+      </p>
+    </article>
+  );
+}
+
+function renderHandoffSourceAction({
+  dataActionPrefix,
+  objectId,
+  objectType,
+  onOpenKnowledgeArtifact,
+  onOpenMemory,
+  onOpenRecommendation,
+  t
+}: {
+  dataActionPrefix: "open-decision" | "open-risk";
+  objectId: string;
+  objectType: "knowledge" | "memory" | "recommendation";
+  onOpenKnowledgeArtifact?: ((artifactId: string) => void) | undefined;
+  onOpenMemory?: ((memoryId: string) => void) | undefined;
+  onOpenRecommendation?: ((recommendationId: string) => void) | undefined;
+  t: ReturnType<typeof useI18n>["t"];
+}): ReactElement | null {
+  if (
+    objectType === "knowledge" &&
+    dataActionPrefix === "open-decision" &&
+    onOpenKnowledgeArtifact
+  ) {
+    return (
+      <button
+        className="secondary-button"
+        data-handoff-action="open-decision-knowledge"
+        onClick={() => onOpenKnowledgeArtifact(objectId)}
+        type="button"
+      >
+        {t("handoff.openDecisionKnowledge")}
+      </button>
+    );
+  }
+  if (
+    objectType === "knowledge" &&
+    dataActionPrefix === "open-risk" &&
+    onOpenKnowledgeArtifact
+  ) {
+    return (
+      <button
+        className="secondary-button"
+        data-handoff-action="open-risk-knowledge"
+        onClick={() => onOpenKnowledgeArtifact(objectId)}
+        type="button"
+      >
+        {t("handoff.openRiskKnowledge")}
+      </button>
+    );
+  }
+  if (objectType === "memory" && dataActionPrefix === "open-decision" && onOpenMemory) {
+    return (
+      <button
+        className="secondary-button"
+        data-handoff-action="open-decision-memory"
+        onClick={() => onOpenMemory(objectId)}
+        type="button"
+      >
+        {t("handoff.openDecisionMemory")}
+      </button>
+    );
+  }
+  if (
+    objectType === "recommendation" &&
+    dataActionPrefix === "open-risk" &&
+    onOpenRecommendation
+  ) {
+    return (
+      <button
+        className="secondary-button"
+        data-handoff-action="open-risk-recommendation"
+        onClick={() => onOpenRecommendation(objectId)}
+        type="button"
+      >
+        {t("handoff.openRiskRecommendation")}
+      </button>
+    );
+  }
+  return null;
 }
 
 function HandoffIncludedSection({
