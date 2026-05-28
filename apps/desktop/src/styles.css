@@ -1856,6 +1856,40 @@ button {
   max-height: 180px;
 }
 
+.review-memory-governance-preview {
+  display: grid;
+  gap: 7px;
+  border: 1px solid #ece9e2;
+  border-radius: 7px;
+  background: #fbfaf7;
+  padding: 10px;
+}
+
+.review-memory-governance-preview h4 {
+  margin: 0;
+  color: #4f5759;
+  font-size: 12px;
+}
+
+.review-memory-governance-preview div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.review-memory-governance-preview span {
+  display: inline-flex;
+  min-height: 22px;
+  align-items: center;
+  border: 1px solid #e4e0d8;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #4f5a5b;
+  font-size: 12px;
+  line-height: 1.25;
+  padding: 3px 8px;
+}
+
 .edit-panel label {
   display: grid;
   gap: 6px;

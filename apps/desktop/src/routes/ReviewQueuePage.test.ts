@@ -31,5 +31,12 @@ describe("ReviewQueuePage review workflow", () => {
     expect(source).toContain("review.markdownPreview");
     expect(source).toContain("artifact.content.markdown");
     expect(source).toContain("review-queue-markdown-preview");
+    expect(source).toContain("review.memoryGovernancePreview");
+    expect(source).toContain("review.memoryAgentContextBlocked");
+    expect(source).toContain("review-memory-governance-preview");
+    expect(source).toContain("formatReviewMemoryScope");
+    expect(source).toContain("formatReviewMemorySources");
+    expect(source).toContain("memoryKind(memory.kind)");
+    expect(source).toContain("memory.status === \"confirmed\"");
   });
 });

@@ -25,7 +25,7 @@ export function ReviewQueuePage({
   onReviewKnowledge(id: string, action: KnowledgeReviewAction): Promise<void>;
   onReviewMemory(id: string, action: MemoryReviewAction): Promise<void>;
 }): ReactElement {
-  const { t, status, sensitivity } = useI18n();
+  const { t, status, sensitivity, memoryKind, sourceKind } = useI18n();
   const [expandedEvidenceIds, setExpandedEvidenceIds] = useState<Set<string>>(new Set());
   const [lastAction, setLastAction] = useState<ReviewQueueLastAction | undefined>();
   const knowledgeDrafts = snapshot.knowledgeArtifacts.filter(
@@ -166,6 +166,28 @@ export function ReviewQueuePage({
                   <span>{status(memory.status)}</span>
                 </div>
                 <p>{memory.body}</p>
+                <div className="review-memory-governance-preview">
+                  <h4>{t("review.memoryGovernancePreview")}</h4>
+                  <div>
+                    <span>
+                      {t("filter.kind")}: {memoryKind(memory.kind)}
+                    </span>
+                    <span>
+                      {t("memory.scope")}: {formatReviewMemoryScope(memory, t)}
+                    </span>
+                    <span>
+                      {t("filter.source")}: {formatReviewMemorySources(memory, sourceKind, t)}
+                    </span>
+                    <span>
+                      {t("memory.tags")}: {memory.tags.join(", ") || t("fallback.none")}
+                    </span>
+                    <span>
+                      {memory.status === "confirmed"
+                        ? t("memory.agentContextAllowed")
+                        : t("review.memoryAgentContextBlocked")}
+                    </span>
+                  </div>
+                </div>
                 <div className="meta-line review-metrics">
                   <span>{formatConfidence(memory.confidence, t("knowledge.confidence"))}</span>
                   <span>
@@ -257,6 +279,27 @@ function reviewActionLabel(
 
 function formatConfidence(confidence: number, label: string): string {
   return `${label} ${Math.round(confidence * 100)}%`;
+}
+
+function formatReviewMemoryScope(
+  memory: DesktopSnapshot["memories"][number],
+  t: ReturnType<typeof useI18n>["t"]
+): string {
+  if (memory.scope.project) return memory.scope.project;
+  if (memory.scope.global) return t("fallback.global");
+  return memory.dimension;
+}
+
+function formatReviewMemorySources(
+  memory: DesktopSnapshot["memories"][number],
+  sourceKind: ReturnType<typeof useI18n>["sourceKind"],
+  t: ReturnType<typeof useI18n>["t"]
+): string {
+  const sourceKinds = new Set([
+    ...(memory.scope.sourceKinds ?? []),
+    ...memory.evidence.map((ref) => ref.sourceKind)
+  ]);
+  return Array.from(sourceKinds).map((kind) => sourceKind(kind)).join(", ") || t("fallback.none");
 }
 
 function inferEvidenceSensitivity(
