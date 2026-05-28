@@ -73,4 +73,31 @@ describe("HandoffPage", () => {
     expect(source).toContain("handoff.reviewExcludedMemory");
     expect(source).toContain("handoff.reviewExcludedRecommendation");
   });
+
+  it("turns included handoff objects into reviewable local workbench actions", () => {
+    const source = readFileSync(new URL("./HandoffPage.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("HandoffIncludedSection");
+    expect(source).toContain("HandoffIncludedActivityCard");
+    expect(source).toContain("HandoffIncludedKnowledgeCard");
+    expect(source).toContain("HandoffIncludedMemoryCard");
+    expect(source).toContain("HandoffIncludedRecommendationCard");
+    expect(source).toContain("pack.recentActivity");
+    expect(source).toContain("pack.confirmedKnowledge");
+    expect(source).toContain("pack.activeMemories");
+    expect(source).toContain("pack.recommendedNextActions");
+    expect(source).toContain('data-handoff-action="open-included-activity"');
+    expect(source).toContain('data-handoff-action="open-included-knowledge"');
+    expect(source).toContain('data-handoff-action="open-included-memory"');
+    expect(source).toContain('data-handoff-action="open-included-recommendation"');
+    expect(source).toContain("handoff.included");
+    expect(source).toContain("handoff.includedRecentActivity");
+    expect(source).toContain("handoff.includedConfirmedKnowledge");
+    expect(source).toContain("handoff.includedActiveMemory");
+    expect(source).toContain("handoff.includedRecommendations");
+    expect(source).toContain("handoff.openIncludedActivity");
+    expect(source).toContain("handoff.openIncludedKnowledge");
+    expect(source).toContain("handoff.openIncludedMemory");
+    expect(source).toContain("handoff.openIncludedRecommendation");
+  });
 });

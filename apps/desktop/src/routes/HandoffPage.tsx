@@ -155,6 +155,16 @@ export function HandoffPage({
       ) : null}
 
       {result ? (
+        <HandoffIncludedSection
+          pack={result.handoff}
+          onOpenActivitySession={onOpenActivitySession}
+          onOpenKnowledgeArtifact={onOpenKnowledgeArtifact}
+          onOpenMemory={onOpenMemory}
+          onOpenRecommendation={onOpenRecommendation}
+        />
+      ) : null}
+
+      {result ? (
         <div className="page-grid two-column compact-page-grid">
           <Section title={t("handoff.currentState")}>
             <HandoffBulletList
@@ -284,6 +294,250 @@ export function HandoffPage({
       ) : null}
     </div>
   );
+}
+
+function HandoffIncludedSection({
+  pack,
+  onOpenActivitySession,
+  onOpenKnowledgeArtifact,
+  onOpenMemory,
+  onOpenRecommendation
+}: {
+  pack: HandoffPack;
+  onOpenActivitySession: ((sessionId: string) => void) | undefined;
+  onOpenKnowledgeArtifact: ((artifactId: string) => void) | undefined;
+  onOpenMemory: ((memoryId: string) => void) | undefined;
+  onOpenRecommendation: ((recommendationId: string) => void) | undefined;
+}): ReactElement {
+  const { t } = useI18n();
+  const includedCount =
+    pack.recentActivity.length +
+    pack.confirmedKnowledge.length +
+    pack.activeMemories.length +
+    pack.recommendedNextActions.length;
+
+  return (
+    <Section title={t("handoff.included")}>
+      {includedCount > 0 ? (
+        <div className="page-grid two-column compact-page-grid">
+          <div className="handoff-included-group">
+            <h3>{t("handoff.includedRecentActivity")}</h3>
+            {pack.recentActivity.length > 0 ? (
+              <div className="item-list compact">
+                {pack.recentActivity.map((activity) => (
+                  <HandoffIncludedActivityCard
+                    activity={activity}
+                    key={activity.id}
+                    onOpenActivitySession={onOpenActivitySession}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="empty-state compact">{t("handoff.noIncludedRecentActivity")}</div>
+            )}
+          </div>
+
+          <div className="handoff-included-group">
+            <h3>{t("handoff.includedConfirmedKnowledge")}</h3>
+            {pack.confirmedKnowledge.length > 0 ? (
+              <div className="item-list compact">
+                {pack.confirmedKnowledge.map((knowledge) => (
+                  <HandoffIncludedKnowledgeCard
+                    knowledge={knowledge}
+                    key={knowledge.id}
+                    onOpenKnowledgeArtifact={onOpenKnowledgeArtifact}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="empty-state compact">{t("handoff.noIncludedConfirmedKnowledge")}</div>
+            )}
+          </div>
+
+          <div className="handoff-included-group">
+            <h3>{t("handoff.includedActiveMemory")}</h3>
+            {pack.activeMemories.length > 0 ? (
+              <div className="item-list compact">
+                {pack.activeMemories.map((memory) => (
+                  <HandoffIncludedMemoryCard
+                    key={memory.id}
+                    memory={memory}
+                    onOpenMemory={onOpenMemory}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="empty-state compact">{t("handoff.noIncludedActiveMemory")}</div>
+            )}
+          </div>
+
+          <div className="handoff-included-group">
+            <h3>{t("handoff.includedRecommendations")}</h3>
+            {pack.recommendedNextActions.length > 0 ? (
+              <div className="item-list compact">
+                {pack.recommendedNextActions.map((recommendation) => (
+                  <HandoffIncludedRecommendationCard
+                    key={recommendation.id}
+                    onOpenRecommendation={onOpenRecommendation}
+                    recommendation={recommendation}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="empty-state compact">{t("handoff.noIncludedRecommendations")}</div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="empty-state">{t("handoff.noIncluded")}</div>
+      )}
+    </Section>
+  );
+}
+
+function HandoffIncludedActivityCard({
+  activity,
+  onOpenActivitySession
+}: {
+  activity: HandoffPack["recentActivity"][number];
+  onOpenActivitySession: ((sessionId: string) => void) | undefined;
+}): ReactElement {
+  const { t, sourceKind } = useI18n();
+  return (
+    <article className="list-item vertical">
+      <div className="item-heading">
+        <h3>{activity.title}</h3>
+        {onOpenActivitySession ? (
+          <button
+            className="secondary-button"
+            data-handoff-action="open-included-activity"
+            onClick={() => onOpenActivitySession(activity.id)}
+            type="button"
+          >
+            {t("handoff.openIncludedActivity")}
+          </button>
+        ) : null}
+      </div>
+      {activity.summary ? <p>{activity.summary}</p> : null}
+      <p className="muted">
+        {[
+          activity.project,
+          activity.apps.join(", "),
+          activity.sourceKinds.map((kind) => sourceKind(kind)).join(", ")
+        ]
+          .filter(Boolean)
+          .join(" · ")}
+      </p>
+      <p className="muted">{formatEvidenceCount(t, activity.evidenceIds.length)}</p>
+    </article>
+  );
+}
+
+function HandoffIncludedKnowledgeCard({
+  knowledge,
+  onOpenKnowledgeArtifact
+}: {
+  knowledge: HandoffPack["confirmedKnowledge"][number];
+  onOpenKnowledgeArtifact: ((artifactId: string) => void) | undefined;
+}): ReactElement {
+  const { t } = useI18n();
+  return (
+    <article className="list-item vertical">
+      <div className="item-heading">
+        <h3>{knowledge.title}</h3>
+        {onOpenKnowledgeArtifact ? (
+          <button
+            className="secondary-button"
+            data-handoff-action="open-included-knowledge"
+            onClick={() => onOpenKnowledgeArtifact(knowledge.id)}
+            type="button"
+          >
+            {t("handoff.openIncludedKnowledge")}
+          </button>
+        ) : null}
+      </div>
+      <p>{knowledge.description}</p>
+      <p className="muted">
+        {[
+          knowledge.type,
+          `${t("handoff.nextStepConfidence")}: ${knowledge.confidence}`,
+          formatEvidenceCount(t, knowledge.evidenceIds.length)
+        ].join(" · ")}
+      </p>
+    </article>
+  );
+}
+
+function HandoffIncludedMemoryCard({
+  memory,
+  onOpenMemory
+}: {
+  memory: HandoffPack["activeMemories"][number];
+  onOpenMemory: ((memoryId: string) => void) | undefined;
+}): ReactElement {
+  const { t } = useI18n();
+  return (
+    <article className="list-item vertical">
+      <div className="item-heading">
+        <h3>{memory.title}</h3>
+        {onOpenMemory ? (
+          <button
+            className="secondary-button"
+            data-handoff-action="open-included-memory"
+            onClick={() => onOpenMemory(memory.id)}
+            type="button"
+          >
+            {t("handoff.openIncludedMemory")}
+          </button>
+        ) : null}
+      </div>
+      <p>{memory.body}</p>
+      <p className="muted">
+        {[memory.kind, memory.tags.join(", "), formatEvidenceCount(t, memory.evidenceIds.length)]
+          .filter(Boolean)
+          .join(" · ")}
+      </p>
+    </article>
+  );
+}
+
+function HandoffIncludedRecommendationCard({
+  recommendation,
+  onOpenRecommendation
+}: {
+  recommendation: HandoffPack["recommendedNextActions"][number];
+  onOpenRecommendation: ((recommendationId: string) => void) | undefined;
+}): ReactElement {
+  const { t } = useI18n();
+  return (
+    <article className="list-item vertical">
+      <div className="item-heading">
+        <h3>{recommendation.title}</h3>
+        {onOpenRecommendation ? (
+          <button
+            className="secondary-button"
+            data-handoff-action="open-included-recommendation"
+            onClick={() => onOpenRecommendation(recommendation.id)}
+            type="button"
+          >
+            {t("handoff.openIncludedRecommendation")}
+          </button>
+        ) : null}
+      </div>
+      <p>{recommendation.suggestedAction}</p>
+      <p className="muted">
+        {[
+          `${t("handoff.nextStepConfidence")}: ${recommendation.confidence}`,
+          `${t("filter.impact")}: ${recommendation.impact}`,
+          formatEvidenceCount(t, recommendation.evidenceIds.length)
+        ].join(" · ")}
+      </p>
+    </article>
+  );
+}
+
+function formatEvidenceCount(t: ReturnType<typeof useI18n>["t"], count: number): string {
+  return `${t("handoff.evidenceCount")}: ${count}`;
 }
 
 function HandoffExcludedCard({
