@@ -35,6 +35,11 @@ interface KnowledgeEditForm {
   markdown: string;
 }
 
+interface KnowledgeLastReviewAction {
+  id: string;
+  action: KnowledgeReviewAction;
+}
+
 const defaultFilters: KnowledgeFilters = {
   status: "",
   type: "",
@@ -67,6 +72,7 @@ export function KnowledgePage({
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<KnowledgeEditForm | undefined>();
+  const [lastReviewAction, setLastReviewAction] = useState<KnowledgeLastReviewAction | undefined>();
   const [refreshToken, setRefreshToken] = useState(0);
 
   const filterOptions = useMemo(() => buildFilterOptions(artifacts), [artifacts]);
@@ -176,6 +182,7 @@ export function KnowledgePage({
       return;
     }
     await onReviewKnowledge(artifact.id, action);
+    setLastReviewAction({ id: artifact.id, action });
     setRefreshToken((current) => current + 1);
   }
 
@@ -351,6 +358,9 @@ export function KnowledgePage({
                 editForm={editForm}
                 isEditing={isEditing}
                 isLoading={isLoadingDetail}
+                lastReviewAction={
+                  lastReviewAction?.id === activeArtifact.id ? lastReviewAction : undefined
+                }
                 changedFields={changedFields}
                 onCancelEdit={() => {
                   setEditForm(toEditForm(activeArtifact));
@@ -383,6 +393,7 @@ function KnowledgeDetail({
   editForm,
   isEditing,
   isLoading,
+  lastReviewAction,
   changedFields,
   onCancelEdit,
   onCopyMarkdown,
@@ -401,6 +412,7 @@ function KnowledgeDetail({
   editForm: KnowledgeEditForm | undefined;
   isEditing: boolean;
   isLoading: boolean;
+  lastReviewAction: KnowledgeLastReviewAction | undefined;
   changedFields: string[];
   onCancelEdit(): void;
   onCopyMarkdown(): void;
@@ -468,6 +480,13 @@ function KnowledgeDetail({
           </button>
         </div>
       </div>
+
+      {lastReviewAction ? (
+        <div className="notice-banner inline" data-knowledge-feedback="last-action">
+          {t("review.lastActionPrefix")} {knowledgeReviewActionLabel(lastReviewAction.action, t)} ·{" "}
+          {t("knowledge.reviewActionRecorded")}
+        </div>
+      ) : null}
 
       {isLoading ? <div className="empty-state compact">{t("knowledge.loadingDetail")}</div> : null}
 
@@ -923,6 +942,15 @@ function knowledgeFieldLabel(field: string, t: ReturnType<typeof useI18n>["t"]):
   if (field === "keyInsights") return t("knowledge.field.keyInsights");
   if (field === "markdown") return t("knowledge.field.markdown");
   return field;
+}
+
+function knowledgeReviewActionLabel(
+  action: KnowledgeReviewAction,
+  t: ReturnType<typeof useI18n>["t"]
+): string {
+  if (action === "confirm") return t("review.action.confirm");
+  if (action === "reject") return t("review.action.reject");
+  return t("review.action.archive");
 }
 
 function sortedUnique<T extends string>(values: Array<T | undefined>): T[] {

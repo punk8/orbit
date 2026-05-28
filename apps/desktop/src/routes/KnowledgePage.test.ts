@@ -17,6 +17,11 @@ describe("KnowledgePage review workbench", () => {
     expect(source).toContain("action.delete");
     expect(source).toContain("knowledge.evidencePreserved");
     expect(source).toContain("confirm.rejectKnowledge");
+    expect(source).toContain("lastReviewAction");
+    expect(source).toContain("setLastReviewAction");
+    expect(source).toContain('data-knowledge-feedback="last-action"');
+    expect(source).toContain("review.lastActionPrefix");
+    expect(source).toContain("knowledge.reviewActionRecorded");
     expect(source).toContain("changedFields");
   });
 
