@@ -398,6 +398,13 @@ function ActivityDetail({
   const currentFrameRawState = currentFrame
     ? formatPlaybackRawState(currentFrame, session.localState.rawAvailable, t)
     : undefined;
+  const evidenceJumpMetrics = buildActivityEvidenceJumpMetrics({
+    events,
+    evidenceCount: session.evidence.length,
+    rawStateLabel: currentFrameRawState?.label,
+    session,
+    t
+  });
 
   if (error) {
     return <div className="error-banner inline">{error}</div>;
@@ -445,6 +452,8 @@ function ActivityDetail({
       </header>
 
       {isLoading ? <div className="empty-state compact">{t("activity.loadingDetail")}</div> : null}
+
+      <ActivityEvidenceJumpBar metrics={evidenceJumpMetrics} />
 
       <section className="activity-recording-section">
         <h3>{t("activity.recording")}</h3>
@@ -526,7 +535,7 @@ function ActivityDetail({
         <p>{session.summary ?? t("fallback.noSummary")}</p>
       </DetailBlock>
 
-      <DetailBlock title={t("activity.eventStream")}>
+      <DetailBlock id="activity-event-stream" title={t("activity.eventStream")}>
         {events.length ? (
           <div className="event-stream">
             {events.map((event) => {
@@ -554,7 +563,7 @@ function ActivityDetail({
       </DetailBlock>
 
       <div className="activity-evidence-grid">
-        <DetailBlock title={t("activity.evidence")}>
+        <DetailBlock id="activity-evidence-index" title={t("activity.evidence")}>
           <EvidenceList
             evidence={session.evidence}
             highlightedEventIds={focusTarget?.eventIds}
@@ -562,7 +571,7 @@ function ActivityDetail({
           />
         </DetailBlock>
 
-        <DetailBlock title={t("activity.sourcePolicy")}>
+        <DetailBlock id="activity-source-policy" title={t("activity.sourcePolicy")}>
           {session.localState.sourcePolicies?.length ? (
             <div className="source-policy-list">
               {session.localState.sourcePolicies.map((policy) => (
@@ -618,7 +627,7 @@ function ActivityDetail({
           </dl>
         </DetailBlock>
 
-        <DetailBlock title={t("activity.storage")}>
+        <DetailBlock id="activity-storage-state" title={t("activity.storage")}>
           <dl className="mini-grid">
             <DetailField
               label={t("activity.rawState")}
@@ -718,6 +727,61 @@ function ActivityEventRowContent({ event }: { event: Event }): ReactElement {
       </div>
     </>
   );
+}
+
+function ActivityEvidenceJumpBar({
+  metrics
+}: {
+  metrics: ReturnType<typeof buildActivityEvidenceJumpMetrics>;
+}): ReactElement {
+  const { t } = useI18n();
+  return (
+    <nav className="activity-evidence-jump-bar" aria-label={t("activity.evidenceBrowser")}>
+      <a href="#activity-event-stream">
+        <span>{t("activity.jumpEvents")}</span>
+        <strong>{metrics.events}</strong>
+      </a>
+      <a href="#activity-evidence-index">
+        <span>{t("activity.jumpEvidence")}</span>
+        <strong>{metrics.evidence}</strong>
+      </a>
+      <a href="#activity-source-policy">
+        <span>{t("activity.jumpSourcePolicy")}</span>
+        <strong>{metrics.sourcePolicies}</strong>
+      </a>
+      <a href="#activity-storage-state">
+        <span>{t("activity.jumpRawState")}</span>
+        <strong>{metrics.rawState}</strong>
+      </a>
+    </nav>
+  );
+}
+
+function buildActivityEvidenceJumpMetrics({
+  events,
+  evidenceCount,
+  rawStateLabel,
+  session,
+  t
+}: {
+  events: Event[];
+  evidenceCount: number;
+  rawStateLabel: string | undefined;
+  session: ActivitySession;
+  t: ReturnType<typeof useI18n>["t"];
+}): {
+  events: number;
+  evidence: number;
+  sourcePolicies: number;
+  rawState: string;
+} {
+  return {
+    events: events.length || session.eventCount,
+    evidence: evidenceCount,
+    sourcePolicies: session.localState.sourcePolicies?.length ?? 0,
+    rawState:
+      rawStateLabel ?? (session.localState.rawAvailable ? t("activity.rawAvailable") : t("activity.rawUnavailable"))
+  };
 }
 
 function ActivityOverviewRail({
@@ -897,14 +961,16 @@ function OverviewWorkList({
 }
 
 function DetailBlock({
+  id,
   title,
   children
 }: {
+  id?: string | undefined;
   title: string;
   children: ReactElement | ReactElement[] | string;
 }): ReactElement {
   return (
-    <section className="detail-block">
+    <section className="detail-block" id={id}>
       <h3>{title}</h3>
       {children}
     </section>

@@ -1578,6 +1578,47 @@ button {
   color: #20272b;
 }
 
+.activity-evidence-jump-bar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.activity-evidence-jump-bar a {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+  border: 1px solid #d9e0dc;
+  border-radius: 8px;
+  background: #fbfaf7;
+  color: #344043;
+  padding: 10px 12px;
+  text-decoration: none;
+}
+
+.activity-evidence-jump-bar a:hover {
+  border-color: #bfc8c4;
+  background: #f4f7f5;
+}
+
+.activity-evidence-jump-bar span {
+  overflow: hidden;
+  color: #68706f;
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity-evidence-jump-bar strong {
+  overflow: hidden;
+  color: #151b1f;
+  font-size: 17px;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .activity-evidence-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);

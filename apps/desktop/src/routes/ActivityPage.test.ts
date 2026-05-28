@@ -111,4 +111,26 @@ describe("ActivityPage evidence workbench", () => {
     expect(app).toContain("onOpenKnowledgeArtifact={actions.focusKnowledge}");
     expect(app).toContain("onOpenRecommendation={actions.focusRecommendation}");
   });
+
+  it("surfaces an evidence browser jump bar across event stream, evidence, source policy, and raw state", () => {
+    const source = readFileSync(new URL("./ActivityPage.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("ActivityEvidenceJumpBar");
+    expect(source).toContain("buildActivityEvidenceJumpMetrics");
+    expect(source).toContain("activity.evidenceBrowser");
+    expect(source).toContain("activity.jumpEvents");
+    expect(source).toContain("activity.jumpEvidence");
+    expect(source).toContain("activity.jumpSourcePolicy");
+    expect(source).toContain("activity.jumpRawState");
+    expect(source).toContain("t(\"activity.rawAvailable\")");
+    expect(source).toContain("t(\"activity.rawUnavailable\")");
+    expect(source).toContain('href="#activity-event-stream"');
+    expect(source).toContain('id="activity-event-stream"');
+    expect(source).toContain('href="#activity-evidence-index"');
+    expect(source).toContain('id="activity-evidence-index"');
+    expect(source).toContain('href="#activity-source-policy"');
+    expect(source).toContain('id="activity-source-policy"');
+    expect(source).toContain('href="#activity-storage-state"');
+    expect(source).toContain('id="activity-storage-state"');
+  });
 });
