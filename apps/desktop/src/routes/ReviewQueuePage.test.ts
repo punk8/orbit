@@ -11,13 +11,17 @@ describe("ReviewQueuePage review workflow", () => {
     expect(source).toContain("review.showEvidence");
     expect(source).toContain("review.hideEvidence");
     expect(source).toContain("review.openKnowledge");
+    expect(source).toContain("review.openMemory");
+    expect(source).toContain("onOpenMemory");
     expect(source).toContain("onOpenActivitySession");
     expect(source).toContain("review.openSourceActivity");
     expect(source).toContain("artifact.metadata.sourceSessionIds[0]");
     expect(source).toContain("memory.sourceSessionIds[0]");
     expect(source).toContain("data-review-action=\"open-source-activity\"");
     expect(source).toContain("data-review-action=\"open-memory-source-activity\"");
+    expect(source).toContain("data-review-action=\"open-memory\"");
     expect(app).toContain("onOpenActivitySession={actions.focusActivitySession}");
+    expect(app).toContain("onOpenMemory={actions.focusMemory}");
     expect(source).toContain("formatConfidence");
     expect(source).toContain("inferEvidenceSensitivity");
     expect(source).toContain("metadata.sourceSessionIds.length");

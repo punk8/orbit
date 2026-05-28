@@ -798,6 +798,7 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
         <ReviewQueuePage
           snapshot={snapshot}
           onOpenKnowledge={actions.focusKnowledge}
+          onOpenMemory={actions.focusMemory}
           onOpenActivitySession={actions.focusActivitySession}
           onReviewKnowledge={actions.reviewKnowledge}
           onReviewMemory={actions.reviewMemory}

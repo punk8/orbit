@@ -15,12 +15,14 @@ interface ReviewQueueLastAction {
 export function ReviewQueuePage({
   snapshot,
   onOpenKnowledge,
+  onOpenMemory,
   onOpenActivitySession,
   onReviewKnowledge,
   onReviewMemory
 }: {
   snapshot: DesktopSnapshot;
   onOpenKnowledge(id: string): void;
+  onOpenMemory(id: string): void;
   onOpenActivitySession(id: string): void;
   onReviewKnowledge(id: string, action: KnowledgeReviewAction): Promise<void>;
   onReviewMemory(id: string, action: MemoryReviewAction): Promise<void>;
@@ -224,6 +226,14 @@ export function ReviewQueuePage({
                     type="button"
                   >
                     {t("action.reject")}
+                  </button>
+                  <button
+                    className="secondary-button"
+                    data-review-action="open-memory"
+                    onClick={() => onOpenMemory(memory.id)}
+                    type="button"
+                  >
+                    {t("review.openMemory")}
                   </button>
                   <button
                     className="secondary-button"
