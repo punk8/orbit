@@ -77,6 +77,24 @@ describe("ActivityPage evidence workbench", () => {
     expect(source).toContain("activity.captureScreenOcrNoSampleData");
   });
 
+  it("shows self-serve evidence setup actions when there are no activity sessions", () => {
+    const source = readFileSync(new URL("./ActivityPage.tsx", import.meta.url), "utf8");
+    const app = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");
+    const i18n = readFileSync(new URL("../i18n.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("ActivityEmptyWorkflow");
+    expect(source).toContain("activity-empty-workflow");
+    expect(source).toContain("activity.empty.title");
+    expect(source).toContain("activity.empty.captureOnce");
+    expect(source).toContain("activity.empty.addSource");
+    expect(source).toContain("activity.empty.openHandoff");
+    expect(source).toContain("onNavigate");
+    expect(source).toContain("onNavigate(\"sources\")");
+    expect(source).toContain("onNavigate(\"handoff\")");
+    expect(app).toContain("onNavigate={actions.navigate}");
+    expect(i18n).toContain("activity.empty.noFixture");
+  });
+
   it("can consume a latest-capture focus target and jump to the generated session", () => {
     const source = readFileSync(new URL("./ActivityPage.tsx", import.meta.url), "utf8");
     const app = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");

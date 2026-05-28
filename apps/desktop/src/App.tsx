@@ -740,6 +740,7 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
           onFocusConsumed={actions.clearActivityFocus}
           onCaptureScreenOcr={actions.captureScreenOcr}
           onDeleteActivitySession={actions.deleteActivitySession}
+          onNavigate={actions.navigate}
           onOpenKnowledgeArtifact={actions.focusKnowledge}
           onOpenRecommendation={actions.focusRecommendation}
         />

@@ -1365,6 +1365,34 @@ button {
   padding: 20px 28px 28px;
 }
 
+.activity-empty-workflow {
+  display: grid;
+  gap: 10px;
+  max-width: 720px;
+  border: 1px solid #d8e2de;
+  border-radius: 8px;
+  background: #f7fbf9;
+  padding: 16px;
+}
+
+.activity-empty-workflow h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.activity-empty-workflow p {
+  margin: 0;
+  color: #4b5658;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.activity-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .knowledge-detail-pane {
   min-width: 0;
   max-height: calc(100vh - 230px);

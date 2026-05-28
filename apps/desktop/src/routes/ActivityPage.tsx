@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import type { DesktopActivitySessionDetail } from "../orbitApi";
 import type { DesktopActionFocus } from "../orbitApi";
+import type { DesktopPageId } from "../orbitApi";
 import { EvidenceList } from "../components/EvidenceList";
 import { Section } from "../components/Section";
 import { useI18n } from "../i18n";
@@ -80,6 +81,7 @@ export function ActivityPage({
   onFocusConsumed,
   onCaptureScreenOcr,
   onDeleteActivitySession,
+  onNavigate,
   onOpenKnowledgeArtifact,
   onOpenRecommendation
 }: {
@@ -88,6 +90,7 @@ export function ActivityPage({
   onFocusConsumed(): void;
   onCaptureScreenOcr(): Promise<void>;
   onDeleteActivitySession(id: string): Promise<void>;
+  onNavigate(page: DesktopPageId): void;
   onOpenKnowledgeArtifact: ((artifactId: string) => void) | undefined;
   onOpenRecommendation: ((recommendationId: string) => void) | undefined;
 }): ReactElement {
@@ -359,12 +362,63 @@ export function ActivityPage({
                 focusTarget={latestFocus}
               />
             ) : (
-              <div className="empty-state">{t("empty.noActivitySessions")}</div>
+              <ActivityEmptyWorkflow
+                isCapturing={isCapturingScreenOcr}
+                onCapture={async () => {
+                  setIsCapturingScreenOcr(true);
+                  try {
+                    await onCaptureScreenOcr();
+                  } finally {
+                    setIsCapturingScreenOcr(false);
+                  }
+                }}
+                onNavigate={onNavigate}
+              />
             )}
           </div>
         </div>
       </Section>
     </div>
+  );
+}
+
+function ActivityEmptyWorkflow({
+  isCapturing,
+  onCapture,
+  onNavigate
+}: {
+  isCapturing: boolean;
+  onCapture(): Promise<void>;
+  onNavigate(page: DesktopPageId): void;
+}): ReactElement {
+  const { t } = useI18n();
+  return (
+    <section className="activity-empty-workflow" aria-label={t("activity.empty.title")}>
+      <p className="eyebrow">evidence setup</p>
+      <h2>{t("activity.empty.title")}</h2>
+      <p>{t("activity.empty.description")}</p>
+      <div className="meta-line">
+        <span>{t("activity.empty.noFixture")}</span>
+        <span>{t("source.rawNotStored")}</span>
+        <span>{t("source.agentExportBlocked")}</span>
+      </div>
+      <div className="activity-empty-actions">
+        <button
+          className="secondary-button"
+          disabled={isCapturing}
+          onClick={() => void onCapture()}
+          type="button"
+        >
+          {isCapturing ? t("activity.capturingScreenOcr") : t("activity.empty.captureOnce")}
+        </button>
+        <button className="secondary-button" onClick={() => onNavigate("sources")} type="button">
+          {t("activity.empty.addSource")}
+        </button>
+        <button className="secondary-button" onClick={() => onNavigate("handoff")} type="button">
+          {t("activity.empty.openHandoff")}
+        </button>
+      </div>
+    </section>
   );
 }
 

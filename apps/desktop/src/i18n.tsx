@@ -228,6 +228,13 @@ const translations = {
     "activity.captureScreenOcrNoSampleData": "Real local capture; no bundled sample data is loaded.",
     "activity.captureScreenOcrDescription":
       "Capture the current screen once, run local Apple Vision OCR, write source-backed Events, and re-index Activity / Knowledge / Memory candidates.",
+    "activity.empty.title": "Create the first evidence-backed Activity",
+    "activity.empty.description":
+      "Activity is the evidence browser for Orbit. Run one explicit capture or import an approved local source; Orbit will open the generated session here so you can inspect events, evidence, source policy, and raw state.",
+    "activity.empty.noFixture": "No fixture sessions are loaded",
+    "activity.empty.captureOnce": "Capture once",
+    "activity.empty.addSource": "Add source",
+    "activity.empty.openHandoff": "Open Handoff",
     "activity.latestCaptureFocused": "Focused the Activity session created by the latest capture.",
     "activity.latestImportFocused": "Focused the Activity session created by the latest import.",
     "activity.latestTodayFocused": "Focused the Activity session selected from Today.",
@@ -1338,6 +1345,13 @@ const translations = {
     "activity.captureScreenOcrNoSampleData": "真实本地捕获；不会加载示例数据。",
     "activity.captureScreenOcrDescription":
       "捕获一次当前屏幕，使用本地 Apple Vision OCR，写入可追溯事件，并重建 Activity / Knowledge / Memory 候选。",
+    "activity.empty.title": "创建第一段带证据的 Activity",
+    "activity.empty.description":
+      "Activity 是 Orbit 的证据浏览器。你可以显式捕获一次当前屏幕，或导入一个已授权的本地来源；Orbit 会把生成的片段打开到这里，方便检查事件、证据、来源策略和 raw 状态。",
+    "activity.empty.noFixture": "不会加载 fixture 活动片段",
+    "activity.empty.captureOnce": "捕获一次",
+    "activity.empty.addSource": "添加来源",
+    "activity.empty.openHandoff": "打开交接",
     "activity.latestCaptureFocused": "已定位到刚捕获生成的活动片段。",
     "activity.latestImportFocused": "已定位到刚导入生成的活动片段。",
     "activity.latestTodayFocused": "已定位到从 Today 选择的活动片段。",
