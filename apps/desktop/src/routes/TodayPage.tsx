@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
-import type { SourceKind } from "@orbit/core";
+import type { ActivitySession, KnowledgeArtifact, Recommendation, SourceKind } from "@orbit/core";
 import type { DesktopHandoffResult, DesktopPageId, DesktopSnapshot } from "../orbitApi";
 import { EvidenceList } from "../components/EvidenceList";
 import { MetricCard } from "../components/MetricCard";
@@ -34,6 +34,7 @@ export function TodayPage({
     sourceKind
   });
   const nextActions = buildNextActions(snapshot, t);
+  const dailyBrief = buildTodayDailyBrief(snapshot, t);
   const handoffReadiness = buildTodayHandoffReadiness(snapshot);
   const screenPolicy = snapshot.perception.sources.find((source) => source.sourceKind === "screen")
     ?.policy;
@@ -62,6 +63,50 @@ export function TodayPage({
           detail={t("detail.open")}
         />
       </div>
+
+      <section className="today-daily-brief" aria-label={t("today.brief.title")}>
+        <div className="today-daily-brief-heading">
+          <div>
+            <p className="eyebrow">daily brief</p>
+            <h2>{t("today.brief.title")}</h2>
+          </div>
+          <span>{t("today.briefEvidenceBoundary")}</span>
+        </div>
+        <div className="today-daily-brief-grid">
+          <TodayBriefColumn
+            items={dailyBrief.completed}
+            title={t("today.brief.completed")}
+            emptyLabel={t("today.brief.emptyCompleted")}
+            onOpenActivitySession={onOpenActivitySession}
+            onOpenKnowledgeArtifact={onOpenKnowledgeArtifact}
+            onOpenRecommendation={onOpenRecommendation}
+          />
+          <TodayBriefColumn
+            items={dailyBrief.decisions}
+            title={t("today.brief.decisions")}
+            emptyLabel={t("today.brief.emptyDecisions")}
+            onOpenActivitySession={onOpenActivitySession}
+            onOpenKnowledgeArtifact={onOpenKnowledgeArtifact}
+            onOpenRecommendation={onOpenRecommendation}
+          />
+          <TodayBriefColumn
+            items={dailyBrief.risks}
+            title={t("today.brief.risks")}
+            emptyLabel={t("today.brief.emptyRisks")}
+            onOpenActivitySession={onOpenActivitySession}
+            onOpenKnowledgeArtifact={onOpenKnowledgeArtifact}
+            onOpenRecommendation={onOpenRecommendation}
+          />
+          <TodayBriefColumn
+            items={dailyBrief.followUps}
+            title={t("today.brief.followUps")}
+            emptyLabel={t("today.brief.emptyFollowUps")}
+            onOpenActivitySession={onOpenActivitySession}
+            onOpenKnowledgeArtifact={onOpenKnowledgeArtifact}
+            onOpenRecommendation={onOpenRecommendation}
+          />
+        </div>
+      </section>
 
       <section className="today-workbench" aria-label={t("today.workbench")}>
         <div className="today-source-status-panel">
@@ -295,6 +340,190 @@ export function TodayPage({
       </Section>
     </div>
   );
+}
+
+interface TodayDailyBrief {
+  completed: TodayBriefItem[];
+  decisions: TodayBriefItem[];
+  risks: TodayBriefItem[];
+  followUps: TodayBriefItem[];
+}
+
+interface TodayBriefItem {
+  id: string;
+  title: string;
+  evidenceCount: number;
+  sourceLabel: string;
+  target: TodayBriefTarget;
+}
+
+type TodayBriefTarget =
+  | { kind: "activity"; id: string }
+  | { kind: "knowledge"; id: string }
+  | { kind: "recommendation"; id: string };
+
+function TodayBriefColumn({
+  emptyLabel,
+  items,
+  onOpenActivitySession,
+  onOpenKnowledgeArtifact,
+  onOpenRecommendation,
+  title
+}: {
+  emptyLabel: string;
+  items: TodayBriefItem[];
+  onOpenActivitySession?: ((sessionId: string) => void) | undefined;
+  onOpenKnowledgeArtifact?: ((artifactId: string) => void) | undefined;
+  onOpenRecommendation?: ((recommendationId: string) => void) | undefined;
+  title: string;
+}): ReactElement {
+  const { t } = useI18n();
+  return (
+    <article className="today-brief-column">
+      <div className="item-heading">
+        <h3>{title}</h3>
+        <span>{items.length}</span>
+      </div>
+      {items.length > 0 ? (
+        <div className="today-brief-list">
+          {items.map((item) => (
+            <button
+              className="today-brief-item"
+              key={item.id}
+              onClick={() =>
+                openTodayBriefItem(item.target, {
+                  onOpenActivitySession,
+                  onOpenKnowledgeArtifact,
+                  onOpenRecommendation
+                })
+              }
+              type="button"
+            >
+              <span>{item.title}</span>
+              <small>
+                {item.sourceLabel} · {item.evidenceCount} {t("knowledge.evidenceCountLabel")}
+              </small>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p className="muted">{emptyLabel}</p>
+      )}
+    </article>
+  );
+}
+
+function openTodayBriefItem(
+  target: TodayBriefTarget,
+  actions: {
+    onOpenActivitySession?: ((sessionId: string) => void) | undefined;
+    onOpenKnowledgeArtifact?: ((artifactId: string) => void) | undefined;
+    onOpenRecommendation?: ((recommendationId: string) => void) | undefined;
+  }
+): void {
+  if (target.kind === "activity") {
+    actions.onOpenActivitySession?.(target.id);
+  } else if (target.kind === "knowledge") {
+    actions.onOpenKnowledgeArtifact?.(target.id);
+  } else {
+    actions.onOpenRecommendation?.(target.id);
+  }
+}
+
+function buildTodayDailyBrief(
+  snapshot: DesktopSnapshot,
+  t: (key: TranslationKey) => string
+): TodayDailyBrief {
+  return {
+    completed: snapshot.today.activitySessions
+      .filter((session) => session.evidence.length > 0 || session.eventCount > 0)
+      .map((session) => activityToBriefItem(session, t))
+      .slice(0, 4),
+    decisions: collectConfirmedKnowledgeItems(snapshot.today.knowledgeArtifacts, "decisions", t),
+    risks: [
+      ...collectConfirmedKnowledgeItems(snapshot.today.knowledgeArtifacts, "blockers", t),
+      ...collectOpenRecommendationItems(snapshot.today.recommendations, ["risk", "blocker"], t)
+    ].slice(0, 4),
+    followUps: [
+      ...snapshot.today.knowledgeArtifacts
+        .filter((artifact) => artifact.status === "confirmed")
+        .flatMap((artifact) => knowledgeFollowUpsToBriefItems(artifact, t)),
+      ...collectOpenRecommendationItems(snapshot.today.recommendations, ["follow_up", "context_needed"], t)
+    ].slice(0, 4)
+  };
+}
+
+function activityToBriefItem(
+  session: ActivitySession,
+  t: (key: TranslationKey) => string
+): TodayBriefItem {
+  return {
+    id: `activity:${session.id}`,
+    title: session.title || session.summary || t("fallback.noSummary"),
+    evidenceCount: session.evidence.length,
+    sourceLabel: t("today.brief.sourceActivity"),
+    target: { kind: "activity", id: session.id }
+  };
+}
+
+function collectConfirmedKnowledgeItems(
+  artifacts: KnowledgeArtifact[],
+  field: "decisions" | "blockers",
+  t: (key: TranslationKey) => string
+): TodayBriefItem[] {
+  return artifacts
+    .filter((artifact) => artifact.status === "confirmed")
+    .flatMap((artifact) =>
+      (artifact.content[field] ?? []).map((item, index) => ({
+        id: `knowledge:${artifact.id}:${field}:${index}`,
+        title: item,
+        evidenceCount: artifact.evidence.length,
+        sourceLabel: t("today.brief.sourceKnowledge"),
+        target: { kind: "knowledge" as const, id: artifact.id }
+      }))
+    )
+    .slice(0, 4);
+}
+
+function knowledgeFollowUpsToBriefItems(
+  artifact: KnowledgeArtifact,
+  t: (key: TranslationKey) => string
+): TodayBriefItem[] {
+  return (artifact.content.followUps ?? [])
+    .filter((followUp) => followUp.status === "open")
+    .map((followUp) => ({
+      id: `knowledge:${artifact.id}:followup:${followUp.id}`,
+      title: followUp.title,
+      evidenceCount: followUp.evidence.length || artifact.evidence.length,
+      sourceLabel: t("today.brief.sourceKnowledge"),
+      target: { kind: "knowledge" as const, id: artifact.id }
+    }));
+}
+
+function collectOpenRecommendationItems(
+  recommendations: Recommendation[],
+  types: Recommendation["type"][],
+  t: (key: TranslationKey) => string
+): TodayBriefItem[] {
+  const typeSet = new Set(types);
+  return recommendations
+    .filter((recommendation) => isOpenRecommendation(recommendation))
+    .filter((recommendation) => typeSet.has(recommendation.type))
+    .map((recommendation) => ({
+      id: `recommendation:${recommendation.id}`,
+      title: recommendation.title,
+      evidenceCount: recommendation.evidence.length,
+      sourceLabel: t("today.brief.sourceRecommendation"),
+      target: { kind: "recommendation" as const, id: recommendation.id }
+    }))
+    .slice(0, 4);
+}
+
+function isOpenRecommendation(recommendation: Recommendation): boolean {
+  if (recommendation.status === "dismissed" || recommendation.status === "resolved") return false;
+  if (recommendation.status !== "snoozed") return true;
+  if (!recommendation.dueAt) return true;
+  return recommendation.dueAt <= new Date().toISOString();
 }
 
 interface TodaySourceStatus {

@@ -25,6 +25,20 @@ describe("TodayPage context completion", () => {
     expect(source).toContain("nav.handoff");
   });
 
+  it("summarizes today's work into a scan-friendly daily brief", () => {
+    const source = readFileSync(new URL("./TodayPage.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("today-daily-brief");
+    expect(source).toContain("buildTodayDailyBrief");
+    expect(source).toContain("today.brief.completed");
+    expect(source).toContain("today.brief.decisions");
+    expect(source).toContain("today.brief.risks");
+    expect(source).toContain("today.brief.followUps");
+    expect(source).toContain("today.briefEvidenceBoundary");
+    expect(source).toContain("collectConfirmedKnowledgeItems");
+    expect(source).toContain("collectOpenRecommendationItems");
+  });
+
   it("exposes a one-shot real screen/OCR capture entry with privacy boundaries", () => {
     const source = readFileSync(new URL("./TodayPage.tsx", import.meta.url), "utf8");
 
