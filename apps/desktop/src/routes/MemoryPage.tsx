@@ -36,6 +36,11 @@ interface MemoryEditForm {
   tags: string;
 }
 
+interface MemoryLastReviewAction {
+  id: string;
+  action: MemoryReviewAction;
+}
+
 const defaultFilters: MemoryFilters = {
   status: "",
   kind: "",
@@ -68,6 +73,7 @@ export function MemoryPage({
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<MemoryEditForm | undefined>();
+  const [lastReviewAction, setLastReviewAction] = useState<MemoryLastReviewAction | undefined>();
   const [refreshToken, setRefreshToken] = useState(0);
 
   const filterOptions = useMemo(() => buildFilterOptions(memories), [memories]);
@@ -178,6 +184,7 @@ export function MemoryPage({
       return;
     }
     await onReviewMemory(memory.id, action);
+    setLastReviewAction({ id: memory.id, action });
     setRefreshToken((current) => current + 1);
   }
 
@@ -372,6 +379,9 @@ export function MemoryPage({
                 editForm={editForm}
                 isEditing={isEditing}
                 isLoading={isLoadingDetail}
+                lastReviewAction={
+                  lastReviewAction?.id === activeMemory.id ? lastReviewAction : undefined
+                }
                 memory={activeMemory}
                 onCancelEdit={() => {
                   setEditForm(toEditForm(activeMemory));
@@ -404,6 +414,7 @@ function MemoryDetail({
   editForm,
   isEditing,
   isLoading,
+  lastReviewAction,
   memory,
   onCancelEdit,
   onCopyMemory,
@@ -422,6 +433,7 @@ function MemoryDetail({
   editForm: MemoryEditForm | undefined;
   isEditing: boolean;
   isLoading: boolean;
+  lastReviewAction: MemoryLastReviewAction | undefined;
   memory: Memory;
   onCancelEdit(): void;
   onCopyMemory(): void;
@@ -500,6 +512,13 @@ function MemoryDetail({
           </button>
         </div>
       </div>
+
+      {lastReviewAction ? (
+        <div className="notice-banner inline" data-memory-feedback="last-action">
+          {t("review.lastActionPrefix")} {memoryReviewActionLabel(lastReviewAction.action, t)} ·{" "}
+          {t("memory.reviewActionRecorded")}
+        </div>
+      ) : null}
 
       {isLoading ? <div className="empty-state compact">{t("memory.loadingDetail")}</div> : null}
 
@@ -971,6 +990,15 @@ function memoryFieldLabel(field: string, t: ReturnType<typeof useI18n>["t"]): st
   if (field === "body") return t("memory.field.body");
   if (field === "tags") return t("memory.field.tags");
   return field;
+}
+
+function memoryReviewActionLabel(
+  action: MemoryReviewAction,
+  t: ReturnType<typeof useI18n>["t"]
+): string {
+  if (action === "confirm") return t("review.action.confirm");
+  if (action === "reject") return t("review.action.reject");
+  return t("review.action.archive");
 }
 
 function sortedUnique<T extends string>(values: Array<T | undefined>): T[] {

@@ -28,6 +28,11 @@ describe("MemoryPage governance workbench", () => {
     expect(source).toContain("confirm.deleteMemory");
     expect(source).toContain("confirm.rollbackMemoryVersion");
     expect(source).toContain("memory.agentContextBlocked");
+    expect(source).toContain("lastReviewAction");
+    expect(source).toContain("setLastReviewAction");
+    expect(source).toContain('data-memory-feedback="last-action"');
+    expect(source).toContain("review.lastActionPrefix");
+    expect(source).toContain("memory.reviewActionRecorded");
     expect(source).toContain("changedFields");
   });
 
