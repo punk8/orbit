@@ -286,6 +286,45 @@ button {
   line-height: 1.4;
 }
 
+.handoff-scope-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  padding: 16px 16px 0;
+}
+
+.handoff-scope-summary > div {
+  border: 1px solid #d9e0dc;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.handoff-scope-summary strong {
+  display: block;
+  color: #151b1f;
+  font-size: 20px;
+  line-height: 1.15;
+  margin: 4px 0 8px;
+}
+
+.handoff-scope-summary span {
+  color: #5d6465;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.handoff-scope-boundary {
+  margin: 12px 16px 16px;
+  border: 1px solid #d9e0dc;
+  border-radius: 8px;
+  background: #f6fbf8;
+  color: #315c52;
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 10px 12px;
+}
+
 .today-workbench {
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.75fr);

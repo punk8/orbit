@@ -153,6 +153,8 @@ export function HandoffPage({
 
       {error ? <div className="error-banner">{`${t("handoff.error")}: ${error}`}</div> : null}
 
+      {result ? <HandoffGeneratedScopeSummary pack={result.handoff} /> : null}
+
       {result ? (
         <HandoffSafetySummary
           pack={result.handoff}
@@ -964,6 +966,95 @@ function HandoffBulletList({ items }: { items: string[] }): ReactElement {
       ))}
     </ul>
   );
+}
+
+function HandoffGeneratedScopeSummary({ pack }: { pack: HandoffPack }): ReactElement {
+  const { t, formatDate } = useI18n();
+  const summary = buildHandoffScopeSummary(pack, t, formatDate);
+
+  return (
+    <Section title={t("handoff.generatedScope")}>
+      <div className="handoff-scope-summary">
+        <div>
+          <p className="eyebrow">{t("handoff.scopeKind")}</p>
+          <strong>{summary.kind}</strong>
+          <span>{summary.value}</span>
+        </div>
+        <div>
+          <p className="eyebrow">{t("handoff.generatedAt")}</p>
+          <strong>{summary.generatedAt}</strong>
+          <span>{summary.objective}</span>
+        </div>
+        <div>
+          <p className="eyebrow">{t("handoff.scopeIncluded")}</p>
+          <strong>{summary.included}</strong>
+          <span>{summary.includedDetail}</span>
+        </div>
+        <div>
+          <p className="eyebrow">{t("handoff.scopeExcluded")}</p>
+          <strong>{summary.excluded}</strong>
+          <span>{t("handoff.excludedByPolicyDetail")}</span>
+        </div>
+        <div>
+          <p className="eyebrow">{t("handoff.scopeEvidence")}</p>
+          <strong>{summary.evidence}</strong>
+          <span>{t("handoff.evidenceDetail")}</span>
+        </div>
+      </div>
+      <p className="handoff-scope-boundary">{t("handoff.scopeAgentSafeBoundary")}</p>
+    </Section>
+  );
+}
+
+function buildHandoffScopeSummary(
+  pack: HandoffPack,
+  t: ReturnType<typeof useI18n>["t"],
+  formatDate: ReturnType<typeof useI18n>["formatDate"]
+): {
+  kind: string;
+  value: string;
+  generatedAt: string;
+  objective: string;
+  included: number;
+  includedDetail: string;
+  excluded: number;
+  evidence: number;
+} {
+  const included =
+    pack.recentActivity.length +
+    pack.confirmedKnowledge.length +
+    pack.activeMemories.length +
+    pack.recommendedNextActions.length;
+  const scopeValue =
+    pack.kind === "project" ? (pack.project ?? t("fallback.none")) : formatDate(pack.date ?? "");
+
+  return {
+    kind: pack.kind === "project" ? t("handoff.project") : t("handoff.today"),
+    value: `${t("handoff.scopeValue")}: ${scopeValue}`,
+    generatedAt: formatHandoffGeneratedAt(pack.generatedAt),
+    objective: formatObjectiveForDisplay(pack.objective),
+    included,
+    includedDetail: [
+      `${t("handoff.includedRecentActivity")}: ${pack.recentActivity.length}`,
+      `${t("handoff.includedConfirmedKnowledge")}: ${pack.confirmedKnowledge.length}`,
+      `${t("handoff.includedActiveMemory")}: ${pack.activeMemories.length}`,
+      `${t("handoff.includedRecommendations")}: ${pack.recommendedNextActions.length}`
+    ].join(" · "),
+    excluded: pack.excluded.length,
+    evidence: pack.evidenceIndex.length
+  };
+}
+
+function formatHandoffGeneratedAt(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat(undefined, {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).format(date);
 }
 
 function HandoffSafetySummary({

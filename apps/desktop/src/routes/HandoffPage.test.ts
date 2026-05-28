@@ -135,4 +135,21 @@ describe("HandoffPage", () => {
     expect(source).toContain("handoff.openRiskKnowledge");
     expect(source).toContain("handoff.openRiskRecommendation");
   });
+
+  it("surfaces the generated handoff scope before Markdown and JSON previews", () => {
+    const source = readFileSync(new URL("./HandoffPage.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("HandoffGeneratedScopeSummary");
+    expect(source).toContain("buildHandoffScopeSummary");
+    expect(source).toContain("handoff.generatedScope");
+    expect(source).toContain("handoff.scopeKind");
+    expect(source).toContain("handoff.scopeValue");
+    expect(source).toContain("handoff.generatedAt");
+    expect(source).toContain("handoff.scopeIncluded");
+    expect(source).toContain("handoff.scopeExcluded");
+    expect(source).toContain("handoff.scopeEvidence");
+    expect(source).toContain("handoff.scopeAgentSafeBoundary");
+    expect(source).toContain("pack.kind === \"project\"");
+    expect(source).toContain("pack.date ??");
+  });
 });
