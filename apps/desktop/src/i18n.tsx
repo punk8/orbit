@@ -622,6 +622,8 @@ const translations = {
     "source.importPreviewing": "Previewing...",
     "source.confirmImport": "Confirm import",
     "source.importing": "Importing...",
+    "source.importNoEvents":
+      "No events were parsed from this path. Fix the path or sanitized import format before confirming.",
     "source.importPathChooseFailed": "Could not choose import path",
     "source.importFocusHint":
       "After confirmation, Orbit opens the Activity session generated from this import.",
@@ -1668,6 +1670,7 @@ const translations = {
     "source.importPreviewing": "预览中...",
     "source.confirmImport": "确认导入",
     "source.importing": "导入中...",
+    "source.importNoEvents": "该路径没有解析出事件。请先修正路径或脱敏导入格式，再确认导入。",
     "source.importPathChooseFailed": "无法选择导入路径",
     "source.importFocusHint": "确认后，Orbit 会打开这次导入生成的 Activity 片段。",
     "source.importGuide": "导入格式说明",

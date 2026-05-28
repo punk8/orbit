@@ -187,7 +187,7 @@ export function SourcesPage({
               </button>
               <button
                 className="secondary-button"
-                disabled={!preview || isImporting}
+                disabled={!preview || preview.eventCount === 0 || isImporting}
                 onClick={() => void confirmImport()}
                 type="button"
               >
@@ -248,6 +248,9 @@ export function SourcesPage({
             </div>
           ) : null}
           {preview ? <SourceImportSampleEvents preview={preview} /> : null}
+          {preview?.eventCount === 0 ? (
+            <p className="warning-text">{t("source.importNoEvents")}</p>
+          ) : null}
           {preview ? (
             <p className="source-import-focus-hint">{t("source.importFocusHint")}</p>
           ) : null}

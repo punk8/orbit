@@ -23,6 +23,8 @@ describe("SourcesPage source governance controls", () => {
     expect(source).toContain("preview.sampleEvents");
     expect(source).toContain("sample.sourcePointer");
     expect(source).toContain("sample.summary");
+    expect(source).toContain("source.importNoEvents");
+    expect(source).toContain("preview.eventCount === 0");
     expect(source).toContain("preview.permission.canStoreRaw");
     expect(source).toContain("preview.permission.canUseForAI");
     expect(source).toContain("preview.permission.canExportToAgent");
