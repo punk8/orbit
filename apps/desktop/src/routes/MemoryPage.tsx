@@ -16,6 +16,8 @@ interface MemoryPageProps {
   onFocusConsumed(): void;
   onDeleteMemory(id: string): Promise<void>;
   onEditMemory(id: string, patch: MemoryEditInput): Promise<void>;
+  onOpenActivitySession(sessionId: string): void;
+  onOpenKnowledgeArtifact(artifactId: string): void;
   onRollbackMemoryVersion(id: string): Promise<void>;
   onReviewMemory(id: string, action: MemoryReviewAction): Promise<void>;
 }
@@ -48,6 +50,8 @@ export function MemoryPage({
   onFocusConsumed,
   onDeleteMemory,
   onEditMemory,
+  onOpenActivitySession,
+  onOpenKnowledgeArtifact,
   onRollbackMemoryVersion,
   onReviewMemory
 }: MemoryPageProps): ReactElement {
@@ -376,6 +380,8 @@ export function MemoryPage({
                 onCopyMemory={() => void copyMemory(activeMemory)}
                 onDeleteMemory={() => void deleteMemory(activeMemory)}
                 onEditFormChange={setEditForm}
+                onOpenActivitySession={onOpenActivitySession}
+                onOpenKnowledgeArtifact={onOpenKnowledgeArtifact}
                 onRollbackMemoryVersion={() => void rollbackMemory(activeMemory)}
                 onReview={(action) => void reviewMemory(activeMemory, action)}
                 onSaveEdit={() => void saveEdit(activeMemory)}
@@ -403,6 +409,8 @@ function MemoryDetail({
   onCopyMemory,
   onDeleteMemory,
   onEditFormChange,
+  onOpenActivitySession,
+  onOpenKnowledgeArtifact,
   onRollbackMemoryVersion,
   onReview,
   onSaveEdit,
@@ -419,6 +427,8 @@ function MemoryDetail({
   onCopyMemory(): void;
   onDeleteMemory(): void;
   onEditFormChange(next: MemoryEditForm): void;
+  onOpenActivitySession(sessionId: string): void;
+  onOpenKnowledgeArtifact(artifactId: string): void;
   onRollbackMemoryVersion(): void;
   onReview(action: MemoryReviewAction): void;
   onSaveEdit(): void;
@@ -551,7 +561,17 @@ function MemoryDetail({
             <div className="linked-object-list">
               {detail.sourceKnowledge.map((artifact) => (
                 <article key={artifact.id}>
-                  <h4>{artifact.title}</h4>
+                  <div className="item-heading">
+                    <h4>{artifact.title}</h4>
+                    <button
+                      className="secondary-button compact-button"
+                      data-memory-action="open-source-knowledge"
+                      onClick={() => onOpenKnowledgeArtifact(artifact.id)}
+                      type="button"
+                    >
+                      {t("memory.openSourceKnowledge")}
+                    </button>
+                  </div>
                   <p>
                     {artifact.type} · {artifact.status}
                   </p>
@@ -567,7 +587,17 @@ function MemoryDetail({
             <div className="linked-object-list">
               {detail.sourceSessions.map((session) => (
                 <article key={session.id}>
-                  <h4>{session.title}</h4>
+                  <div className="item-heading">
+                    <h4>{session.title}</h4>
+                    <button
+                      className="secondary-button compact-button"
+                      data-memory-action="open-source-activity"
+                      onClick={() => onOpenActivitySession(session.id)}
+                      type="button"
+                    >
+                      {t("memory.openSourceActivity")}
+                    </button>
+                  </div>
                   <p>{formatDateTimeRange(session.startAt, session.endAt)}</p>
                 </article>
               ))}

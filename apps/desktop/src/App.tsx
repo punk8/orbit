@@ -766,6 +766,8 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
           onFocusConsumed={actions.clearMemoryFocus}
           onDeleteMemory={actions.deleteMemory}
           onEditMemory={actions.editMemory}
+          onOpenActivitySession={actions.focusActivitySession}
+          onOpenKnowledgeArtifact={actions.focusKnowledge}
           onRollbackMemoryVersion={actions.rollbackMemoryVersion}
           onReviewMemory={actions.reviewMemory}
         />

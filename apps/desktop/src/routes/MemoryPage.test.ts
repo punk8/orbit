@@ -30,4 +30,18 @@ describe("MemoryPage governance workbench", () => {
     expect(source).toContain("memory.agentContextBlocked");
     expect(source).toContain("changedFields");
   });
+
+  it("can trace Memory source Knowledge and Activity back to local workbenches", () => {
+    const source = readFileSync(new URL("./MemoryPage.tsx", import.meta.url), "utf8");
+    const app = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("onOpenKnowledgeArtifact");
+    expect(source).toContain("onOpenActivitySession");
+    expect(app).toContain("onOpenKnowledgeArtifact={actions.focusKnowledge}");
+    expect(app).toContain("onOpenActivitySession={actions.focusActivitySession}");
+    expect(source).toContain('data-memory-action="open-source-knowledge"');
+    expect(source).toContain('data-memory-action="open-source-activity"');
+    expect(source).toContain("memory.openSourceKnowledge");
+    expect(source).toContain("memory.openSourceActivity");
+  });
 });
