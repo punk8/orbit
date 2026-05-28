@@ -37,6 +37,8 @@ export function ReviewQueuePage({
     (artifact) => artifact.status === "draft"
   );
   const memoryCandidates = snapshot.memories.filter((memory) => memory.status === "needs_review");
+  const reviewQueueHasKnowledge = knowledgeDrafts.length > 0;
+  const reviewQueueHasMemory = memoryCandidates.length > 0;
   const reviewQueueEmpty = knowledgeDrafts.length === 0 && memoryCandidates.length === 0;
   const toggleEvidence = (id: string): void => {
     setExpandedEvidenceIds((current) => {
@@ -61,17 +63,27 @@ export function ReviewQueuePage({
   };
 
   return (
-    <div className="page-grid two-column">
-      <div className="review-queue-summary">
-        <span>
-          {t("review.pendingKnowledgeCount")}: {knowledgeDrafts.length}
-        </span>
-        <span>
-          {t("review.pendingMemoryCount")}: {memoryCandidates.length}
-        </span>
+    <div className="page-grid review-queue-page">
+      <div className="review-queue-topline">
+        <div className="review-queue-summary">
+          <span>
+            {t("review.pendingKnowledgeCount")}: {knowledgeDrafts.length}
+          </span>
+          <span>
+            {t("review.pendingMemoryCount")}: {memoryCandidates.length}
+          </span>
+        </div>
+        <div className="meta-line">
+          <span>{t("review.empty.noExternalActions")}</span>
+          <span>{t("source.rawNotStored")}</span>
+          <span>{t("source.agentExportBlocked")}</span>
+        </div>
       </div>
       {lastAction ? (
-        <div className="notice-banner inline review-action-feedback" data-review-feedback="last-action">
+        <div
+          className="notice-banner inline review-action-feedback"
+          data-review-feedback="last-action"
+        >
           {t("review.lastActionPrefix")} {reviewKindLabel(lastAction.kind, t)} ·{" "}
           {reviewActionLabel(lastAction.action, t)}
         </div>
@@ -89,207 +101,232 @@ export function ReviewQueuePage({
             </div>
           </div>
           <div className="review-empty-actions">
-            <button className="secondary-button" onClick={() => onNavigate("sources")} type="button">
+            <button
+              className="secondary-button"
+              onClick={() => onNavigate("sources")}
+              type="button"
+            >
               {t("review.empty.addSource")}
             </button>
-            <button className="secondary-button" onClick={() => onNavigate("activity")} type="button">
+            <button
+              className="secondary-button"
+              onClick={() => onNavigate("activity")}
+              type="button"
+            >
               {t("review.empty.openActivity")}
             </button>
-            <button className="secondary-button" onClick={() => onNavigate("handoff")} type="button">
+            <button
+              className="secondary-button"
+              onClick={() => onNavigate("handoff")}
+              type="button"
+            >
               {t("review.empty.openHandoff")}
             </button>
           </div>
         </section>
       ) : null}
-      <Section title={t("section.knowledgeDrafts")}>
-        <div className="item-list compact">
-          {knowledgeDrafts.map((artifact) => {
-            const sourceSessionId = artifact.metadata.sourceSessionIds[0];
-            return (
-            <article className="list-item vertical" key={artifact.id}>
-              <div className="item-heading">
-                <h3>{artifact.title}</h3>
-                <span>{status(artifact.status)}</span>
-              </div>
-              <p>{artifact.content.description}</p>
-              <div className="review-queue-markdown-preview">
-                <h4>{t("review.markdownPreview")}</h4>
-                <pre className="markdown-preview">{artifact.content.markdown}</pre>
-              </div>
-              <div className="meta-line review-metrics">
-                <span>{formatConfidence(artifact.confidence, t("knowledge.confidence"))}</span>
-                <span>
-                  {artifact.evidence.length} {t("knowledge.evidenceCountLabel")}
-                </span>
-                <span>
-                  {artifact.metadata.sourceSessionIds.length} {t("knowledge.sourceSessionsShort")}
-                </span>
-                <span>{sensitivity(inferEvidenceSensitivity(artifact.evidence))}</span>
-              </div>
-              <button
-                className="text-button"
-                onClick={() => toggleEvidence(artifact.id)}
-                type="button"
-              >
-                {expandedEvidenceIds.has(artifact.id)
-                  ? t("review.hideEvidence")
-                  : t("review.showEvidence")}
-              </button>
-              {expandedEvidenceIds.has(artifact.id) ? (
-                <EvidenceList evidence={artifact.evidence} limit={8} />
-              ) : null}
-              <div className="action-row">
-                <button
-                  className="secondary-button"
-                  onClick={() => void reviewKnowledge(artifact.id, "confirm")}
-                  type="button"
-                >
-                  {t("action.confirm")}
-                </button>
-                <button
-                  className="secondary-button"
-                  onClick={() => void reviewKnowledge(artifact.id, "reject")}
-                  type="button"
-                >
-                  {t("action.reject")}
-                </button>
-                <button
-                  className="secondary-button"
-                  onClick={() => void reviewKnowledge(artifact.id, "archive")}
-                  type="button"
-                >
-                  {t("action.archive")}
-                </button>
-                <button
-                  className="secondary-button"
-                  onClick={() => onOpenKnowledge(artifact.id)}
-                  type="button"
-                >
-                  {t("review.openKnowledge")}
-                </button>
-                {sourceSessionId ? (
-                  <button
-                    className="secondary-button"
-                    data-review-action="open-source-activity"
-                    onClick={() => onOpenActivitySession(sourceSessionId)}
-                    type="button"
-                  >
-                    {t("review.openSourceActivity")}
-                  </button>
-                ) : null}
-              </div>
-            </article>
-            );
-          })}
-          {knowledgeDrafts.length === 0 ? (
-            <div className="empty-state">{t("empty.noKnowledgeDrafts")}</div>
-          ) : null}
-        </div>
-      </Section>
-      <Section title={t("section.memoryCandidates")}>
-        <div className="item-list compact">
-          {memoryCandidates.map((memory) => {
-            const sourceSessionId = memory.sourceSessionIds[0];
-            return (
-              <article className="list-item vertical" key={memory.id}>
-                <div className="item-heading">
-                  <h3>{memory.title}</h3>
-                  <span>{status(memory.status)}</span>
-                </div>
-                <p>{memory.body}</p>
-                <div className="review-memory-governance-preview">
-                  <h4>{t("review.memoryGovernancePreview")}</h4>
-                  <div>
-                    <span>
-                      {t("filter.kind")}: {memoryKind(memory.kind)}
-                    </span>
-                    <span>
-                      {t("memory.scope")}: {formatReviewMemoryScope(memory, t)}
-                    </span>
-                    <span>
-                      {t("filter.source")}: {formatReviewMemorySources(memory, sourceKind, t)}
-                    </span>
-                    <span>
-                      {t("memory.tags")}: {memory.tags.join(", ") || t("fallback.none")}
-                    </span>
-                    <span>
-                      {memory.status === "confirmed"
-                        ? t("memory.agentContextAllowed")
-                        : t("review.memoryAgentContextBlocked")}
-                    </span>
-                  </div>
-                </div>
-                <div className="meta-line review-metrics">
-                  <span>{formatConfidence(memory.confidence, t("knowledge.confidence"))}</span>
-                  <span>
-                    {memory.evidence.length} {t("knowledge.evidenceCountLabel")}
-                  </span>
-                  <span>
-                    {memory.sourceSessionIds.length} {t("knowledge.sourceSessionsShort")}
-                  </span>
-                  <span>{sensitivity(inferEvidenceSensitivity(memory.evidence))}</span>
-                </div>
-                <button
-                  className="text-button"
-                  onClick={() => toggleEvidence(memory.id)}
-                  type="button"
-                >
-                  {expandedEvidenceIds.has(memory.id)
-                    ? t("review.hideEvidence")
-                    : t("review.showEvidence")}
-                </button>
-                {expandedEvidenceIds.has(memory.id) ? (
-                  <EvidenceList evidence={memory.evidence} limit={8} />
-                ) : null}
-                <div className="action-row">
-                  <button
-                    className="secondary-button"
-                    onClick={() => void reviewMemory(memory.id, "confirm")}
-                    type="button"
-                  >
-                    {t("action.confirm")}
-                  </button>
-                  <button
-                    className="secondary-button"
-                    onClick={() => void reviewMemory(memory.id, "reject")}
-                    type="button"
-                  >
-                    {t("action.reject")}
-                  </button>
-                  <button
-                    className="secondary-button"
-                    data-review-action="open-memory"
-                    onClick={() => onOpenMemory(memory.id)}
-                    type="button"
-                  >
-                    {t("review.openMemory")}
-                  </button>
-                  <button
-                    className="secondary-button"
-                    onClick={() => void reviewMemory(memory.id, "archive")}
-                    type="button"
-                  >
-                    {t("action.archive")}
-                  </button>
-                  {sourceSessionId ? (
+      <div
+        className={`review-queue-workbench ${
+          reviewQueueHasKnowledge && reviewQueueHasMemory ? "" : "single-column"
+        }`}
+      >
+        <div className="review-queue-primary">
+          <Section title={t("section.knowledgeDrafts")}>
+            <div className="item-list compact">
+              {knowledgeDrafts.map((artifact) => {
+                const sourceSessionId = artifact.metadata.sourceSessionIds[0];
+                return (
+                  <article className="list-item vertical" key={artifact.id}>
+                    <div className="item-heading">
+                      <h3>{artifact.title}</h3>
+                      <span>{status(artifact.status)}</span>
+                    </div>
+                    <p>{artifact.content.description}</p>
+                    <div className="review-queue-markdown-preview">
+                      <h4>{t("review.markdownPreview")}</h4>
+                      <pre className="markdown-preview">{artifact.content.markdown}</pre>
+                    </div>
+                    <div className="meta-line review-metrics">
+                      <span>
+                        {formatConfidence(artifact.confidence, t("knowledge.confidence"))}
+                      </span>
+                      <span>
+                        {artifact.evidence.length} {t("knowledge.evidenceCountLabel")}
+                      </span>
+                      <span>
+                        {artifact.metadata.sourceSessionIds.length}{" "}
+                        {t("knowledge.sourceSessionsShort")}
+                      </span>
+                      <span>{sensitivity(inferEvidenceSensitivity(artifact.evidence))}</span>
+                    </div>
                     <button
-                      className="secondary-button"
-                      data-review-action="open-memory-source-activity"
-                      onClick={() => onOpenActivitySession(sourceSessionId)}
+                      className="text-button review-evidence-toggle"
+                      onClick={() => toggleEvidence(artifact.id)}
                       type="button"
                     >
-                      {t("review.openSourceActivity")}
+                      {expandedEvidenceIds.has(artifact.id)
+                        ? t("review.hideEvidence")
+                        : t("review.showEvidence")}
                     </button>
-                  ) : null}
-                </div>
-              </article>
-            );
-          })}
-          {memoryCandidates.length === 0 ? (
-            <div className="empty-state">{t("empty.noMemoryCandidates")}</div>
-          ) : null}
+                    {expandedEvidenceIds.has(artifact.id) ? (
+                      <EvidenceList evidence={artifact.evidence} limit={8} />
+                    ) : null}
+                    <div className="action-row">
+                      <button
+                        className="secondary-button"
+                        onClick={() => void reviewKnowledge(artifact.id, "confirm")}
+                        type="button"
+                      >
+                        {t("action.confirm")}
+                      </button>
+                      <button
+                        className="secondary-button"
+                        onClick={() => void reviewKnowledge(artifact.id, "reject")}
+                        type="button"
+                      >
+                        {t("action.reject")}
+                      </button>
+                      <button
+                        className="secondary-button"
+                        onClick={() => void reviewKnowledge(artifact.id, "archive")}
+                        type="button"
+                      >
+                        {t("action.archive")}
+                      </button>
+                      <button
+                        className="secondary-button"
+                        onClick={() => onOpenKnowledge(artifact.id)}
+                        type="button"
+                      >
+                        {t("review.openKnowledge")}
+                      </button>
+                      {sourceSessionId ? (
+                        <button
+                          className="secondary-button"
+                          data-review-action="open-source-activity"
+                          onClick={() => onOpenActivitySession(sourceSessionId)}
+                          type="button"
+                        >
+                          {t("review.openSourceActivity")}
+                        </button>
+                      ) : null}
+                    </div>
+                  </article>
+                );
+              })}
+              {knowledgeDrafts.length === 0 ? (
+                <div className="empty-state">{t("empty.noKnowledgeDrafts")}</div>
+              ) : null}
+            </div>
+          </Section>
         </div>
-      </Section>
+        <div className="review-queue-secondary">
+          <Section title={t("section.memoryCandidates")}>
+            <div className="item-list compact">
+              {memoryCandidates.map((memory) => {
+                const sourceSessionId = memory.sourceSessionIds[0];
+                return (
+                  <article className="list-item vertical" key={memory.id}>
+                    <div className="item-heading">
+                      <h3>{memory.title}</h3>
+                      <span>{status(memory.status)}</span>
+                    </div>
+                    <p>{memory.body}</p>
+                    <div className="review-memory-governance-preview">
+                      <h4>{t("review.memoryGovernancePreview")}</h4>
+                      <div>
+                        <span>
+                          {t("filter.kind")}: {memoryKind(memory.kind)}
+                        </span>
+                        <span>
+                          {t("memory.scope")}: {formatReviewMemoryScope(memory, t)}
+                        </span>
+                        <span>
+                          {t("filter.source")}: {formatReviewMemorySources(memory, sourceKind, t)}
+                        </span>
+                        <span>
+                          {t("memory.tags")}: {memory.tags.join(", ") || t("fallback.none")}
+                        </span>
+                        <span>
+                          {memory.status === "confirmed"
+                            ? t("memory.agentContextAllowed")
+                            : t("review.memoryAgentContextBlocked")}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="meta-line review-metrics">
+                      <span>{formatConfidence(memory.confidence, t("knowledge.confidence"))}</span>
+                      <span>
+                        {memory.evidence.length} {t("knowledge.evidenceCountLabel")}
+                      </span>
+                      <span>
+                        {memory.sourceSessionIds.length} {t("knowledge.sourceSessionsShort")}
+                      </span>
+                      <span>{sensitivity(inferEvidenceSensitivity(memory.evidence))}</span>
+                    </div>
+                    <button
+                      className="text-button review-evidence-toggle"
+                      onClick={() => toggleEvidence(memory.id)}
+                      type="button"
+                    >
+                      {expandedEvidenceIds.has(memory.id)
+                        ? t("review.hideEvidence")
+                        : t("review.showEvidence")}
+                    </button>
+                    {expandedEvidenceIds.has(memory.id) ? (
+                      <EvidenceList evidence={memory.evidence} limit={8} />
+                    ) : null}
+                    <div className="action-row">
+                      <button
+                        className="secondary-button"
+                        onClick={() => void reviewMemory(memory.id, "confirm")}
+                        type="button"
+                      >
+                        {t("action.confirm")}
+                      </button>
+                      <button
+                        className="secondary-button"
+                        onClick={() => void reviewMemory(memory.id, "reject")}
+                        type="button"
+                      >
+                        {t("action.reject")}
+                      </button>
+                      <button
+                        className="secondary-button"
+                        data-review-action="open-memory"
+                        onClick={() => onOpenMemory(memory.id)}
+                        type="button"
+                      >
+                        {t("review.openMemory")}
+                      </button>
+                      <button
+                        className="secondary-button"
+                        onClick={() => void reviewMemory(memory.id, "archive")}
+                        type="button"
+                      >
+                        {t("action.archive")}
+                      </button>
+                      {sourceSessionId ? (
+                        <button
+                          className="secondary-button"
+                          data-review-action="open-memory-source-activity"
+                          onClick={() => onOpenActivitySession(sourceSessionId)}
+                          type="button"
+                        >
+                          {t("review.openSourceActivity")}
+                        </button>
+                      ) : null}
+                    </div>
+                  </article>
+                );
+              })}
+              {memoryCandidates.length === 0 ? (
+                <div className="empty-state">{t("empty.noMemoryCandidates")}</div>
+              ) : null}
+            </div>
+          </Section>
+        </div>
+      </div>
     </div>
   );
 }
@@ -338,7 +375,11 @@ function formatReviewMemorySources(
     ...(memory.scope.sourceKinds ?? []),
     ...memory.evidence.map((ref) => ref.sourceKind)
   ]);
-  return Array.from(sourceKinds).map((kind) => sourceKind(kind)).join(", ") || t("fallback.none");
+  return (
+    Array.from(sourceKinds)
+      .map((kind) => sourceKind(kind))
+      .join(", ") || t("fallback.none")
+  );
 }
 
 function inferEvidenceSensitivity(

@@ -17,9 +17,9 @@ describe("ReviewQueuePage review workflow", () => {
     expect(source).toContain("review.openSourceActivity");
     expect(source).toContain("artifact.metadata.sourceSessionIds[0]");
     expect(source).toContain("memory.sourceSessionIds[0]");
-    expect(source).toContain("data-review-action=\"open-source-activity\"");
-    expect(source).toContain("data-review-action=\"open-memory-source-activity\"");
-    expect(source).toContain("data-review-action=\"open-memory\"");
+    expect(source).toContain('data-review-action="open-source-activity"');
+    expect(source).toContain('data-review-action="open-memory-source-activity"');
+    expect(source).toContain('data-review-action="open-memory"');
     expect(app).toContain("onOpenActivitySession={actions.focusActivitySession}");
     expect(app).toContain("onOpenMemory={actions.focusMemory}");
     expect(source).toContain("formatConfidence");
@@ -30,7 +30,7 @@ describe("ReviewQueuePage review workflow", () => {
     expect(source).toContain("review.lastActionPrefix");
     expect(source).toContain("review.pendingKnowledgeCount");
     expect(source).toContain("review.pendingMemoryCount");
-    expect(source).toContain("data-review-feedback=\"last-action\"");
+    expect(source).toContain('data-review-feedback="last-action"');
     expect(source).toContain("withoutExpandedEvidence");
     expect(source).toContain("review.markdownPreview");
     expect(source).toContain("artifact.content.markdown");
@@ -41,7 +41,26 @@ describe("ReviewQueuePage review workflow", () => {
     expect(source).toContain("formatReviewMemoryScope");
     expect(source).toContain("formatReviewMemorySources");
     expect(source).toContain("memoryKind(memory.kind)");
-    expect(source).toContain("memory.status === \"confirmed\"");
+    expect(source).toContain('memory.status === "confirmed"');
+  });
+
+  it("keeps review queue cards anchored in a scan-friendly workbench layout", () => {
+    const source = readFileSync(new URL("./ReviewQueuePage.tsx", import.meta.url), "utf8");
+    const styles = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+
+    expect(source).toContain("review-queue-page");
+    expect(source).toContain("review-queue-topline");
+    expect(source).toContain("review-queue-workbench");
+    expect(source).toContain("review-queue-primary");
+    expect(source).toContain("review-queue-secondary");
+    expect(source).toContain("reviewQueueHasKnowledge");
+    expect(source).toContain("reviewQueueHasMemory");
+    expect(source).toContain("review-evidence-toggle");
+    expect(styles).toContain(".review-queue-page");
+    expect(styles).toContain(".review-queue-topline");
+    expect(styles).toContain(".review-queue-workbench");
+    expect(styles).toContain(".review-evidence-toggle");
+    expect(styles).toContain("grid-template-columns: minmax(520px, 1.2fr) minmax(320px, 0.8fr)");
   });
 
   it("shows self-serve next steps when the review queue is empty", () => {
@@ -56,9 +75,9 @@ describe("ReviewQueuePage review workflow", () => {
     expect(source).toContain("review.empty.openActivity");
     expect(source).toContain("review.empty.openHandoff");
     expect(source).toContain("onNavigate");
-    expect(source).toContain("onNavigate(\"sources\")");
-    expect(source).toContain("onNavigate(\"activity\")");
-    expect(source).toContain("onNavigate(\"handoff\")");
+    expect(source).toContain('onNavigate("sources")');
+    expect(source).toContain('onNavigate("activity")');
+    expect(source).toContain('onNavigate("handoff")');
     expect(app).toContain("onNavigate={actions.navigate}");
     expect(i18n).toContain("review.empty.noExternalActions");
   });

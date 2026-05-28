@@ -2012,6 +2012,60 @@ button {
   flex-wrap: wrap;
 }
 
+.review-queue-page {
+  align-content: start;
+}
+
+.review-queue-topline {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #d8e2de;
+  border-radius: 8px;
+  background: #f7fbf9;
+  padding: 12px 14px;
+}
+
+.review-queue-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.review-queue-summary span {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  border: 1px solid #d7e3df;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #2f4f4a;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+}
+
+.review-action-feedback {
+  margin: 0;
+}
+
+.review-queue-workbench {
+  display: grid;
+  grid-template-columns: minmax(520px, 1.2fr) minmax(320px, 0.8fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.review-queue-workbench.single-column {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.review-queue-primary,
+.review-queue-secondary {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
 .review-empty-workflow {
   grid-column: 1 / -1;
   display: grid;
@@ -2090,6 +2144,22 @@ button {
   font-size: 12px;
   line-height: 1.25;
   padding: 3px 8px;
+}
+
+.review-evidence-toggle {
+  justify-self: start;
+  min-height: 30px;
+  border: 1px solid #d7ddd9;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #2d5d55;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 9px;
+}
+
+.review-evidence-toggle:hover {
+  background: #f2faf7;
 }
 
 .edit-panel label {
