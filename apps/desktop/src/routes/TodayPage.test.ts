@@ -104,4 +104,21 @@ describe("TodayPage context completion", () => {
     expect(recommendations).toContain("focusRecommendationId");
     expect(recommendations).toContain("recommendation.latestTodayFocused");
   });
+
+  it("shows a self-serve first-run path only when no real context exists", () => {
+    const source = readFileSync(new URL("./TodayPage.tsx", import.meta.url), "utf8");
+    const i18n = readFileSync(new URL("../i18n.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("isFirstRunEmpty");
+    expect(source).toContain("today-first-run-panel");
+    expect(source).toContain("today.firstRun.title");
+    expect(source).toContain("today.firstRun.addSource");
+    expect(source).toContain("today.firstRun.captureOnce");
+    expect(source).toContain("today.firstRun.review");
+    expect(source).toContain("today.firstRun.handoff");
+    expect(source).toContain("onNavigate?.(\"sources\")");
+    expect(source).toContain("onNavigate?.(\"review\")");
+    expect(i18n).toContain("today.firstRun.boundary");
+    expect(i18n).toContain("today.firstRun.noFixture");
+  });
 });

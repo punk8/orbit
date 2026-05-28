@@ -331,6 +331,69 @@ button {
   gap: 12px;
 }
 
+.today-first-run-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(420px, 1.15fr);
+  gap: 14px;
+  border: 1px solid #cfddd8;
+  border-radius: 8px;
+  background: #f6fbf8;
+  padding: 16px;
+}
+
+.today-first-run-copy h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.today-first-run-copy p {
+  margin: 8px 0 0;
+  color: #405052;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.today-first-run-steps {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.today-first-run-step {
+  min-width: 0;
+  border: 1px solid #d9e3df;
+  border-radius: 7px;
+  background: #ffffff;
+  cursor: pointer;
+  padding: 12px;
+  text-align: left;
+}
+
+.today-first-run-step:hover {
+  border-color: #b9c9c3;
+  background: #f9fcfa;
+}
+
+.today-first-run-step:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.today-first-run-step strong {
+  display: block;
+  color: #1e2a2d;
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.today-first-run-step span {
+  display: block;
+  margin-top: 5px;
+  color: #66716f;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .today-daily-brief {
   border: 1px solid #d9e0dc;
   border-radius: 8px;

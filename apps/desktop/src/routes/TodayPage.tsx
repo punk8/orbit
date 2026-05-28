@@ -36,6 +36,7 @@ export function TodayPage({
   const nextActions = buildNextActions(snapshot, t);
   const dailyBrief = buildTodayDailyBrief(snapshot, t);
   const handoffReadiness = buildTodayHandoffReadiness(snapshot);
+  const firstRunEmpty = isFirstRunEmpty(snapshot);
   const screenPolicy = snapshot.perception.sources.find((source) => source.sourceKind === "screen")
     ?.policy;
 
@@ -63,6 +64,66 @@ export function TodayPage({
           detail={t("detail.open")}
         />
       </div>
+
+      {firstRunEmpty ? (
+        <section className="today-first-run-panel" aria-label={t("today.firstRun.title")}>
+          <div className="today-first-run-copy">
+            <p className="eyebrow">start here</p>
+            <h2>{t("today.firstRun.title")}</h2>
+            <p>{t("today.firstRun.boundary")}</p>
+            <div className="meta-line">
+              <span>{t("today.firstRun.noFixture")}</span>
+              <span>{t("source.rawNotStored")}</span>
+              <span>{t("source.agentExportBlocked")}</span>
+            </div>
+          </div>
+          <div className="today-first-run-steps">
+            <button
+              className="today-first-run-step"
+              onClick={() => onNavigate?.("sources")}
+              type="button"
+            >
+              <strong>{t("today.firstRun.addSource")}</strong>
+              <span>{t("today.firstRun.addSourceDetail")}</span>
+            </button>
+            <button
+              className="today-first-run-step"
+              disabled={!onCaptureScreenOcr || isCapturingScreenOcr}
+              onClick={async () => {
+                if (!onCaptureScreenOcr) return;
+                setIsCapturingScreenOcr(true);
+                try {
+                  await onCaptureScreenOcr();
+                } finally {
+                  setIsCapturingScreenOcr(false);
+                }
+              }}
+              type="button"
+            >
+              <strong>
+                {isCapturingScreenOcr ? t("activity.capturingScreenOcr") : t("today.firstRun.captureOnce")}
+              </strong>
+              <span>{t("today.firstRun.captureOnceDetail")}</span>
+            </button>
+            <button
+              className="today-first-run-step"
+              onClick={() => onNavigate?.("review")}
+              type="button"
+            >
+              <strong>{t("today.firstRun.review")}</strong>
+              <span>{t("today.firstRun.reviewDetail")}</span>
+            </button>
+            <button
+              className="today-first-run-step"
+              onClick={() => onNavigate?.("handoff")}
+              type="button"
+            >
+              <strong>{t("today.firstRun.handoff")}</strong>
+              <span>{t("today.firstRun.handoffDetail")}</span>
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       <section className="today-daily-brief" aria-label={t("today.brief.title")}>
         <div className="today-daily-brief-heading">
@@ -549,6 +610,17 @@ interface TodayHandoffReadiness {
   included: number;
   excluded: number;
   needsReview: number;
+}
+
+function isFirstRunEmpty(snapshot: DesktopSnapshot): boolean {
+  return (
+    snapshot.counts.sources === 0 &&
+    snapshot.counts.events === 0 &&
+    snapshot.counts.activitySessions === 0 &&
+    snapshot.counts.knowledgeArtifacts === 0 &&
+    snapshot.counts.memories === 0 &&
+    snapshot.counts.recommendations === 0
+  );
 }
 
 function buildSourceStatus(
