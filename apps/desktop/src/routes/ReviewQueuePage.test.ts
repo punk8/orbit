@@ -43,4 +43,23 @@ describe("ReviewQueuePage review workflow", () => {
     expect(source).toContain("memoryKind(memory.kind)");
     expect(source).toContain("memory.status === \"confirmed\"");
   });
+
+  it("shows self-serve next steps when the review queue is empty", () => {
+    const source = readFileSync(new URL("./ReviewQueuePage.tsx", import.meta.url), "utf8");
+    const app = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");
+    const i18n = readFileSync(new URL("../i18n.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("reviewQueueEmpty");
+    expect(source).toContain("review-empty-workflow");
+    expect(source).toContain("review.empty.title");
+    expect(source).toContain("review.empty.addSource");
+    expect(source).toContain("review.empty.openActivity");
+    expect(source).toContain("review.empty.openHandoff");
+    expect(source).toContain("onNavigate");
+    expect(source).toContain("onNavigate(\"sources\")");
+    expect(source).toContain("onNavigate(\"activity\")");
+    expect(source).toContain("onNavigate(\"handoff\")");
+    expect(app).toContain("onNavigate={actions.navigate}");
+    expect(i18n).toContain("review.empty.noExternalActions");
+  });
 });

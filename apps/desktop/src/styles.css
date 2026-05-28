@@ -1984,6 +1984,37 @@ button {
   flex-wrap: wrap;
 }
 
+.review-empty-workflow {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  border: 1px solid #d8e2de;
+  border-radius: 8px;
+  background: #f7fbf9;
+  padding: 14px;
+}
+
+.review-empty-workflow h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.review-empty-workflow p {
+  max-width: 760px;
+  margin: 7px 0 0;
+  color: #4b5658;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.review-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .review-queue-markdown-preview {
   display: grid;
   gap: 6px;

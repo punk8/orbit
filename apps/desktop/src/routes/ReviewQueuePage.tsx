@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
 import type { DesktopSnapshot } from "../orbitApi";
+import type { DesktopPageId } from "../orbitApi";
 import type { KnowledgeReviewAction, MemoryReviewAction } from "@orbit/db";
 import { EvidenceList } from "../components/EvidenceList";
 import { Section } from "../components/Section";
@@ -17,6 +18,7 @@ export function ReviewQueuePage({
   onOpenKnowledge,
   onOpenMemory,
   onOpenActivitySession,
+  onNavigate,
   onReviewKnowledge,
   onReviewMemory
 }: {
@@ -24,6 +26,7 @@ export function ReviewQueuePage({
   onOpenKnowledge(id: string): void;
   onOpenMemory(id: string): void;
   onOpenActivitySession(id: string): void;
+  onNavigate(page: DesktopPageId): void;
   onReviewKnowledge(id: string, action: KnowledgeReviewAction): Promise<void>;
   onReviewMemory(id: string, action: MemoryReviewAction): Promise<void>;
 }): ReactElement {
@@ -34,6 +37,7 @@ export function ReviewQueuePage({
     (artifact) => artifact.status === "draft"
   );
   const memoryCandidates = snapshot.memories.filter((memory) => memory.status === "needs_review");
+  const reviewQueueEmpty = knowledgeDrafts.length === 0 && memoryCandidates.length === 0;
   const toggleEvidence = (id: string): void => {
     setExpandedEvidenceIds((current) => {
       const next = new Set(current);
@@ -71,6 +75,31 @@ export function ReviewQueuePage({
           {t("review.lastActionPrefix")} {reviewKindLabel(lastAction.kind, t)} ·{" "}
           {reviewActionLabel(lastAction.action, t)}
         </div>
+      ) : null}
+      {reviewQueueEmpty ? (
+        <section className="review-empty-workflow" aria-label={t("review.empty.title")}>
+          <div>
+            <p className="eyebrow">review workflow</p>
+            <h2>{t("review.empty.title")}</h2>
+            <p>{t("review.empty.description")}</p>
+            <div className="meta-line">
+              <span>{t("review.empty.noExternalActions")}</span>
+              <span>{t("source.rawNotStored")}</span>
+              <span>{t("source.agentExportBlocked")}</span>
+            </div>
+          </div>
+          <div className="review-empty-actions">
+            <button className="secondary-button" onClick={() => onNavigate("sources")} type="button">
+              {t("review.empty.addSource")}
+            </button>
+            <button className="secondary-button" onClick={() => onNavigate("activity")} type="button">
+              {t("review.empty.openActivity")}
+            </button>
+            <button className="secondary-button" onClick={() => onNavigate("handoff")} type="button">
+              {t("review.empty.openHandoff")}
+            </button>
+          </div>
+        </section>
       ) : null}
       <Section title={t("section.knowledgeDrafts")}>
         <div className="item-list compact">

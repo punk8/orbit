@@ -713,6 +713,13 @@ const translations = {
     "review.action.confirm": "confirmed",
     "review.action.reject": "rejected",
     "review.action.archive": "archived",
+    "review.empty.title": "Nothing is waiting for review yet",
+    "review.empty.description":
+      "Review Queue fills after explicit local imports or one-shot captures generate Knowledge drafts or Memory candidates. Start from a source, inspect Activity evidence, then return here to approve what should become long-lived context.",
+    "review.empty.noExternalActions": "No external actions are performed from this queue",
+    "review.empty.addSource": "Add a source",
+    "review.empty.openActivity": "Open Activity",
+    "review.empty.openHandoff": "Open Handoff",
     "source.manualScreenOcrTitle": "One-shot Screen/OCR capture",
     "source.manualScreenOcrBoundary":
       "Capture the current screen once after explicit user action. Orbit stores source-backed summary events and evidence pointers; continuous recording, microphone capture, raw screenshots, and raw Agent export stay off by default.",
@@ -1801,6 +1808,13 @@ const translations = {
     "review.action.confirm": "已确认",
     "review.action.reject": "已拒绝",
     "review.action.archive": "已归档",
+    "review.empty.title": "暂时没有待审阅内容",
+    "review.empty.description":
+      "Review Queue 会在显式本地导入或单次捕获生成知识草稿、记忆候选后出现内容。你可以先接入来源、查看 Activity 证据，再回到这里确认哪些内容值得长期保留。",
+    "review.empty.noExternalActions": "这个队列不会执行外部副作用动作",
+    "review.empty.addSource": "添加来源",
+    "review.empty.openActivity": "打开活动",
+    "review.empty.openHandoff": "打开交接",
     "source.manualScreenOcrTitle": "单次屏幕 / OCR 捕获",
     "source.manualScreenOcrBoundary":
       "用户明确点击后只捕获当前屏幕一次。Orbit 保存可追溯的摘要事件和证据指针；持续录屏、麦克风采集、raw 截图和 raw Agent 导出默认关闭。",

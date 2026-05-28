@@ -800,6 +800,7 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
           onOpenKnowledge={actions.focusKnowledge}
           onOpenMemory={actions.focusMemory}
           onOpenActivitySession={actions.focusActivitySession}
+          onNavigate={actions.navigate}
           onReviewKnowledge={actions.reviewKnowledge}
           onReviewMemory={actions.reviewMemory}
         />
