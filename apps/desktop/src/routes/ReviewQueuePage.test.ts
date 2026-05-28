@@ -14,7 +14,9 @@ describe("ReviewQueuePage review workflow", () => {
     expect(source).toContain("onOpenActivitySession");
     expect(source).toContain("review.openSourceActivity");
     expect(source).toContain("artifact.metadata.sourceSessionIds[0]");
+    expect(source).toContain("memory.sourceSessionIds[0]");
     expect(source).toContain("data-review-action=\"open-source-activity\"");
+    expect(source).toContain("data-review-action=\"open-memory-source-activity\"");
     expect(app).toContain("onOpenActivitySession={actions.focusActivitySession}");
     expect(source).toContain("formatConfidence");
     expect(source).toContain("inferEvidenceSensitivity");
