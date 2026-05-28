@@ -317,6 +317,9 @@ export function SourcesPage({
                     {config?.lastImport ? (
                       <span>{`${t("source.lastImport")} ${config.lastImport.importedAt}`}</span>
                     ) : null}
+                    {config?.lastImport ? (
+                      <span>{formatLastImportSummary(t, config.lastImport)}</span>
+                    ) : null}
                   </div>
                   {runtimeSource && !importOnly ? (
                     <div className="meta-line permission-line runtime-source-line">
@@ -677,6 +680,18 @@ function sourceImportPathTypeLabel(
 function formatDuration(ms: number): string {
   if (ms < 60_000) return `${Math.round(ms / 1000)}s`;
   return `${Math.round(ms / 60_000)}m`;
+}
+
+function formatLastImportSummary(
+  t: ReturnType<typeof useI18n>["t"],
+  lastImport: NonNullable<DesktopSnapshot["sourceAdapterConfigs"][string]["lastImport"]>
+): string {
+  return [
+    `${t("source.lastImportRead")} ${lastImport.read}`,
+    `${t("source.lastImportInserted")} ${lastImport.inserted}`,
+    `${t("source.lastImportSkipped")} ${lastImport.skipped}`,
+    `${t("source.lastImportWarnings")} ${lastImport.warnings.length}`
+  ].join(" · ");
 }
 
 function tPerceptionStatus(
