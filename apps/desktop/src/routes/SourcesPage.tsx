@@ -257,7 +257,12 @@ export function SourcesPage({
           {preview?.warnings.length ? (
             <p className="warning-text">{preview.warnings[0]}</p>
           ) : null}
-          {previewError ? <p className="error-text">{previewError}</p> : null}
+          {previewError ? (
+            <div className="source-import-error">
+              <p className="error-text">{previewError}</p>
+              <p className="warning-text">{sourceImportErrorHint(t, importKind)}</p>
+            </div>
+          ) : null}
         </div>
       </Section>
       <Section title={t("section.sourceStatus")}>
@@ -675,6 +680,16 @@ function sourceImportPathTypeLabel(
   pathType: "file" | "folder"
 ): string {
   return pathType === "file" ? t("source.pathType.file") : t("source.pathType.folder");
+}
+
+function sourceImportErrorHint(
+  t: ReturnType<typeof useI18n>["t"],
+  kind: SourceSetupKind
+): string {
+  if (kind === "browser_import") return t("source.importErrorHint.browser");
+  if (kind === "terminal_import") return t("source.importErrorHint.terminal");
+  if (kind === "file_activity_import") return t("source.importErrorHint.fileActivity");
+  return t("source.importErrorHint.folder");
 }
 
 function formatDuration(ms: number): string {

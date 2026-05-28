@@ -25,6 +25,11 @@ describe("SourcesPage source governance controls", () => {
     expect(source).toContain("sample.summary");
     expect(source).toContain("source.importNoEvents");
     expect(source).toContain("preview.eventCount === 0");
+    expect(source).toContain("sourceImportErrorHint");
+    expect(source).toContain("source.importErrorHint.browser");
+    expect(source).toContain("source.importErrorHint.terminal");
+    expect(source).toContain("source.importErrorHint.fileActivity");
+    expect(source).toContain("source.importErrorHint.folder");
     expect(source).toContain("formatLastImportSummary");
     expect(source).toContain("source.lastImportRead");
     expect(source).toContain("source.lastImportInserted");
