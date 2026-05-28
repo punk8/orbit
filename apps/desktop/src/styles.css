@@ -2655,6 +2655,60 @@ button {
   font-size: 12px;
 }
 
+.handoff-empty-workflow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 260px);
+  gap: 16px;
+  align-items: start;
+  border: 1px solid #d8e4df;
+  border-radius: 8px;
+  background: #f6fbf8;
+  padding: 18px;
+}
+
+.handoff-empty-copy {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.handoff-empty-copy h2 {
+  margin: 0;
+  color: #1f2528;
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.handoff-empty-copy p {
+  margin: 0;
+  max-width: 760px;
+  color: #4b5554;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.handoff-empty-boundary {
+  margin-top: 4px;
+}
+
+.handoff-empty-boundary span {
+  border: 1px solid #d6e2dd;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #47625c;
+  padding: 4px 8px;
+}
+
+.handoff-empty-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.handoff-empty-actions .secondary-button {
+  justify-content: center;
+  width: 100%;
+}
+
 .handoff-preview-actions {
   display: inline-flex;
   align-items: center;
@@ -2722,7 +2776,8 @@ button {
 
   .source-import-path-row,
   .source-import-preview,
-  .source-setup-grid {
+  .source-setup-grid,
+  .handoff-empty-workflow {
     grid-template-columns: 1fr;
   }
 }

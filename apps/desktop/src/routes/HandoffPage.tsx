@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
-import type { DesktopHandoffResult, DesktopSnapshot } from "../orbitApi";
+import type { DesktopHandoffResult, DesktopPageId, DesktopSnapshot } from "../orbitApi";
 import type { HandoffExclusionReason, HandoffPack } from "@orbit/core";
 import { MetricCard } from "../components/MetricCard";
 import { Section } from "../components/Section";
@@ -13,7 +13,8 @@ export function HandoffPage({
   onOpenActivitySession,
   onOpenKnowledgeArtifact,
   onOpenMemory,
-  onOpenRecommendation
+  onOpenRecommendation,
+  onNavigate
 }: {
   snapshot: DesktopSnapshot;
   initialResult?: DesktopHandoffResult | undefined;
@@ -24,6 +25,7 @@ export function HandoffPage({
   onOpenKnowledgeArtifact?: ((artifactId: string) => void) | undefined;
   onOpenMemory?: ((memoryId: string) => void) | undefined;
   onOpenRecommendation?: ((recommendationId: string) => void) | undefined;
+  onNavigate(page: DesktopPageId): void;
 }): ReactElement {
   const { t, language } = useI18n();
   const projectOptions = useMemo(() => buildProjectOptions(snapshot), [snapshot]);
@@ -35,7 +37,9 @@ export function HandoffPage({
   const [isGenerating, setIsGenerating] = useState(false);
   const [previewFormat, setPreviewFormat] = useState<"Markdown" | "JSON">("Markdown");
   const metrics = buildHandoffMetrics(snapshot, result, t);
-  const showingInitialResult = Boolean(initialResult && result?.handoff.id === initialResult.handoff.id);
+  const showingInitialResult = Boolean(
+    initialResult && result?.handoff.id === initialResult.handoff.id
+  );
 
   useEffect(() => {
     if (!initialResult) return;
@@ -286,7 +290,11 @@ export function HandoffPage({
             </pre>
           </>
         ) : (
-          <div className="empty-state">{t("handoff.empty")}</div>
+          <HandoffEmptyWorkflow
+            isGenerating={isGenerating}
+            onGenerateToday={() => void generate({ kind: "today", date: snapshot.date })}
+            onNavigate={onNavigate}
+          />
         )}
       </Section>
 
@@ -318,6 +326,52 @@ export function HandoffPage({
         </div>
       ) : null}
     </div>
+  );
+}
+
+function HandoffEmptyWorkflow({
+  isGenerating,
+  onGenerateToday,
+  onNavigate
+}: {
+  isGenerating: boolean;
+  onGenerateToday(): void;
+  onNavigate(page: DesktopPageId): void;
+}): ReactElement {
+  const { t } = useI18n();
+  return (
+    <section className="handoff-empty-workflow" aria-label={t("handoff.empty.title")}>
+      <div className="handoff-empty-copy">
+        <p className="eyebrow">{t("handoff.empty")}</p>
+        <h2>{t("handoff.empty.title")}</h2>
+        <p>{t("handoff.empty.description")}</p>
+        <div className="meta-line handoff-empty-boundary">
+          <span>{t("handoff.empty.agentSafeBoundary")}</span>
+          <span>{t("source.rawNotStored")}</span>
+          <span>{t("source.agentExportBlocked")}</span>
+        </div>
+      </div>
+      <div className="handoff-empty-actions">
+        <button
+          className="secondary-button"
+          data-handoff-action="empty-generate-today"
+          disabled={isGenerating}
+          onClick={onGenerateToday}
+          type="button"
+        >
+          {isGenerating ? t("handoff.generating") : t("handoff.empty.generateToday")}
+        </button>
+        <button className="secondary-button" onClick={() => onNavigate("review")} type="button">
+          {t("handoff.empty.openReview")}
+        </button>
+        <button className="secondary-button" onClick={() => onNavigate("activity")} type="button">
+          {t("handoff.empty.openActivity")}
+        </button>
+        <button className="secondary-button" onClick={() => onNavigate("sources")} type="button">
+          {t("handoff.empty.openSources")}
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -474,11 +528,7 @@ function renderHandoffSourceAction({
       </button>
     );
   }
-  if (
-    objectType === "knowledge" &&
-    dataActionPrefix === "open-risk" &&
-    onOpenKnowledgeArtifact
-  ) {
+  if (objectType === "knowledge" && dataActionPrefix === "open-risk" && onOpenKnowledgeArtifact) {
     return (
       <button
         className="secondary-button"
@@ -502,11 +552,7 @@ function renderHandoffSourceAction({
       </button>
     );
   }
-  if (
-    objectType === "recommendation" &&
-    dataActionPrefix === "open-risk" &&
-    onOpenRecommendation
-  ) {
+  if (objectType === "recommendation" && dataActionPrefix === "open-risk" && onOpenRecommendation) {
     return (
       <button
         className="secondary-button"

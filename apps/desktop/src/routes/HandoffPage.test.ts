@@ -37,7 +37,7 @@ describe("HandoffPage", () => {
     const source = readFileSync(new URL("./HandoffPage.tsx", import.meta.url), "utf8");
 
     expect(source).toContain("copyPreview");
-    expect(source).toContain("previewFormat === \"JSON\"");
+    expect(source).toContain('previewFormat === "JSON"');
     expect(source).toContain("JSON.stringify(result.handoff, null, 2)");
     expect(source).toContain("selectPreviewFormat");
     expect(source).toContain("setCopiedFormat(undefined)");
@@ -54,6 +54,28 @@ describe("HandoffPage", () => {
     expect(source).toContain("useEffect");
     expect(source).toContain("setResult(initialResult)");
     expect(source).toContain("handoff.generatedFromToday");
+  });
+
+  it("shows a self-serve empty workflow before a handoff is generated", () => {
+    const source = readFileSync(new URL("./HandoffPage.tsx", import.meta.url), "utf8");
+    const app = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");
+    const i18n = readFileSync(new URL("../i18n.tsx", import.meta.url), "utf8");
+    const styles = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+
+    expect(source).toContain("HandoffEmptyWorkflow");
+    expect(source).toContain("handoff-empty-workflow");
+    expect(source).toContain("handoff.empty.title");
+    expect(source).toContain("handoff.empty.description");
+    expect(source).toContain("handoff.empty.generateToday");
+    expect(source).toContain("handoff.empty.openReview");
+    expect(source).toContain("handoff.empty.openActivity");
+    expect(source).toContain("handoff.empty.openSources");
+    expect(source).toContain('onNavigate("review")');
+    expect(source).toContain('onNavigate("activity")');
+    expect(source).toContain('onNavigate("sources")');
+    expect(app).toContain("onNavigate={actions.navigate}");
+    expect(i18n).toContain("handoff.empty.agentSafeBoundary");
+    expect(styles).toContain(".handoff-empty-workflow");
   });
 
   it("can trace handoff evidence back to source Activity, Knowledge, and Recommendations", () => {
@@ -149,7 +171,7 @@ describe("HandoffPage", () => {
     expect(source).toContain("handoff.scopeExcluded");
     expect(source).toContain("handoff.scopeEvidence");
     expect(source).toContain("handoff.scopeAgentSafeBoundary");
-    expect(source).toContain("pack.kind === \"project\"");
+    expect(source).toContain('pack.kind === "project"');
     expect(source).toContain("pack.date ??");
   });
 });

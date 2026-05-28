@@ -792,6 +792,7 @@ function renderPage(page: PageId, snapshot: DesktopSnapshot, actions: PageAction
           onOpenKnowledgeArtifact={actions.focusKnowledge}
           onOpenMemory={actions.focusMemory}
           onOpenRecommendation={actions.focusRecommendation}
+          onNavigate={actions.navigate}
         />
       );
     case "review":
